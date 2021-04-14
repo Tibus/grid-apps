@@ -248,6 +248,8 @@
 
             widget.slices = slices;
 
+            console.log("slices", slices);
+
             if (!slices) {
                 return;
             }
@@ -579,6 +581,8 @@
     }
 
     function doRender(slice, isSynth, params, devel) {
+        console.warn("doRender");
+
         const output = slice.output();
         const height = slice.height / 2;
         const solidWidth = params.sliceFillWidth || 1;

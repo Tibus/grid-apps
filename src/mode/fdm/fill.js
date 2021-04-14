@@ -99,6 +99,7 @@
     }
 
     function fillGyroid(target) {
+        console.warn("fillGyroid");
         let bounds = target.bounds();
         let height = target.zHeight();
         let span_x = bounds.max.x - bounds.min.x;

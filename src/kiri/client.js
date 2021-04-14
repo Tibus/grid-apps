@@ -151,6 +151,9 @@ KIRI.work = {
             if (widget.modified || !syncd[widget.id]) {
                 syncd[widget.id] = true;
                 let vertices = widget.getGeoVertices().buffer.slice(0);
+
+                console.log("sync main widget", widget);
+
                 send("sync", {
                     id: widget.id,
                     group: widget.group.id,
@@ -189,6 +192,7 @@ KIRI.work = {
     },
 
     slice: function(settings, widget, callback) {
+        console.log("slice widget", settings, widget);
         send("slice", {
             id: widget.id,
             settings: settings
@@ -220,6 +224,7 @@ KIRI.work = {
     export: function(settings, online, ondone) {
         send("export", { settings }, function(reply) {
             if (reply.line) {
+                console.log("reply.line", reply.line);
                 online(reply.line);
             }
             if (reply.done) {

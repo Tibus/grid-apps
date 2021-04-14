@@ -240,6 +240,8 @@ KIRI.worker = {
         widget.vertices = vertices;
         // restore tracking object
         widget.track = data.track;
+
+        console.log("sync worker widget", widget);
         send.done(data.id);
     },
 
@@ -327,11 +329,15 @@ KIRI.worker = {
             last = time(),
             now;
 
-        widget.slice(settings, function(error) {
+      console.log("worker slice widget", settings, widget);
+
+      widget.slice(settings, function(error) {
             if (error) {
                 send.data({error: error});
             } else {
                 const slices = widget.slices || [];
+                console.log("worker slices", slices);
+
                 send.data({send_start: time()});
                 send.data({
                     stats: widget.stats,
@@ -339,6 +345,7 @@ KIRI.worker = {
                 });
                 slices.forEach(function(slice,index) {
                     const state = { zeros: [] };
+
                     send.data({index: index, slice: slice.encode(state)}, state.zeros);
                 })
                 send.data({send_end: time()});
@@ -364,6 +371,7 @@ KIRI.worker = {
         const settings = data.settings;
         const mode = settings.mode;
         const driver = drivers[mode];
+        console.log("driver", driver);
 
         if (!(driver && driver.prepare)) {
             return console.log({invalid_print_driver: mode, driver});
@@ -372,6 +380,7 @@ KIRI.worker = {
         const layers = driver.prepare(widgets, settings, (progress, message, layer) => {
             const state = { zeros: [] };
             const emit = { progress, message };
+
             if (layer) {
                 emit.layer = KIRI.codec.encode(layer, state)
             }
@@ -404,6 +413,7 @@ KIRI.worker = {
         }
 
         let output;
+        console.log("current.print", current.print);
         driver.export(current.print, function(line, direct) {
             send.data({line}, direct);
         }, function(done) {
@@ -771,6 +781,8 @@ dispatch.onmessage = self.onmessage = function(e) {
                 }, direct);
             }
         };
+
+    // console.log("onmessage", e, msg.task, dispatch[msg.task]);
 
     if (run) {
         try {

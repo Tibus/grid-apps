@@ -2483,6 +2483,8 @@
         // enable modal hiding
         $('mod-x').onclick = API.modal.hide;
 
+        console.log("engine?");
+
         if (!SETUP.s) console.log(`kiri | init main | ${KIRI.version}`);
 
         // send init-done event

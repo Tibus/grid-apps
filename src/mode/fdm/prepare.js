@@ -246,6 +246,7 @@
             }
         }
 
+
         let blokpos, walkpos, blok;
         if (bounds.min.x < bounds.min.y) {
             let dx = ((bounds.max.x - bounds.min.x) - (extcount * 10)) / 2 + 5;
@@ -259,7 +260,9 @@
             blok = { x:4, y:9 };
         }
 
-        // compute purge blocks
+      console.log("extruders", extruders);
+
+      // compute purge blocks
         extruders = extruders.map((ext,i) => {
             if (!ext) return ext;
             let noz = device.extruders[i].extNozzle,
@@ -273,7 +276,10 @@
             return rec;
         });
 
-        // generate purge block for given nozzle
+      console.log("after extruders", extruders);
+
+
+      // generate purge block for given nozzle
         function purge(nozzle, track, layer, start, z, using) {
             if (!purgeTower || extcount < 2 || isBelt) {
                 return start;
@@ -333,16 +339,20 @@
                 rec.slices.push(slice);
             }
         }
+        console.log("cake", [...cake]);
+
         cake.sort((a, b) => {
             return a.z - b.z;
         });
 
         let lastWidget;
 
+        console.log("cake", cake);
         // walk cake layers bottom up
         for (let layer of cake) {
             // track purge blocks generated for each layer
             let track = extruders.slice();
+            console.log("track", track);
             let lastOut;
             let lastExt;
 
@@ -392,6 +402,8 @@
                 }
                 let wtb = slice.widget.track.box;
                 // output seek to start point between mesh slices if previous data
+
+                // console.log("layerout_before_slicePrintPath", [...layerout]);
                 printPoint = print.slicePrintPath(
                     slice,
                     slice.belt && slice.belt.touch ? newPoint(-5000, 5000, 0) : printPoint.sub(offset),
@@ -418,6 +430,8 @@
                         }
                     }
                 );
+                // console.log("layerout_after_slicePrintPath", [...layerout]);
+
                 lastOut = slice;
                 lastExt = lastOut.ext
                 lastPoly = slice.lastPoly;
@@ -425,7 +439,7 @@
                 if (layerRetract && layerout.length) {
                     layerout.last().retract = true;
                 }
-            }
+            }//FOR(;;)
 
             // if a declared extruder isn't used in a layer, use selected
             // extruder to fill the relevant purge blocks for later support
@@ -437,6 +451,7 @@
 
             // if layer produced output, append to output array
             if (layerout.length) {
+                console.log("layerout", layerout);
                 output.append(layerout);
             }
 
@@ -452,7 +467,7 @@
             slices = [];
             layerout = [];
             lastOut = undefined;
-        }
+        }// FOR DES CAKES
 
         print.output = output;
 
@@ -572,6 +587,7 @@
 
         // render if not explicitly disabled
         if (render) {
+            console.log("output", output);
             print.render = FDM.prepareRender(output, (progress, layer) => {
                 update(0.5 + progress * 0.5, "render", layer);
             }, { tools: device.extruders, thin: isThin, flat: isFlat, fdm: true });
