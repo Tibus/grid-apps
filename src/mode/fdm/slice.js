@@ -248,7 +248,7 @@
 
             widget.slices = slices;
 
-            console.log("slices", slices);
+            // console.log("slices", slices);
 
             if (!slices) {
                 return;

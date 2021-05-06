@@ -152,7 +152,7 @@ KIRI.work = {
                 syncd[widget.id] = true;
                 let vertices = widget.getGeoVertices().buffer.slice(0);
 
-                console.log("sync main widget", widget);
+                // console.log("sync main widget", widget);
 
                 send("sync", {
                     id: widget.id,
@@ -192,7 +192,7 @@ KIRI.work = {
     },
 
     slice: function(settings, widget, callback) {
-        console.log("slice widget", settings, widget);
+        // console.log("slice widget", settings, widget);
         send("slice", {
             id: widget.id,
             settings: settings

@@ -5,6 +5,12 @@
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
     "private": false,
+    "scripts":{
+        "moveWorkerImport": "sed -i '' 's/\\/code\\/worker.js/.\\/vendors\\/kiri\\/worker.js/g' ./code/engine.js",
+        "concatEngine": "xargs cat < ./concatEngineScripts.txt > ./code/engine.js",
+        "concatWorker": "xargs cat < ./concatWorkerScripts.txt > ./code/worker.js",
+        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport"
+    },
     "repository": {
         "type": "git",
         "url": "https://github.com/gridspace/apps.git"
@@ -34,6 +40,8 @@
         "three": "^0.126.0",
         "tween.js": "^0.14.0",
         "uglify-es": "3.3.9",
+        "uglify-js": "^3.13.5",
+        "uglifyjs": "^2.4.11",
         "validator": "^8.2.0",
         "ws": "^7.2.3"
     }

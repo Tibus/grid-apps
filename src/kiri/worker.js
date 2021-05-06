@@ -241,7 +241,7 @@ KIRI.worker = {
         // restore tracking object
         widget.track = data.track;
 
-        console.log("sync worker widget", widget);
+        // console.log("sync worker widget", widget);
         send.done(data.id);
     },
 
@@ -329,14 +329,14 @@ KIRI.worker = {
             last = time(),
             now;
 
-      console.log("worker slice widget", settings, widget);
+    //   console.log("worker slice widget", settings, widget);
 
       widget.slice(settings, function(error) {
             if (error) {
                 send.data({error: error});
             } else {
                 const slices = widget.slices || [];
-                console.log("worker slices", slices);
+                // console.log("worker slices", slices);
 
                 send.data({send_start: time()});
                 send.data({

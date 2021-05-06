@@ -28,7 +28,7 @@ class Engine {
             widget: { [ this.widget.id ]: {} }
         };
 
-        console.log("initial settings", this.settings);
+        // console.log("initial settings", this.settings);
 
       this.listener = () => {};
     }
@@ -39,7 +39,7 @@ class Engine {
                 console.time("load");
                 new moto.STL().load(url, vertices => {
                     this.listener({loaded: url, vertices});
-                    console.log("vertices", vertices);
+                    // console.log("vertices", vertices);
 
                     this.widget.loadVertices(vertices).center();
                     console.timeEnd("load");
@@ -118,7 +118,7 @@ class Engine {
             KIRI.client.sync([ this.widget ]); // envoi un Sync dans le worker
             console.timeEnd("slice_sync")
 
-            console.log("this.settings", this.settings);
+            // console.log("this.settings", this.settings);
 
             // Todo: for loop on every non support widget
             KIRI.client.slice(this.settings, this.widget, msg => {
