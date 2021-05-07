@@ -20,4 +20,3 @@
 ./src/kiri/layers.js
 ./src/kiri/widget.js
 ./src/kiri/codec.js
-./src/kiri/engine.js
