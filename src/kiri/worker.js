@@ -371,7 +371,7 @@ KIRI.worker = {
         const settings = data.settings;
         const mode = settings.mode;
         const driver = drivers[mode];
-        console.log("driver", driver);
+        // console.log("driver", driver);
 
         if (!(driver && driver.prepare)) {
             return console.log({invalid_print_driver: mode, driver});
@@ -413,7 +413,7 @@ KIRI.worker = {
         }
 
         let output;
-        console.log("current.print", current.print);
+        // console.log("current.print", current.print);
         driver.export(current.print, function(line, direct) {
             send.data({line}, direct);
         }, function(done) {

@@ -224,7 +224,7 @@ KIRI.work = {
     export: function(settings, online, ondone) {
         send("export", { settings }, function(reply) {
             if (reply.line) {
-                console.log("reply.line", reply.line);
+                // console.log("reply.line", reply.line);
                 online(reply.line);
             }
             if (reply.done) {

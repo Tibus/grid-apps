@@ -260,7 +260,7 @@
             blok = { x:4, y:9 };
         }
 
-      console.log("extruders", extruders);
+    //   console.log("extruders", extruders);
 
       // compute purge blocks
         extruders = extruders.map((ext,i) => {
@@ -276,7 +276,7 @@
             return rec;
         });
 
-      console.log("after extruders", extruders);
+    //   console.log("after extruders", extruders);
 
 
       // generate purge block for given nozzle
@@ -339,7 +339,7 @@
                 rec.slices.push(slice);
             }
         }
-        console.log("cake", [...cake]);
+        // console.log("cake", [...cake]);
 
         cake.sort((a, b) => {
             return a.z - b.z;
@@ -347,12 +347,12 @@
 
         let lastWidget;
 
-        console.log("cake", cake);
+        // console.log("cake", cake);
         // walk cake layers bottom up
         for (let layer of cake) {
             // track purge blocks generated for each layer
             let track = extruders.slice();
-            console.log("track", track);
+            // console.log("track", track);
             let lastOut;
             let lastExt;
 
@@ -451,7 +451,7 @@
 
             // if layer produced output, append to output array
             if (layerout.length) {
-                console.log("layerout", layerout);
+                // console.log("layerout", layerout);
                 output.append(layerout);
             }
 
