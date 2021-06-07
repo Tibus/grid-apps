@@ -19,7 +19,11 @@ require("./code/standalone.js");
 let kiri = global.self.kiri;
 let engine = kiri.newEngine();
 
-let buf = fs.readFileSync('./web/obj/cube_kiri.stl').buffer;
+
+let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
+// engine.setListener((mess)=>{console.log("mess", mess)});
+
+console.time("slicing");
 engine.parse(buf)
     .then(data => {
         console.log({loaded: data});
@@ -164,7 +168,7 @@ engine.parse(buf)
     .then(eng => engine.export())
     .then(gcode => {
         fs.writeFileSync("standalone.gcode", gcode);
-        console.timeEnd("finish");
+        console.timeEnd("slicing");
     })
     .catch(error => {
         console.log({error});
