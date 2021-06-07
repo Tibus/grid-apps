@@ -9,7 +9,8 @@
         "moveWorkerImport": "sed -i '' 's/\\/code\\/worker.js/.\\/vendors\\/kiri\\/worker.js/g' ./code/engine.js",
         "concatEngine": "xargs cat < ./concatEngineScripts.txt > ./code/engine.js",
         "concatWorker": "xargs cat < ./concatWorkerScripts.txt > ./code/worker.js",
-        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport"
+        "concatStandalone": "xargs cat < ./concatStandaloneScripts.txt > ./code/standalone.js",
+        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport && npm run concatStandalone"
     },
     "repository": {
         "type": "git",
