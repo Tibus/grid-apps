@@ -1,0 +1,1 @@
+ClipperLib = self.ClipperLib;

@@ -1,6 +1,5 @@
 ./src/standalone.js
 ./src/kiri.js
-./src/ext/three.js
 ./src/ext/pngjs.js
 ./src/ext/jszip.js
 ./src/license.js
@@ -49,3 +48,4 @@
 ./src/kiri/codec.js
 ./src/kiri/worker.js
 ./src/moto/load-stl.js
+./src/standalone_end.js
