@@ -21,7 +21,6 @@
 ./src/moto/pack.js
 ./src/kiri/conf.js
 ./src/kiri/client.js
-./src/kiri/engine.js
 ./src/kiri/slice.js
 ./src/kiri/slicer.js
 ./src/kiri/slicer2.js

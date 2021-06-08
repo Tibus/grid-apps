@@ -11,12 +11,20 @@ Object.assign(THREE, exports);
 /* only if THREE is not defined */
 /* ---------------------------- */
 
-global.THREE = THREE;
-global.fs = fs;
+let navigator = { userAgent: "" };
+let self = {
+    THREE: THREE,
+    kiri : { driver: {}, loader: [] },
+    location : { hostname: 'local', port: 0, protocol: 'fake' },
+};
 
-require("./code/standalone.js");
+// global.THREE = THREE;
+// global.fs = fs;
 
-let kiri = global.self.kiri;
+eval(fs.readFileSync("./code/standalone.js").toString());
+// require("./code/standalone.js");
+
+let kiri = self.kiri;
 let engine = kiri.newEngine();
 
 

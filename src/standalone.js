@@ -1,27 +1,19 @@
-let navigator = { userAgent: "" };
-let self = global.self = {
-    THREE: global.THREE,
-    kiri : { driver: {}, loader: [] },
-    location : { hostname: 'local', port: 0, protocol: 'fake' },
-    postMessage : (msg) => {
-        self.kiri.client.onmessage({data:msg});
-    }
-};
 
-// fake fetch for worker to get wasm, if needed
-let fetch = function(url) {
-    console.log({fake_fetch: url});
-    let buf = global.fs.readFileSync("./" + url);
-    return new Promise((resolve, reject) => {
-        resolve(new Promise((resolve, reject) => {
-            resolve({
-                arrayBuffer: function() {
-                    return buf;
-                }
-            });
-        }));
-    });
-};
+let electron;
+try{
+    electron = require('electron'); 
+}catch(e){}
+
+let fs;
+if (electron?.remote){
+  fs = electron.remote.require("fs");
+}else{
+  fs = require("fs");
+}
+
+self.postMessage = (msg) => {
+    self.kiri.client.onmessage({data:msg});
+}
 
 class Worker {
     constructor(url) {
@@ -29,9 +21,9 @@ class Worker {
     }
 
     postMessage(msg) {
-        setImmediate(() => {
+        // setImmediate(() => {
             self.kiri.worker.onmessage({data:msg});
-        });
+        // });
     }
 
     onmessage(msg) {
