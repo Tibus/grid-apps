@@ -12,7 +12,7 @@
         "concatTest": "xargs cat < ./concatTestScripts.txt > ./code/test.js",
         "concatFiles": "npm run concatModule && npm run concatTest",
         "installAndTest": "npm install && npm run concatFiles && npm run test",
-        "clearForProd": "rimraf ./apps ./code ./conf ./cpp ./data ./logs ./node_modules ./src ./web"
+        "clearForProd": "rimraf ./apps ./conf ./cpp ./data ./logs ./node_modules ./src ./web"
     },
     "repository": {
         "type": "git",
