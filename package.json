@@ -8,8 +8,8 @@
     "main": "index.js",
     "scripts": {
         "test": "node --expose_gc ./test.js",
-        "concatModule": "xargs cat < ./concatModuleScripts.txt > ./code/module.js",
-        "concatTest": "xargs cat < ./concatTestScripts.txt > ./code/test.js",
+        "concatModule": "node ./concatFiles.js ./concatModuleScripts.txt ./code/module.js",
+        "concatTest": "node ./concatFiles.js ./concatTestScripts.txt ./code/test.js",
         "concatFiles": "npm run concatModule && npm run concatTest",
         "installAndTest": "npm install && npm run concatFiles && npm run test",
         "cleanForProd": "rimraf apps/ conf/ cpp/ data/ logs/ src/ web/"
