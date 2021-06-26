@@ -48,3 +48,6 @@
 ./src/kiri/worker.js
 ./src/moto/load-stl.js
 ./src/standalone_end.js
+
+
+./src/kiri/engine.js

@@ -6,3 +6,4 @@ code
 package-lock.json
 logs/*
 data/*
+/build

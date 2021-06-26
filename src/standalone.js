@@ -11,9 +11,32 @@ if (electron?.remote){
   fs = require("fs");
 }
 
+let navigator = { userAgent: "" };
+let self = {
+    THREE: THREE,
+    kiri : { driver: {}, loader: [] },
+    location : { hostname: 'local', port: 0, protocol: 'fake' },
+};
+
 self.postMessage = (msg) => {
     self.kiri.client.onmessage({data:msg});
 }
+
+
+// fake fetch for worker to get wasm, if needed
+let fetch = function(url) {
+    console.log({fake_fetch: url});
+    let buf = fs.readFileSync("." + url);
+    return new Promise((resolve, reject) => {
+        resolve(new Promise((resolve, reject) => {
+            resolve({
+                arrayBuffer: function() {
+                    return buf;
+                }
+            });
+        }));
+    });
+};
 
 class Worker {
     constructor(url) {

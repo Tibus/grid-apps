@@ -5,12 +5,16 @@
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
     "private": false,
-    "scripts":{
+    "main": "./index.js",
+    "scripts": {
+        "test": "node --expose_gc ./test.js",
         "moveWorkerImport": "sed -i '' 's/\\/code\\/worker.js/.\\/vendors\\/kiri\\/worker.js/g' ./code/engine.js",
         "concatEngine": "xargs cat < ./concatEngineScripts.txt > ./code/engine.js",
         "concatWorker": "xargs cat < ./concatWorkerScripts.txt > ./code/worker.js",
         "concatStandalone": "xargs cat < ./concatStandaloneScripts.txt > ./code/standalone.js",
-        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport && npm run concatStandalone"
+        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport && npm run concatStandalone",
+        "installAndTest": "npm install && npm run concatFiles && npm run test",
+        "clearForProd": "rimraf ./apps ./code ./conf ./cpp ./data ./logs ./node_modules ./src ./web"
     },
     "repository": {
         "type": "git",
@@ -28,6 +32,9 @@
         "slicer"
     ],
     "dependencies": {
+        "bindings": "^1.5.0",
+        "node-abi": "^2.21.0",
+        "node-addon-api": "^3.1.0",
         "base64-js": "^1.5.1",
         "buffer-crc32": "^0.2.13",
         "compression": "^1.7.4",
