@@ -29,7 +29,7 @@ let engine = kiri.newEngine();
 
 let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
 // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
-// engine.setListener((mess)=>{console.log("mess", mess)});
+engine.setListener((mess)=>{console.log("mess", mess)});
 
 console.time("slicing");
 engine.parse(buf)
