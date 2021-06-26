@@ -2,7 +2,7 @@ mod
 tmp
 .DS_Store
 node_modules
-code
+code/**.js
 package-lock.json
 logs/*
 data/*
