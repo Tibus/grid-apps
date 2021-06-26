@@ -2,7 +2,7 @@
 
 Napi::Value test(const Napi::CallbackInfo &info){
   Napi::Env env = info.Env();
-  return Napi::String::New(env, "coucou");
+  return Napi::String::New(env, "coucou2");
 }
 
 Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
