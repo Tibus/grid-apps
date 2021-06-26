@@ -1,13 +1,14 @@
 const fs = require('fs');
+var os = require('os');
 
 console.log("process", process.argv);
 
 let content = fs.readFileSync(process.argv[2]).toString();
 
 fs.writeFileSync(process.argv[3], "");
-content.split("\n").forEach((file)=>{
-    console.log("file", file);
-    fs.existsSync(file) && fs.appendFileSync(process.argv[3], fs.readFileSync(file));
-})
+let files = content.split(os.EOL);
+for(let i in files){
+    console.log("file", files[i], fs.existsSync(files[i]));
 
-console.log("content", fs.readFileSync(process.argv[3]));
+    fs.existsSync(files[i]) && fs.appendFileSync(process.argv[3], fs.readFileSync(files[i]));
+}
