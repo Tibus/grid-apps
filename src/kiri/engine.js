@@ -1,13 +1,6 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 
 "use strict";
-let addon3D;
-
-try {
-  addon3D = require('../build/Debug/addon');
-} catch (error) {
-  addon3D = require('../build/Release/addon');
-}
 
 (function() {
 
@@ -88,13 +81,11 @@ class Engine {
 
     setDevice(device) {
         Object.assign(this.settings.device, device);
-        console.log("setDevice", this.settings);
         return this;
     }
 
     setProcess(process) {
         Object.assign(this.settings.process, process);
-        console.log("setProcess", this.settings);
         return this;
     }
 
@@ -130,7 +121,6 @@ class Engine {
             // Todo: for loop on every non support widget
             KIRI.client.slice(this.settings, this.widget, msg => {
                 console.log("msg", msg);
-                console.log("addon3D test:", addon3D.test());
 
                 this.listener({slice:msg});
                 if (msg.error) {

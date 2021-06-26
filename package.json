@@ -5,14 +5,12 @@
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
     "private": false,
-    "main": "./index.js",
+    "main": "index.js",
     "scripts": {
         "test": "node --expose_gc ./test.js",
-        "moveWorkerImport": "sed -i '' 's/\\/code\\/worker.js/.\\/vendors\\/kiri\\/worker.js/g' ./code/engine.js",
-        "concatEngine": "xargs cat < ./concatEngineScripts.txt > ./code/engine.js",
-        "concatWorker": "xargs cat < ./concatWorkerScripts.txt > ./code/worker.js",
-        "concatStandalone": "xargs cat < ./concatStandaloneScripts.txt > ./code/standalone.js",
-        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport && npm run concatStandalone",
+        "concatModule": "xargs cat < ./concatModuleScripts.txt > ./code/module.js",
+        "concatTest": "xargs cat < ./concatTestScripts.txt > ./code/test.js",
+        "concatFiles": "npm run concatModule && npm run concatTest",
         "installAndTest": "npm install && npm run concatFiles && npm run test",
         "clearForProd": "rimraf ./apps ./code ./conf ./cpp ./data ./logs ./node_modules ./src ./web"
     },

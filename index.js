@@ -1,1 +1,1 @@
-return require("./code/standalone.js");
+module.exports = require("./code/module.js");

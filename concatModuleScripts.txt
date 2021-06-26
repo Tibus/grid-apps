@@ -1,5 +1,5 @@
+./src/standalone.js
 ./src/kiri.js
-./src/ext/three.js
 ./src/ext/pngjs.js
 ./src/ext/jszip.js
 ./src/license.js
@@ -19,6 +19,8 @@
 ./src/geo/polygons.js
 ./src/geo/gyroid.js
 ./src/moto/pack.js
+./src/kiri/conf.js
+./src/kiri/client.js
 ./src/kiri/slice.js
 ./src/kiri/slicer.js
 ./src/kiri/slicer2.js
@@ -44,3 +46,6 @@
 ./src/kiri/print.js
 ./src/kiri/codec.js
 ./src/kiri/worker.js
+./src/moto/load-stl.js
+
+./src/standalone_end.js

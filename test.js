@@ -23,9 +23,8 @@ Object.assign(THREE, exports);
 
 
 // eval(fs.readFileSync("./code/standalone.js").toString());
-let self = require("./code/standalone.js");
+let kiri = require("./code/test.js").kiri;
 
-let kiri = self.kiri;
 let engine = kiri.newEngine();
 
 let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
@@ -35,7 +34,7 @@ let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
 console.time("slicing");
 engine.parse(buf)
     .then(data => {
-        console.log({loaded: data});
+        // console.log({loaded: data});
     })
     .then(() => engine.moveTo(1,1,1))
     .then(() => engine.setProcess({

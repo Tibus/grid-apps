@@ -25,8 +25,7 @@ self.postMessage = (msg) => {
 
 // fake fetch for worker to get wasm, if needed
 let fetch = function(url) {
-    console.log({fake_fetch: url});
-    let buf = fs.readFileSync("." + url);
+    let buf = fs.readFileSync(__dirname + "/../"+url);
     return new Promise((resolve, reject) => {
         resolve(new Promise((resolve, reject) => {
             resolve({
@@ -40,7 +39,6 @@ let fetch = function(url) {
 
 class Worker {
     constructor(url) {
-        console.log({fake_worker: url});
     }
 
     postMessage(msg) {

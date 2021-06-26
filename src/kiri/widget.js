@@ -1,6 +1,13 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 
 "use strict";
+let addon3D;
+
+try {
+  addon3D = require('../build/Debug/addon');
+} catch (error) {
+  addon3D = require('../build/Release/addon');
+}
 
 (function() {
 
@@ -277,6 +284,9 @@
      * @returns {Widget}
      */
     PRO.loadVertices = function(vertices) {
+        
+        console.log("loadVertices addon3D test:", addon3D.test());
+
         if (this.mesh) {
             this.mesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
             this.mesh.geometry.computeFaceNormals();
