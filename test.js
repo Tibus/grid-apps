@@ -15,7 +15,7 @@ let fs = require('fs');
 /* ---------------------------- */
 exports = {};
 THREE = {}
-eval(fs.readFileSync("src/ext/three.js").toString());
+eval(fs.readFileSync("./node_modules/three/build/three.min.js").toString());
 Object.assign(THREE, exports); 
 /* ---------------------------- */
 /* only if THREE is not defined */
