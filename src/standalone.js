@@ -5,7 +5,7 @@ try{
 }catch(e){}
 
 let fs;
-if (electron?.remote){
+if (electron && electron.remote){
   fs = electron.remote.require("fs");
 }else{
   fs = require("fs");

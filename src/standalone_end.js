@@ -8,7 +8,7 @@ try{
     ClipperLib = self.ClipperLib;    
 }
 
-console.log("ClipperLib", ClipperLib?.version);
-console.log("self.ClipperLib", self.ClipperLib?.version);
+console.log("ClipperLib", ClipperLib && ClipperLib.version);
+console.log("self.ClipperLib", self.ClipperLib && self.ClipperLib.version);
 
 module.exports = self;
