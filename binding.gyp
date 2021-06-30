@@ -1,6 +1,6 @@
 {
     "targets": [{
-        "target_name": "addon",
+        "target_name": "gridapp",
         "cflags!": [ "-fexceptions", "--max-old-space-size=3000" ],
         "cflags_cc!": [ "-fexceptions", "-fno-rtti", "-fno-exceptions" ],
         "sources": [
@@ -36,7 +36,7 @@
           'GCC_ENABLE_CPP_RTTI': 'YES',
         }]
       ],
-      'defines': [ 
+      'defines': [
         'NAPI_CPP_EXCEPTIONS',
         'TASKING_INTERNAL'
       ]
