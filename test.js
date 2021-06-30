@@ -1,9 +1,9 @@
 let addon3D;
 
 try {
-  addon3D = require('./build/Debug/addon');
+  addon3D = require('./build/Debug/gridapp');
 } catch (error) {
-  addon3D = require('./build/Release/addon');
+  addon3D = require('./build/Release/gridapp');
 }
 
 console.log("addon3D :", addon3D.test());
@@ -16,7 +16,7 @@ let fs = require('fs');
 exports = {};
 THREE = {}
 eval(fs.readFileSync("./node_modules/three/build/three.min.js").toString());
-Object.assign(THREE, exports); 
+Object.assign(THREE, exports);
 /* ---------------------------- */
 /* only if THREE is not defined */
 /* ---------------------------- */

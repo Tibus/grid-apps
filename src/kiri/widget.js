@@ -4,9 +4,9 @@
 let addon3D;
 
 try {
-  addon3D = require('../build/Debug/addon');
+  addon3D = require('../build/Debug/gridapp');
 } catch (error) {
-  addon3D = require('../build/Release/addon');
+  addon3D = require('../build/Release/gridapp');
 }
 
 (function() {
@@ -284,7 +284,7 @@ try {
      * @returns {Widget}
      */
     PRO.loadVertices = function(vertices) {
-        
+
         console.log("loadVertices addon3D test:", addon3D.test());
 
         if (this.mesh) {
