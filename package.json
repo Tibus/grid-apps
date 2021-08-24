@@ -30,6 +30,7 @@
         "slicer"
     ],
     "dependencies": {
+        "@mango3d/three": "^0.131.3-mngo.4",
         "base64-js": "^1.5.1",
         "bindings": "^1.5.0",
         "buffer-crc32": "^0.2.13",

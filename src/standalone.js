@@ -11,6 +11,9 @@ if (electron && electron.remote){
   fs = require("fs");
 }
 
+let THREE = global.THREE = require("@mango3d/three");
+
+
 let navigator = { userAgent: "" };
 let self = {
     THREE: THREE,
