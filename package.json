@@ -1,6 +1,6 @@
 {
-    "name": "grid-apps",
-    "version": "3.0.12D",
+    "name": "@mango3d/addon_grid-apps",
+    "version": "3.0.12D.mango.2",
     "description": "grid.space 3d slice & modeling tools",
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
@@ -12,11 +12,12 @@
         "concatModule": "node ./concatFiles.js ./concatModuleScripts.txt ./code/module.js",
         "concatTest": "node ./concatFiles.js ./concatTestScripts.txt ./code/test.js",
         "concatFiles": "npm run concatModule && npm run concatTest",
-        "installAndTest": "npm install && npm run concatFiles && npm run test"
+        "installAndTest": "npm install && npm run concatFiles && npm run test",
+        "publish:release": "node ./scripts/publish.js"
     },
     "repository": {
         "type": "git",
-        "url": "https://github.com/gridspace/apps.git"
+        "url": "https://github.com/Mango3D/mangoslicer_addon_grid-apps"
     },
     "keywords": [
         "grid.space",
