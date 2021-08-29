@@ -1,0 +1,25 @@
+From be9b5084898680572c486e41dca67089731e8731 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 22:03:41 +0200
+Subject: [PATCH] log messages
+
+---
+ test.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test.js b/test.js
+index 75f90ed7..bf2b0ff3 100644
+--- a/test.js
++++ b/test.js
+@@ -29,7 +29,7 @@ let engine = kiri.newEngine();
+ 
+ let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
+ // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
+-// engine.setListener((mess)=>{console.log("mess", mess)});
++engine.setListener((mess)=>{console.log("mess", mess)});
+ 
+ console.time("slicing");
+ engine.parse(buf)
+-- 
+2.20.1 (Apple Git-117)
+

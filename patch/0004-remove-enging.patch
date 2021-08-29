@@ -1,0 +1,25 @@
+From 14cb99f5c787e022695892241d12f6f424fc2429 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Fri, 7 May 2021 12:20:14 +0200
+Subject: [PATCH] remove enging
+
+---
+ concatEngineScripts.txt | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/concatEngineScripts.txt b/concatEngineScripts.txt
+index 9e4ebb51..ca9204db 100644
+--- a/concatEngineScripts.txt
++++ b/concatEngineScripts.txt
+@@ -19,5 +19,4 @@
+ ./src/kiri/slice.js
+ ./src/kiri/layers.js
+ ./src/kiri/widget.js
+-./src/kiri/codec.js
+-./src/kiri/engine.js
+\ No newline at end of file
++./src/kiri/codec.js
+\ No newline at end of file
+-- 
+2.20.1 (Apple Git-117)
+

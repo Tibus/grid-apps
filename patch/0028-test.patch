@@ -1,0 +1,30 @@
+From 26a8ef30f38cff2e57943fc69fcf1b11fc588ac4 Mon Sep 17 00:00:00 2001
+From: Julien Delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 19:44:56 -0400
+Subject: [PATCH] test
+
+---
+ concatFiles.js | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/concatFiles.js b/concatFiles.js
+index 6df4512d..eb5738e0 100644
+--- a/concatFiles.js
++++ b/concatFiles.js
+@@ -1,12 +1,11 @@
+ const fs = require('fs');
+-var os = require('os');
+ 
+ console.log("process", process.argv);
+ 
+ let content = fs.readFileSync(process.argv[2]).toString();
+ 
+ fs.writeFileSync(process.argv[3], "");
+-let files = content.split(os.EOL);
++let files = content.split(/\r?\n/);
+ for(let i in files){
+     console.log("file", files[i], fs.existsSync(files[i]));
+ 
+-- 
+2.20.1 (Apple Git-117)
+

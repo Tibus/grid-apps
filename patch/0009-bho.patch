@@ -1,0 +1,38 @@
+From dab43dbf7b40ff9cd3a1f16499df717238f7e8fa Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Tue, 8 Jun 2021 00:16:35 +0200
+Subject: [PATCH] bho
+
+---
+ standaloneLite.js | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/standaloneLite.js b/standaloneLite.js
+index 00dbecc8..43d95f26 100644
+--- a/standaloneLite.js
++++ b/standaloneLite.js
+@@ -19,7 +19,11 @@ require("./code/standalone.js");
+ let kiri = global.self.kiri;
+ let engine = kiri.newEngine();
+ 
+-let buf = fs.readFileSync('./web/obj/cube_kiri.stl').buffer;
++
++let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
++// engine.setListener((mess)=>{console.log("mess", mess)});
++
++console.time("slicing");
+ engine.parse(buf)
+     .then(data => {
+         console.log({loaded: data});
+@@ -164,7 +168,7 @@ engine.parse(buf)
+     .then(eng => engine.export())
+     .then(gcode => {
+         fs.writeFileSync("standalone.gcode", gcode);
+-        console.timeEnd("finish");
++        console.timeEnd("slicing");
+     })
+     .catch(error => {
+         console.log({error});
+-- 
+2.20.1 (Apple Git-117)
+

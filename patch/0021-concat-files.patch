@@ -1,0 +1,44 @@
+From 90b2c1293736d2a58df3abc8c1df93f5a60b5c5b Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sun, 27 Jun 2021 00:43:07 +0200
+Subject: [PATCH] concat files
+
+---
+ concatFiles.js | 8 ++++++++
+ package.json   | 4 ++--
+ 2 files changed, 10 insertions(+), 2 deletions(-)
+ create mode 100644 concatFiles.js
+
+diff --git a/concatFiles.js b/concatFiles.js
+new file mode 100644
+index 00000000..4967d58f
+--- /dev/null
++++ b/concatFiles.js
+@@ -0,0 +1,8 @@
++const fs = require('fs');
++
++let content = fs.readFileSync(process.argv[2]).toString();
++
++fs.writeFileSync(process.argv[3], "");
++content.split("\n").forEach((file)=>{
++    fs.existsSync(file) && fs.appendFileSync(process.argv[3], fs.readFileSync(file));
++})
+\ No newline at end of file
+diff --git a/package.json b/package.json
+index b6ae5f18..c78bd08d 100644
+--- a/package.json
++++ b/package.json
+@@ -8,8 +8,8 @@
+     "main": "index.js",
+     "scripts": {
+         "test": "node --expose_gc ./test.js",
+-        "concatModule": "xargs cat < ./concatModuleScripts.txt > ./code/module.js",
+-        "concatTest": "xargs cat < ./concatTestScripts.txt > ./code/test.js",
++        "concatModule": "node ./concatFiles.js ./concatModuleScripts.txt ./code/module.js",
++        "concatTest": "node ./concatFiles.js ./concatTestScripts.txt ./code/test.js",
+         "concatFiles": "npm run concatModule && npm run concatTest",
+         "installAndTest": "npm install && npm run concatFiles && npm run test",
+         "cleanForProd": "rimraf apps/ conf/ cpp/ data/ logs/ src/ web/"
+-- 
+2.20.1 (Apple Git-117)
+

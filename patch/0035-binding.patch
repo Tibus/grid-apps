@@ -1,0 +1,63 @@
+From 7d03f8da1db9cd87c903bde2feafeed9e233fe90 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Wed, 30 Jun 2021 17:00:18 +0200
+Subject: [PATCH] binding
+
+---
+ src/kiri/widget.js | 6 +++---
+ test.js            | 6 +++---
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/src/kiri/widget.js b/src/kiri/widget.js
+index 6e180f0e..14c5d9db 100644
+--- a/src/kiri/widget.js
++++ b/src/kiri/widget.js
+@@ -4,9 +4,9 @@
+ let addon3D;
+ 
+ try {
+-  addon3D = require('../build/Debug/addon');
++  addon3D = require('../build/Debug/gridapp');
+ } catch (error) {
+-  addon3D = require('../build/Release/addon');
++  addon3D = require('../build/Release/gridapp');
+ }
+ 
+ (function() {
+@@ -284,7 +284,7 @@ try {
+      * @returns {Widget}
+      */
+     PRO.loadVertices = function(vertices) {
+-        
++
+         console.log("loadVertices addon3D test:", addon3D.test());
+ 
+         if (this.mesh) {
+diff --git a/test.js b/test.js
+index 41f004c0..b460d14d 100644
+--- a/test.js
++++ b/test.js
+@@ -1,9 +1,9 @@
+ let addon3D;
+ 
+ try {
+-  addon3D = require('./build/Debug/addon');
++  addon3D = require('./build/Debug/gridapp');
+ } catch (error) {
+-  addon3D = require('./build/Release/addon');
++  addon3D = require('./build/Release/gridapp');
+ }
+ 
+ console.log("addon3D :", addon3D.test());
+@@ -16,7 +16,7 @@ let fs = require('fs');
+ exports = {};
+ THREE = {}
+ eval(fs.readFileSync("./node_modules/three/build/three.min.js").toString());
+-Object.assign(THREE, exports); 
++Object.assign(THREE, exports);
+ /* ---------------------------- */
+ /* only if THREE is not defined */
+ /* ---------------------------- */
+-- 
+2.20.1 (Apple Git-117)
+

@@ -1,0 +1,41 @@
+From 6e8416f240968a40f00f57feda180bd544821682 Mon Sep 17 00:00:00 2001
+From: Thomas <thomas@mango3d.io>
+Date: Mon, 28 Jun 2021 19:06:21 +0200
+Subject: [PATCH] bho...
+
+---
+ src/standalone.js     | 2 +-
+ src/standalone_end.js | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/standalone.js b/src/standalone.js
+index 84a0311a..935c8d26 100644
+--- a/src/standalone.js
++++ b/src/standalone.js
+@@ -5,7 +5,7 @@ try{
+ }catch(e){}
+ 
+ let fs;
+-if (electron?.remote){
++if (electron && electron.remote){
+   fs = electron.remote.require("fs");
+ }else{
+   fs = require("fs");
+diff --git a/src/standalone_end.js b/src/standalone_end.js
+index c8bde8c5..74c2873c 100644
+--- a/src/standalone_end.js
++++ b/src/standalone_end.js
+@@ -8,7 +8,7 @@ try{
+     ClipperLib = self.ClipperLib;    
+ }
+ 
+-console.log("ClipperLib", ClipperLib?.version);
+-console.log("self.ClipperLib", self.ClipperLib?.version);
++console.log("ClipperLib", ClipperLib && ClipperLib.version);
++console.log("self.ClipperLib", self.ClipperLib && self.ClipperLib.version);
+ 
+ module.exports = self;
+\ No newline at end of file
+-- 
+2.20.1 (Apple Git-117)
+

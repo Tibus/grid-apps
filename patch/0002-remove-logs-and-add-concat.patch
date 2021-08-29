@@ -1,0 +1,226 @@
+From de68ca56a5c427db1de0c24b89c87661bfdc32eb Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Thu, 6 May 2021 14:23:44 +0200
+Subject: [PATCH] remove logs and add concat
+
+finish concat scripting
+---
+ concatEngineScripts.txt | 23 +++++++++++++++++++++
+ concatWorkerScripts.txt | 46 +++++++++++++++++++++++++++++++++++++++++
+ package.json            |  8 +++++++
+ src/kiri/client.js      |  4 ++--
+ src/kiri/engine.js      |  6 +++---
+ src/kiri/worker.js      |  6 +++---
+ src/mode/fdm/slice.js   |  2 +-
+ 7 files changed, 86 insertions(+), 9 deletions(-)
+ create mode 100644 concatEngineScripts.txt
+ create mode 100644 concatWorkerScripts.txt
+
+diff --git a/concatEngineScripts.txt b/concatEngineScripts.txt
+new file mode 100644
+index 00000000..9e4ebb51
+--- /dev/null
++++ b/concatEngineScripts.txt
+@@ -0,0 +1,23 @@
++./src/kiri.js
++./src/license.js
++./src/add/array.js
++./src/add/three.js
++./src/geo/base.js
++./src/geo/debug.js
++./src/geo/render.js
++./src/geo/point.js
++./src/geo/points.js
++./src/geo/slope.js
++./src/geo/line.js
++./src/geo/bounds.js
++./src/geo/polygon.js
++./src/geo/polygons.js
++./src/moto/kv.js
++./src/moto/load-stl.js
++./src/kiri/conf.js
++./src/kiri/client.js
++./src/kiri/slice.js
++./src/kiri/layers.js
++./src/kiri/widget.js
++./src/kiri/codec.js
++./src/kiri/engine.js
+\ No newline at end of file
+diff --git a/concatWorkerScripts.txt b/concatWorkerScripts.txt
+new file mode 100644
+index 00000000..61b2052e
+--- /dev/null
++++ b/concatWorkerScripts.txt
+@@ -0,0 +1,46 @@
++./src/kiri.js
++./src/ext/three.js
++./src/ext/pngjs.js
++./src/ext/jszip.js
++./src/license.js
++./src/ext/clip2.js
++./src/ext/earcut.js
++./src/add/array.js
++./src/add/three.js
++./src/add/class.js
++./src/geo/base.js
++./src/geo/debug.js
++./src/geo/point.js
++./src/geo/points.js
++./src/geo/slope.js
++./src/geo/line.js
++./src/geo/bounds.js
++./src/geo/polygon.js
++./src/geo/polygons.js
++./src/geo/gyroid.js
++./src/moto/pack.js
++./src/kiri/slice.js
++./src/kiri/slicer.js
++./src/kiri/slicer2.js
++./src/kiri/layers.js
++./src/mode/fdm/fill.js
++./src/mode/fdm/driver.js
++./src/mode/fdm/slice.js
++./src/mode/fdm/prepare.js
++./src/mode/fdm/export.js
++./src/mode/sla/driver.js
++./src/mode/sla/slice.js
++./src/mode/sla/export.js
++./src/mode/cam/driver.js
++./src/mode/cam/ops.js
++./src/mode/cam/tool.js
++./src/mode/cam/topo.js
++./src/mode/cam/slice.js
++./src/mode/cam/prepare.js
++./src/mode/cam/export.js
++./src/mode/cam/animate.js
++./src/mode/laser/driver.js
++./src/kiri/widget.js
++./src/kiri/print.js
++./src/kiri/codec.js
++./src/kiri/worker.js
+\ No newline at end of file
+diff --git a/package.json b/package.json
+index 7156d5a4..ea3648c5 100644
+--- a/package.json
++++ b/package.json
+@@ -5,6 +5,12 @@
+     "author": "Stewart Allen <sa@grid.space>",
+     "license": "MIT",
+     "private": false,
++    "scripts":{
++        "moveWorkerImport": "sed -i '' 's/\\/code\\/worker.js/.\\/vendors\\/kiri\\/worker.js/g' ./code/engine.js",
++        "concatEngine": "xargs cat < ./concatEngineScripts.txt > ./code/engine.js",
++        "concatWorker": "xargs cat < ./concatWorkerScripts.txt > ./code/worker.js",
++        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport"
++    },
+     "repository": {
+         "type": "git",
+         "url": "https://github.com/gridspace/apps.git"
+@@ -34,6 +40,8 @@
+         "three": "^0.126.0",
+         "tween.js": "^0.14.0",
+         "uglify-es": "3.3.9",
++        "uglify-js": "^3.13.5",
++        "uglifyjs": "^2.4.11",
+         "validator": "^8.2.0",
+         "ws": "^7.2.3"
+     }
+diff --git a/src/kiri/client.js b/src/kiri/client.js
+index f2c9769c..3335de28 100644
+--- a/src/kiri/client.js
++++ b/src/kiri/client.js
+@@ -152,7 +152,7 @@ KIRI.work = {
+                 syncd[widget.id] = true;
+                 let vertices = widget.getGeoVertices().buffer.slice(0);
+ 
+-                console.log("sync main widget", widget);
++                // console.log("sync main widget", widget);
+ 
+                 send("sync", {
+                     id: widget.id,
+@@ -192,7 +192,7 @@ KIRI.work = {
+     },
+ 
+     slice: function(settings, widget, callback) {
+-        console.log("slice widget", settings, widget);
++        // console.log("slice widget", settings, widget);
+         send("slice", {
+             id: widget.id,
+             settings: settings
+diff --git a/src/kiri/engine.js b/src/kiri/engine.js
+index c47cb115..2ccbae4a 100644
+--- a/src/kiri/engine.js
++++ b/src/kiri/engine.js
+@@ -28,7 +28,7 @@ class Engine {
+             widget: { [ this.widget.id ]: {} }
+         };
+ 
+-        console.log("initial settings", this.settings);
++        // console.log("initial settings", this.settings);
+ 
+       this.listener = () => {};
+     }
+@@ -39,7 +39,7 @@ class Engine {
+                 console.time("load");
+                 new moto.STL().load(url, vertices => {
+                     this.listener({loaded: url, vertices});
+-                    console.log("vertices", vertices);
++                    // console.log("vertices", vertices);
+ 
+                     this.widget.loadVertices(vertices).center();
+                     console.timeEnd("load");
+@@ -118,7 +118,7 @@ class Engine {
+             KIRI.client.sync([ this.widget ]); // envoi un Sync dans le worker
+             console.timeEnd("slice_sync")
+ 
+-            console.log("this.settings", this.settings);
++            // console.log("this.settings", this.settings);
+ 
+             // Todo: for loop on every non support widget
+             KIRI.client.slice(this.settings, this.widget, msg => {
+diff --git a/src/kiri/worker.js b/src/kiri/worker.js
+index fe7e5d1b..97fe2e37 100644
+--- a/src/kiri/worker.js
++++ b/src/kiri/worker.js
+@@ -241,7 +241,7 @@ KIRI.worker = {
+         // restore tracking object
+         widget.track = data.track;
+ 
+-        console.log("sync worker widget", widget);
++        // console.log("sync worker widget", widget);
+         send.done(data.id);
+     },
+ 
+@@ -329,14 +329,14 @@ KIRI.worker = {
+             last = time(),
+             now;
+ 
+-      console.log("worker slice widget", settings, widget);
++    //   console.log("worker slice widget", settings, widget);
+ 
+       widget.slice(settings, function(error) {
+             if (error) {
+                 send.data({error: error});
+             } else {
+                 const slices = widget.slices || [];
+-                console.log("worker slices", slices);
++                // console.log("worker slices", slices);
+ 
+                 send.data({send_start: time()});
+                 send.data({
+diff --git a/src/mode/fdm/slice.js b/src/mode/fdm/slice.js
+index 0a818c7f..6579a071 100644
+--- a/src/mode/fdm/slice.js
++++ b/src/mode/fdm/slice.js
+@@ -248,7 +248,7 @@
+ 
+             widget.slices = slices;
+ 
+-            console.log("slices", slices);
++            // console.log("slices", slices);
+ 
+             if (!slices) {
+                 return;
+-- 
+2.20.1 (Apple Git-117)
+

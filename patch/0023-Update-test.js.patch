@@ -1,0 +1,25 @@
+From 7e38faae2443c53c15844e053a8a17783d94650b Mon Sep 17 00:00:00 2001
+From: Julien Delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 19:13:00 -0400
+Subject: [PATCH] Update test.js
+
+---
+ test.js | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test.js b/test.js
+index bf2b0ff3..41f004c0 100644
+--- a/test.js
++++ b/test.js
+@@ -15,7 +15,7 @@ let fs = require('fs');
+ /* ---------------------------- */
+ exports = {};
+ THREE = {}
+-eval(fs.readFileSync("src/ext/three.js").toString());
++eval(fs.readFileSync("./node_modules/three/build/three.min.js").toString());
+ Object.assign(THREE, exports); 
+ /* ---------------------------- */
+ /* only if THREE is not defined */
+-- 
+2.20.1 (Apple Git-117)
+

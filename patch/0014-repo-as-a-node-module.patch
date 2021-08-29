@@ -1,0 +1,1012 @@
+From 00031e58595c09fcbeb2e3044601fa47436c3fd3 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 21:51:48 +0200
+Subject: [PATCH] repo as a node module
+
+---
+ concatEngineScripts.txt                       |  22 --
+ ...rkerScripts.txt => concatModuleScripts.txt |   9 +-
+ ...daloneScripts.txt => concatTestScripts.txt |   4 +-
+ index.js                                      |   2 +-
+ package.json                                  |  10 +-
+ src/kiri/engine.js                            |  10 -
+ src/kiri/widget.js                            |  10 +
+ src/standalone.js                             |   4 +-
+ src/standalone_end.js                         |  13 +-
+ standalone.js                                 | 309 ------------------
+ standaloneLite.js                             | 184 -----------
+ test.js                                       |   5 +-
+ web/obj/donut.stl                             | Bin 0 -> 44084 bytes
+ 13 files changed, 39 insertions(+), 543 deletions(-)
+ delete mode 100644 concatEngineScripts.txt
+ rename concatWorkerScripts.txt => concatModuleScripts.txt (88%)
+ rename concatStandaloneScripts.txt => concatTestScripts.txt (95%)
+ delete mode 100644 standalone.js
+ delete mode 100644 standaloneLite.js
+ create mode 100644 web/obj/donut.stl
+
+diff --git a/concatEngineScripts.txt b/concatEngineScripts.txt
+deleted file mode 100644
+index ca9204db..00000000
+--- a/concatEngineScripts.txt
++++ /dev/null
+@@ -1,22 +0,0 @@
+-./src/kiri.js
+-./src/license.js
+-./src/add/array.js
+-./src/add/three.js
+-./src/geo/base.js
+-./src/geo/debug.js
+-./src/geo/render.js
+-./src/geo/point.js
+-./src/geo/points.js
+-./src/geo/slope.js
+-./src/geo/line.js
+-./src/geo/bounds.js
+-./src/geo/polygon.js
+-./src/geo/polygons.js
+-./src/moto/kv.js
+-./src/moto/load-stl.js
+-./src/kiri/conf.js
+-./src/kiri/client.js
+-./src/kiri/slice.js
+-./src/kiri/layers.js
+-./src/kiri/widget.js
+-./src/kiri/codec.js
+\ No newline at end of file
+diff --git a/concatWorkerScripts.txt b/concatModuleScripts.txt
+similarity index 88%
+rename from concatWorkerScripts.txt
+rename to concatModuleScripts.txt
+index 61b2052e..e500a30a 100644
+--- a/concatWorkerScripts.txt
++++ b/concatModuleScripts.txt
+@@ -1,5 +1,5 @@
++./src/standalone.js
+ ./src/kiri.js
+-./src/ext/three.js
+ ./src/ext/pngjs.js
+ ./src/ext/jszip.js
+ ./src/license.js
+@@ -19,6 +19,8 @@
+ ./src/geo/polygons.js
+ ./src/geo/gyroid.js
+ ./src/moto/pack.js
++./src/kiri/conf.js
++./src/kiri/client.js
+ ./src/kiri/slice.js
+ ./src/kiri/slicer.js
+ ./src/kiri/slicer2.js
+@@ -43,4 +45,7 @@
+ ./src/kiri/widget.js
+ ./src/kiri/print.js
+ ./src/kiri/codec.js
+-./src/kiri/worker.js
+\ No newline at end of file
++./src/kiri/worker.js
++./src/moto/load-stl.js
++
++./src/standalone_end.js
+\ No newline at end of file
+diff --git a/concatStandaloneScripts.txt b/concatTestScripts.txt
+similarity index 95%
+rename from concatStandaloneScripts.txt
+rename to concatTestScripts.txt
+index 3ad24c9e..5c9c8b1e 100644
+--- a/concatStandaloneScripts.txt
++++ b/concatTestScripts.txt
+@@ -47,7 +47,7 @@
+ ./src/kiri/codec.js
+ ./src/kiri/worker.js
+ ./src/moto/load-stl.js
+-./src/standalone_end.js
+ 
++./src/kiri/engine.js
+ 
+-./src/kiri/engine.js
+\ No newline at end of file
++./src/standalone_end.js
+\ No newline at end of file
+diff --git a/index.js b/index.js
+index 86d96703..82c042e6 100644
+--- a/index.js
++++ b/index.js
+@@ -1 +1 @@
+-return require("./code/standalone.js");
+\ No newline at end of file
++module.exports = require("./code/module.js");
+diff --git a/package.json b/package.json
+index 304b58db..3d8d1321 100644
+--- a/package.json
++++ b/package.json
+@@ -5,14 +5,12 @@
+     "author": "Stewart Allen <sa@grid.space>",
+     "license": "MIT",
+     "private": false,
+-    "main": "./index.js",
++    "main": "index.js",
+     "scripts": {
+         "test": "node --expose_gc ./test.js",
+-        "moveWorkerImport": "sed -i '' 's/\\/code\\/worker.js/.\\/vendors\\/kiri\\/worker.js/g' ./code/engine.js",
+-        "concatEngine": "xargs cat < ./concatEngineScripts.txt > ./code/engine.js",
+-        "concatWorker": "xargs cat < ./concatWorkerScripts.txt > ./code/worker.js",
+-        "concatStandalone": "xargs cat < ./concatStandaloneScripts.txt > ./code/standalone.js",
+-        "concatFiles": "npm run concatEngine && npm run concatWorker && npm run moveWorkerImport && npm run concatStandalone",
++        "concatModule": "xargs cat < ./concatModuleScripts.txt > ./code/module.js",
++        "concatTest": "xargs cat < ./concatTestScripts.txt > ./code/test.js",
++        "concatFiles": "npm run concatModule && npm run concatTest",
+         "installAndTest": "npm install && npm run concatFiles && npm run test",
+         "clearForProd": "rimraf ./apps ./code ./conf ./cpp ./data ./logs ./node_modules ./src ./web"
+     },
+diff --git a/src/kiri/engine.js b/src/kiri/engine.js
+index d6c25b33..7c88fa2c 100644
+--- a/src/kiri/engine.js
++++ b/src/kiri/engine.js
+@@ -1,13 +1,6 @@
+ /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
+ 
+ "use strict";
+-let addon3D;
+-
+-try {
+-  addon3D = require('../build/Debug/addon');
+-} catch (error) {
+-  addon3D = require('../build/Release/addon');
+-}
+ 
+ (function() {
+ 
+@@ -88,13 +81,11 @@ class Engine {
+ 
+     setDevice(device) {
+         Object.assign(this.settings.device, device);
+-        console.log("setDevice", this.settings);
+         return this;
+     }
+ 
+     setProcess(process) {
+         Object.assign(this.settings.process, process);
+-        console.log("setProcess", this.settings);
+         return this;
+     }
+ 
+@@ -130,7 +121,6 @@ class Engine {
+             // Todo: for loop on every non support widget
+             KIRI.client.slice(this.settings, this.widget, msg => {
+                 console.log("msg", msg);
+-                console.log("addon3D test:", addon3D.test());
+ 
+                 this.listener({slice:msg});
+                 if (msg.error) {
+diff --git a/src/kiri/widget.js b/src/kiri/widget.js
+index e5a07f78..6e180f0e 100644
+--- a/src/kiri/widget.js
++++ b/src/kiri/widget.js
+@@ -1,6 +1,13 @@
+ /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
+ 
+ "use strict";
++let addon3D;
++
++try {
++  addon3D = require('../build/Debug/addon');
++} catch (error) {
++  addon3D = require('../build/Release/addon');
++}
+ 
+ (function() {
+ 
+@@ -277,6 +284,9 @@
+      * @returns {Widget}
+      */
+     PRO.loadVertices = function(vertices) {
++        
++        console.log("loadVertices addon3D test:", addon3D.test());
++
+         if (this.mesh) {
+             this.mesh.geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+             this.mesh.geometry.computeFaceNormals();
+diff --git a/src/standalone.js b/src/standalone.js
+index b320e0fe..84a0311a 100644
+--- a/src/standalone.js
++++ b/src/standalone.js
+@@ -25,8 +25,7 @@ self.postMessage = (msg) => {
+ 
+ // fake fetch for worker to get wasm, if needed
+ let fetch = function(url) {
+-    console.log({fake_fetch: url});
+-    let buf = fs.readFileSync("." + url);
++    let buf = fs.readFileSync(__dirname + "/../"+url);
+     return new Promise((resolve, reject) => {
+         resolve(new Promise((resolve, reject) => {
+             resolve({
+@@ -40,7 +39,6 @@ let fetch = function(url) {
+ 
+ class Worker {
+     constructor(url) {
+-        console.log({fake_worker: url});
+     }
+ 
+     postMessage(msg) {
+diff --git a/src/standalone_end.js b/src/standalone_end.js
+index 5a62817d..c8bde8c5 100644
+--- a/src/standalone_end.js
++++ b/src/standalone_end.js
+@@ -1,3 +1,14 @@
+-ClipperLib = self.ClipperLib;
++try{
++    if(ClipperLib){
++        self.ClipperLib = ClipperLib;
++    }else{
++        ClipperLib = self.ClipperLib;
++    }
++}catch(e){
++    ClipperLib = self.ClipperLib;    
++}
++
++console.log("ClipperLib", ClipperLib?.version);
++console.log("self.ClipperLib", self.ClipperLib?.version);
+ 
+ module.exports = self;
+\ No newline at end of file
+diff --git a/standalone.js b/standalone.js
+deleted file mode 100644
+index 94aa19c1..00000000
+--- a/standalone.js
++++ /dev/null
+@@ -1,309 +0,0 @@
+-let fs = require('fs');
+-let args = process.argv.slice(2);
+-let dir = args[0];
+-let files = [
+-    "kiri",
+-    "ext/three",
+-    "ext/pngjs",
+-    "ext/jszip",
+-    "license",
+-    "ext/clip2",
+-    "ext/earcut",
+-    "add/array",
+-    "add/three",
+-    "add/class",
+-    "geo/base",
+-    "geo/debug",
+-    "geo/point",
+-    "geo/points",
+-    "geo/slope",
+-    "geo/line",
+-    "geo/bounds",
+-    "geo/polygon",
+-    "geo/polygons",
+-    "geo/gyroid",
+-    "moto/pack",
+-    "kiri/conf",
+-    "kiri/client",
+-    "kiri/engine",
+-    "kiri/slice",
+-    "kiri/slicer",
+-    "kiri/slicer2",
+-    "kiri/layers",
+-    "mode/fdm/fill",
+-    "mode/fdm/driver",
+-    "mode/fdm/slice",
+-    "mode/fdm/prepare",
+-    "mode/fdm/export",
+-    "mode/sla/driver",
+-    "mode/sla/slice",
+-    "mode/sla/export",
+-    "mode/cam/driver",
+-    "mode/cam/ops",
+-    "mode/cam/tool",
+-    "mode/cam/topo",
+-    "mode/cam/slice",
+-    "mode/cam/prepare",
+-    "mode/cam/export",
+-    "mode/cam/animate",
+-    "mode/laser/driver",
+-    "kiri/widget",
+-    "kiri/print",
+-    "kiri/codec",
+-    "kiri/worker",
+-    "moto/load-stl"
+-].map(p => `${dir}/src/${p}.js`);
+-
+-let exports_save = exports,
+-    module_save = module,
+-    THREE = {},
+-    navigator = { userAgent: "" },
+-    self = {
+-        THREE,
+-        kiri: { driver: {}, loader: [] },
+-        location: { hostname: 'local', port: 0, protocol: 'fake' },
+-        postMessage: (msg) => {
+-            self.kiri.client.onmessage({data:msg});
+-        }
+-    };
+-
+-// fake fetch for worker to get wasm, if needed
+-let fetch = function(url) {
+-    console.log({fake_fetch: url});
+-    let buf = fs.readFileSync(dir + url);
+-    return new Promise((resolve, reject) => {
+-        resolve(new Promise((resolve, reject) => {
+-            resolve({
+-                arrayBuffer: function() {
+-                    return buf;
+-                }
+-            });
+-        }));
+-    });
+-};
+-
+-class Worker {
+-    constructor(url) {
+-        console.log({fake_worker: url});
+-    }
+-
+-    postMessage(msg) {
+-        setImmediate(() => {
+-            self.kiri.worker.onmessage({data:msg});
+-        });
+-    }
+-
+-    onmessage(msg) {
+-        // if we end up here, something went wrong
+-        console.trace('worker-recv', msg);
+-    }
+-
+-    terminate() {
+-        // if we end up here, something went wrong
+-        console.trace('worker terminate');
+-    }
+-}
+-
+-// node is missing these functions so put them in scope during eval
+-function atob(a) {
+-    return Buffer.from(a).toString('base64');
+-}
+-
+-function btoa(b) {
+-    return Buffer.from(b, 'base64').toString();
+-}
+-
+-for (let file of files) {
+-    let isPNG = file.indexOf("/pngjs") > 0;
+-    let isClip = file.indexOf("/clip") > 0;
+-    let isEarcut = file.indexOf("/earcut") > 0;
+-    let isTHREE = file.indexOf("/three") > 0;
+-    if (isTHREE) {
+-        // THREE.js kung-fu fake-out
+-        exports = {};
+-    }
+-    let swapMod = isEarcut;
+-    if (swapMod) {
+-        module = { exports: {} };
+-    }
+-    let clearMod = isPNG || isClip;
+-    if (clearMod) {
+-        module = undefined;
+-    }
+-    try {
+-        eval(fs.readFileSync(dir + "/" + file).toString());
+-    } catch (e) {
+-        // console.log({dir, file, e});
+-        console.log({dir, file});
+-    }
+-    if (isClip) {
+-        ClipperLib = self.ClipperLib;
+-    }
+-    if (isTHREE) {
+-        Object.assign(THREE, exports);
+-        // restore exports after faking out THREE.js
+-        exports = exports_save;
+-    }
+-    if (isEarcut) {
+-        self.earcut = module.exports;
+-    }
+-    if (clearMod || swapMod) {
+-        module = module_save;
+-    }
+-}
+-
+-let kiri = self.kiri;
+-let moto = self.moto;
+-let engine = kiri.newEngine();
+-
+-fetch('/web/obj/cube_kiri.stl').then(data => {
+-    let buf = data.arrayBuffer().buffer;
+-    engine.parse(buf)
+-    .then(data => {
+-        console.log({loaded: data});
+-    })
+-    .then(() => engine.moveTo(1,1,1))
+-    .then(() => engine.setProcess({
+-        "sName":"Ender3_test",
+-        "sliceHeight":0.25,
+-        "sliceShells":3,
+-        "sliceShellOrder":"in-out",
+-        "sliceLayerStart":"last",
+-        "sliceFillAngle":45,
+-        "sliceFillOverlap":0.3,
+-        "sliceFillSparse":0.2,
+-        "sliceFillType":"gyroid",
+-        "sliceAdaptive":false,
+-        "sliceMinHeight":0,
+-        "sliceSupportDensity":0.25,
+-        "sliceSupportOffset":0.4,
+-        "sliceSupportGap":1,
+-        "sliceSupportSize":6,
+-        "sliceSupportArea":1,
+-        "sliceSupportExtra":0,
+-        "sliceSupportAngle":50,
+-        "sliceSupportNozzle":0,
+-        "sliceSolidMinArea":10,
+-        "sliceSolidLayers":3,
+-        "sliceBottomLayers":3,
+-        "sliceTopLayers":3,
+-        "firstLayerRate":10,
+-        "firstLayerPrintMult":1.15,
+-        "firstLayerYOffset":0,
+-        "firstLayerBrim":0,
+-        "firstLayerBeltLead":3,
+-        "outputTemp":210,
+-        "outputBedTemp":60,
+-        "outputFeedrate":50,
+-        "outputFinishrate":50,
+-        "outputSeekrate":80,
+-        "outputShellMult":1.25,
+-        "outputFillMult":1.25,
+-        "outputSparseMult":1.25,
+-        "outputRetractDist":4,
+-        "outputRetractSpeed":30,
+-        "outputRetractDwell":30,
+-        "outputShortPoly":100,
+-        "outputMinSpeed":10,
+-        "outputCoastDist":0.1,
+-        "outputLayerRetract":true,
+-        "detectThinWalls":true,
+-        "zHopDistance":0,
+-        "antiBacklash":0,
+-        "outputOriginCenter":false,
+-        "sliceFillRate":0,
+-        "sliceSupportEnable":false,
+-        "firstSliceHeight":0.25,
+-        "firstLayerFillRate":35,
+-        "firstLayerLineMult":1,
+-        "firstLayerNozzleTemp":0,
+-        "firstLayerBedTemp":0,
+-        "firstLayerBrimTrig":0,
+-        "outputRaft":false,
+-        "outputRaftSpacing":0.2,
+-        "outputRetractWipe":0,
+-        "outputBrimCount":2,
+-        "outputBrimOffset":2,
+-        "outputLoopLayers":null,
+-        "outputInvertX":false,
+-        "outputInvertY":false,
+-        "arcTolerance":0,
+-        "gcodePause":"",
+-        "ranges":[],
+-        "firstLayerFanSpeed":0,
+-        "outputFanSpeed":255
+-    }))
+-    .then(() => engine.setDevice({
+-        "noclone":false,
+-        "mode":"FDM",
+-        "internal":0,
+-        "imageURL":"",
+-        "imageScale":0.75,
+-        "imageAnchor":0,
+-        "bedHeight":2.5,
+-        "bedWidth":220,
+-        "bedDepth":220,
+-        "bedRound":false,
+-        "bedBelt":false,
+-        "maxHeight":300,
+-        "originCenter":false,
+-        "extrudeAbs":true,
+-        "spindleMax":0,
+-        "gcodeFan":[ "M106 S{fan_speed}" ],
+-        "gcodeTrack":[],
+-        "gcodeLayer":[],
+-        "gcodePre":[
+-        "M107                     ; turn off filament cooling fan",
+-        "G90                      ; set absolute positioning mode",
+-        "M82                      ; set absolute positioning for extruder",
+-        "M104 S{temp} T{tool}     ; set extruder temperature",
+-        "M140 S{bed_temp} T{tool} ; set bed temperature",
+-        "G28                      ; home axes",
+-        "G92 X0 Y0 Z0 E0          ; reset all axes positions",
+-        "G1 X0 Y0 Z0.25 F180      ; move XY to 0,0 and Z 0.25mm over bed",
+-        "G92 E0                   ; zero the extruded",
+-        "M190 S{bed_temp} T{tool} ; wait for bed to reach target temp",
+-        "M109 S{temp} T{tool}     ; wait for extruder to reach target temp",
+-        "G92 E0                   ; zero the extruded",
+-        "G1 F225                  ; set feed speed"
+-        ],
+-        "gcodePost":[
+-        "M107                     ; turn off filament cooling fan",
+-        "M104 S0 T{tool}          ; turn off right extruder",
+-        "M140 S0 T{tool}          ; turn off bed",
+-        "G1 X0 Y300 F1200         ; end move",
+-        "M84                      ; disable stepper motors"
+-        ],
+-        "gcodeProc":"",
+-        "gcodePause":[],
+-        "gcodeDwell":[],
+-        "gcodeSpindle":[],
+-        "gcodeChange":[],
+-        "gcodeFExt":"gcode",
+-        "gcodeSpace":true,
+-        "gcodeStrip":false,
+-        "gcodeLaserOn":[],
+-        "gcodeLaserOff":[],
+-        "extruders":[
+-        {
+-            "extFilament":1.75,
+-            "extNozzle":0.4,
+-            "extSelect":[ "T0" ],
+-            "extDeselect":[],
+-            "extOffsetX":0,
+-            "extOffsetY":0
+-        }
+-        ],
+-        "new":false,
+-        "deviceName":"Creality.Ender.3"
+-    }))
+-    .then(eng => eng.slice())
+-    .then(eng => eng.prepare())
+-    .then(eng => engine.export())
+-    .then(gcode => {
+-        console.log({gcode});
+-    })
+-    .catch(error => {
+-        console.log({error});
+-    });
+-});
+diff --git a/standaloneLite.js b/standaloneLite.js
+deleted file mode 100644
+index b1ad5c8f..00000000
+--- a/standaloneLite.js
++++ /dev/null
+@@ -1,184 +0,0 @@
+-let addon3D;
+-
+-try {
+-  addon3D = require('./build/Debug/addon');
+-} catch (error) {
+-  addon3D = require('./build/Release/addon');
+-}
+-
+-console.log("addon3D :", addon3D.test());
+-
+-let fs = require('fs');
+-
+-/* ---------------------------- */
+-/* only if THREE is not defined */
+-/* ---------------------------- */
+-exports = {};
+-THREE = {}
+-eval(fs.readFileSync("src/ext/three.js").toString());
+-Object.assign(THREE, exports); 
+-/* ---------------------------- */
+-/* only if THREE is not defined */
+-/* ---------------------------- */
+-
+-
+-// eval(fs.readFileSync("./code/standalone.js").toString());
+-let self = require("./code/standalone.js");
+-
+-let kiri = self.kiri;
+-let engine = kiri.newEngine();
+-
+-let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
+-// let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
+-// engine.setListener((mess)=>{console.log("mess", mess)});
+-
+-console.time("slicing");
+-engine.parse(buf)
+-    .then(data => {
+-        console.log({loaded: data});
+-    })
+-    .then(() => engine.moveTo(1,1,1))
+-    .then(() => engine.setProcess({
+-        "sName":"Ender3_test",
+-        "sliceHeight":0.25,
+-        "sliceShells":3,
+-        "sliceShellOrder":"in-out",
+-        "sliceLayerStart":"last",
+-        "sliceFillAngle":45,
+-        "sliceFillOverlap":0.3,
+-        "sliceFillSparse":0.2,
+-        "sliceFillType":"grid",
+-        "sliceAdaptive":false,
+-        "sliceMinHeight":0,
+-        "sliceSupportDensity":0.25,
+-        "sliceSupportOffset":0.4,
+-        "sliceSupportGap":1,
+-        "sliceSupportSize":6,
+-        "sliceSupportArea":1,
+-        "sliceSupportExtra":0,
+-        "sliceSupportAngle":50,
+-        "sliceSupportNozzle":0,
+-        "sliceSolidMinArea":10,
+-        "sliceSolidLayers":3,
+-        "sliceBottomLayers":3,
+-        "sliceTopLayers":3,
+-        "firstLayerRate":10,
+-        "firstLayerPrintMult":1.15,
+-        "firstLayerYOffset":0,
+-        "firstLayerBrim":0,
+-        "firstLayerBeltLead":3,
+-        "outputTemp":210,
+-        "outputBedTemp":60,
+-        "outputFeedrate":50,
+-        "outputFinishrate":50,
+-        "outputSeekrate":80,
+-        "outputShellMult":1.25,
+-        "outputFillMult":1.25,
+-        "outputSparseMult":1.25,
+-        "outputRetractDist":4,
+-        "outputRetractSpeed":30,
+-        "outputRetractDwell":30,
+-        "outputShortPoly":100,
+-        "outputMinSpeed":10,
+-        "outputCoastDist":0.1,
+-        "outputLayerRetract":true,
+-        "detectThinWalls":true,
+-        "zHopDistance":0,
+-        "antiBacklash":0,
+-        "outputOriginCenter":false,
+-        "sliceFillRate":0,
+-        "sliceSupportEnable":false,
+-        "firstSliceHeight":0.25,
+-        "firstLayerFillRate":35,
+-        "firstLayerLineMult":1,
+-        "firstLayerNozzleTemp":0,
+-        "firstLayerBedTemp":0,
+-        "firstLayerBrimTrig":0,
+-        "outputRaft":false,
+-        "outputRaftSpacing":0.2,
+-        "outputRetractWipe":0,
+-        "outputBrimCount":2,
+-        "outputBrimOffset":2,
+-        "outputLoopLayers":null,
+-        "outputInvertX":false,
+-        "outputInvertY":false,
+-        "arcTolerance":0,
+-        "gcodePause":"",
+-        "ranges":[],
+-        "firstLayerFanSpeed":0,
+-        "outputFanSpeed":255
+-    }))
+-    .then(() => engine.setDevice({
+-        "noclone":false,
+-        "mode":"FDM",
+-        "internal":0,
+-        "imageURL":"",
+-        "imageScale":0.75,
+-        "imageAnchor":0,
+-        "bedHeight":2.5,
+-        "bedWidth":220,
+-        "bedDepth":220,
+-        "bedRound":false,
+-        "bedBelt":false,
+-        "maxHeight":300,
+-        "originCenter":false,
+-        "extrudeAbs":true,
+-        "spindleMax":0,
+-        "gcodeFan":[ "M106 S{fan_speed}" ],
+-        "gcodeTrack":[],
+-        "gcodeLayer":[],
+-        "gcodePre":[
+-            "M107                     ; turn off filament cooling fan",
+-            "G90                      ; set absolute positioning mode",
+-            "M82                      ; set absolute positioning for extruder",
+-            "M104 S{temp} T{tool}     ; set extruder temperature",
+-            "M140 S{bed_temp} T{tool} ; set bed temperature",
+-            "G28                      ; home axes",
+-            "G92 X0 Y0 Z0 E0          ; reset all axes positions",
+-            "G1 X0 Y0 Z0.25 F180      ; move XY to 0,0 and Z 0.25mm over bed",
+-            "G92 E0                   ; zero the extruded",
+-            "M190 S{bed_temp} T{tool} ; wait for bed to reach target temp",
+-            "M109 S{temp} T{tool}     ; wait for extruder to reach target temp",
+-            "G92 E0                   ; zero the extruded",
+-            "G1 F225                  ; set feed speed"
+-        ],
+-        "gcodePost":[
+-            "M107                     ; turn off filament cooling fan",
+-            "M104 S0 T{tool}          ; turn off right extruder",
+-            "M140 S0 T{tool}          ; turn off bed",
+-            "G1 X0 Y300 F1200         ; end move",
+-            "M84                      ; disable stepper motors"
+-        ],
+-        "gcodeProc":"",
+-        "gcodePause":[],
+-        "gcodeDwell":[],
+-        "gcodeSpindle":[],
+-        "gcodeChange":[],
+-        "gcodeFExt":"gcode",
+-        "gcodeSpace":true,
+-        "gcodeStrip":false,
+-        "gcodeLaserOn":[],
+-        "gcodeLaserOff":[],
+-        "extruders":[
+-        {
+-            "extFilament":1.75,
+-            "extNozzle":0.4,
+-            "extSelect":[ "T0" ],
+-            "extDeselect":[],
+-            "extOffsetX":0,
+-            "extOffsetY":0
+-        }
+-        ],
+-        "new":false,
+-        "deviceName":"Creality.Ender.3"
+-    }))
+-    .then(eng => eng.slice())
+-    .then(eng => eng.prepare())
+-    .then(eng => engine.export())
+-    .then(gcode => {
+-        fs.writeFileSync("standalone.gcode", gcode);
+-        console.timeEnd("slicing");
+-    })
+-    .catch(error => {
+-        console.log({error});
+-    });
+diff --git a/test.js b/test.js
+index b1ad5c8f..75f90ed7 100644
+--- a/test.js
++++ b/test.js
+@@ -23,9 +23,8 @@ Object.assign(THREE, exports);
+ 
+ 
+ // eval(fs.readFileSync("./code/standalone.js").toString());
+-let self = require("./code/standalone.js");
++let kiri = require("./code/test.js").kiri;
+ 
+-let kiri = self.kiri;
+ let engine = kiri.newEngine();
+ 
+ let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
+@@ -35,7 +34,7 @@ let buf = fs.readFileSync('./web/obj/donut.stl').buffer;
+ console.time("slicing");
+ engine.parse(buf)
+     .then(data => {
+-        console.log({loaded: data});
++        // console.log({loaded: data});
+     })
+     .then(() => engine.moveTo(1,1,1))
+     .then(() => engine.setProcess({
+diff --git a/web/obj/donut.stl b/web/obj/donut.stl
+new file mode 100644
+index 0000000000000000000000000000000000000000..5728709884aa05615cb6c3ec366714c127cae01c
+GIT binary patch
+literal 44084
+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
+UtI@&>au7>@#=o#xsm~$)AHJRn1ONa4
+
+literal 0
+HcmV?d00001
+
+-- 
+2.20.1 (Apple Git-117)
+

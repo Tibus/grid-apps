@@ -1,0 +1,624 @@
+From faa8a23fb1ddede521278bf33728d31f7f05c209 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Wed, 14 Apr 2021 16:16:51 +0200
+Subject: [PATCH] add logs
+
+---
+ src/kiri/client.js      |   5 ++
+ src/kiri/engine.js      |  20 ++++-
+ src/kiri/init.js        |   2 +
+ src/kiri/worker.js      |  14 +++-
+ src/mode/fdm/fill.js    |   1 +
+ src/mode/fdm/prepare.js |  24 +++++-
+ src/mode/fdm/slice.js   |   4 +
+ tibusEngineCode.js      | 167 ++++++++++++++++++++++++++++++++++++++++
+ web/kiri/engine.html    |  10 ++-
+ web/obj/cube.stl        | Bin 16084 -> 684 bytes
+ 10 files changed, 237 insertions(+), 10 deletions(-)
+ create mode 100644 tibusEngineCode.js
+
+diff --git a/src/kiri/client.js b/src/kiri/client.js
+index f2884313..f2c9769c 100644
+--- a/src/kiri/client.js
++++ b/src/kiri/client.js
+@@ -151,6 +151,9 @@ KIRI.work = {
+             if (widget.modified || !syncd[widget.id]) {
+                 syncd[widget.id] = true;
+                 let vertices = widget.getGeoVertices().buffer.slice(0);
++
++                console.log("sync main widget", widget);
++
+                 send("sync", {
+                     id: widget.id,
+                     group: widget.group.id,
+@@ -189,6 +192,7 @@ KIRI.work = {
+     },
+ 
+     slice: function(settings, widget, callback) {
++        console.log("slice widget", settings, widget);
+         send("slice", {
+             id: widget.id,
+             settings: settings
+@@ -220,6 +224,7 @@ KIRI.work = {
+     export: function(settings, online, ondone) {
+         send("export", { settings }, function(reply) {
+             if (reply.line) {
++                console.log("reply.line", reply.line);
+                 online(reply.line);
+             }
+             if (reply.done) {
+diff --git a/src/kiri/engine.js b/src/kiri/engine.js
+index 3b4c0a36..c47cb115 100644
+--- a/src/kiri/engine.js
++++ b/src/kiri/engine.js
+@@ -27,15 +27,22 @@ class Engine {
+             process: KIRI.conf.defaults.fdm.p, // slicing settings
+             widget: { [ this.widget.id ]: {} }
+         };
+-        this.listener = () => {};
++
++        console.log("initial settings", this.settings);
++
++      this.listener = () => {};
+     }
+ 
+     load(url) {
+         return new Promise((accept, reject) => {
+             try {
++                console.time("load");
+                 new moto.STL().load(url, vertices => {
+                     this.listener({loaded: url, vertices});
++                    console.log("vertices", vertices);
++
+                     this.widget.loadVertices(vertices).center();
++                    console.timeEnd("load");
+                     accept(this);
+                 });
+             } catch (error) {
+@@ -74,11 +81,13 @@ class Engine {
+ 
+     setDevice(device) {
+         Object.assign(this.settings.device, device);
++        console.log("setDevice", this.settings);
+         return this;
+     }
+ 
+     setProcess(process) {
+         Object.assign(this.settings.process, process);
++        console.log("setProcess", this.settings);
+         return this;
+     }
+ 
+@@ -105,8 +114,15 @@ class Engine {
+     slice() {
+         return new Promise((accept, reject) => {
+             KIRI.client.clear();
+-            KIRI.client.sync([ this.widget ]);
++            console.time("slice_sync")
++            KIRI.client.sync([ this.widget ]); // envoi un Sync dans le worker
++            console.timeEnd("slice_sync")
++
++            console.log("this.settings", this.settings);
++
++            // Todo: for loop on every non support widget
+             KIRI.client.slice(this.settings, this.widget, msg => {
++                console.log("msg", msg);
+                 this.listener({slice:msg});
+                 if (msg.error) {
+                     reject(msg.error);
+diff --git a/src/kiri/init.js b/src/kiri/init.js
+index 552e80f8..accee088 100644
+--- a/src/kiri/init.js
++++ b/src/kiri/init.js
+@@ -2483,6 +2483,8 @@
+         // enable modal hiding
+         $('mod-x').onclick = API.modal.hide;
+ 
++        console.log("engine?");
++
+         if (!SETUP.s) console.log(`kiri | init main | ${KIRI.version}`);
+ 
+         // send init-done event
+diff --git a/src/kiri/worker.js b/src/kiri/worker.js
+index f5e0b13d..fe7e5d1b 100644
+--- a/src/kiri/worker.js
++++ b/src/kiri/worker.js
+@@ -240,6 +240,8 @@ KIRI.worker = {
+         widget.vertices = vertices;
+         // restore tracking object
+         widget.track = data.track;
++
++        console.log("sync worker widget", widget);
+         send.done(data.id);
+     },
+ 
+@@ -327,11 +329,15 @@ KIRI.worker = {
+             last = time(),
+             now;
+ 
+-        widget.slice(settings, function(error) {
++      console.log("worker slice widget", settings, widget);
++
++      widget.slice(settings, function(error) {
+             if (error) {
+                 send.data({error: error});
+             } else {
+                 const slices = widget.slices || [];
++                console.log("worker slices", slices);
++
+                 send.data({send_start: time()});
+                 send.data({
+                     stats: widget.stats,
+@@ -339,6 +345,7 @@ KIRI.worker = {
+                 });
+                 slices.forEach(function(slice,index) {
+                     const state = { zeros: [] };
++
+                     send.data({index: index, slice: slice.encode(state)}, state.zeros);
+                 })
+                 send.data({send_end: time()});
+@@ -364,6 +371,7 @@ KIRI.worker = {
+         const settings = data.settings;
+         const mode = settings.mode;
+         const driver = drivers[mode];
++        console.log("driver", driver);
+ 
+         if (!(driver && driver.prepare)) {
+             return console.log({invalid_print_driver: mode, driver});
+@@ -372,6 +380,7 @@ KIRI.worker = {
+         const layers = driver.prepare(widgets, settings, (progress, message, layer) => {
+             const state = { zeros: [] };
+             const emit = { progress, message };
++
+             if (layer) {
+                 emit.layer = KIRI.codec.encode(layer, state)
+             }
+@@ -404,6 +413,7 @@ KIRI.worker = {
+         }
+ 
+         let output;
++        console.log("current.print", current.print);
+         driver.export(current.print, function(line, direct) {
+             send.data({line}, direct);
+         }, function(done) {
+@@ -772,6 +782,8 @@ dispatch.onmessage = self.onmessage = function(e) {
+             }
+         };
+ 
++    // console.log("onmessage", e, msg.task, dispatch[msg.task]);
++
+     if (run) {
+         try {
+             let time_xfer = (time_recv - msg.time),
+diff --git a/src/mode/fdm/fill.js b/src/mode/fdm/fill.js
+index d6f1fa00..7944769f 100644
+--- a/src/mode/fdm/fill.js
++++ b/src/mode/fdm/fill.js
+@@ -99,6 +99,7 @@
+     }
+ 
+     function fillGyroid(target) {
++        console.warn("fillGyroid");
+         let bounds = target.bounds();
+         let height = target.zHeight();
+         let span_x = bounds.max.x - bounds.min.x;
+diff --git a/src/mode/fdm/prepare.js b/src/mode/fdm/prepare.js
+index f1fdc2f4..bbdb2005 100644
+--- a/src/mode/fdm/prepare.js
++++ b/src/mode/fdm/prepare.js
+@@ -246,6 +246,7 @@
+             }
+         }
+ 
++
+         let blokpos, walkpos, blok;
+         if (bounds.min.x < bounds.min.y) {
+             let dx = ((bounds.max.x - bounds.min.x) - (extcount * 10)) / 2 + 5;
+@@ -259,7 +260,9 @@
+             blok = { x:4, y:9 };
+         }
+ 
+-        // compute purge blocks
++      console.log("extruders", extruders);
++
++      // compute purge blocks
+         extruders = extruders.map((ext,i) => {
+             if (!ext) return ext;
+             let noz = device.extruders[i].extNozzle,
+@@ -273,7 +276,10 @@
+             return rec;
+         });
+ 
+-        // generate purge block for given nozzle
++      console.log("after extruders", extruders);
++
++
++      // generate purge block for given nozzle
+         function purge(nozzle, track, layer, start, z, using) {
+             if (!purgeTower || extcount < 2 || isBelt) {
+                 return start;
+@@ -333,16 +339,20 @@
+                 rec.slices.push(slice);
+             }
+         }
++        console.log("cake", [...cake]);
++
+         cake.sort((a, b) => {
+             return a.z - b.z;
+         });
+ 
+         let lastWidget;
+ 
++        console.log("cake", cake);
+         // walk cake layers bottom up
+         for (let layer of cake) {
+             // track purge blocks generated for each layer
+             let track = extruders.slice();
++            console.log("track", track);
+             let lastOut;
+             let lastExt;
+ 
+@@ -392,6 +402,8 @@
+                 }
+                 let wtb = slice.widget.track.box;
+                 // output seek to start point between mesh slices if previous data
++
++                // console.log("layerout_before_slicePrintPath", [...layerout]);
+                 printPoint = print.slicePrintPath(
+                     slice,
+                     slice.belt && slice.belt.touch ? newPoint(-5000, 5000, 0) : printPoint.sub(offset),
+@@ -418,6 +430,8 @@
+                         }
+                     }
+                 );
++                // console.log("layerout_after_slicePrintPath", [...layerout]);
++
+                 lastOut = slice;
+                 lastExt = lastOut.ext
+                 lastPoly = slice.lastPoly;
+@@ -425,7 +439,7 @@
+                 if (layerRetract && layerout.length) {
+                     layerout.last().retract = true;
+                 }
+-            }
++            }//FOR(;;)
+ 
+             // if a declared extruder isn't used in a layer, use selected
+             // extruder to fill the relevant purge blocks for later support
+@@ -437,6 +451,7 @@
+ 
+             // if layer produced output, append to output array
+             if (layerout.length) {
++                console.log("layerout", layerout);
+                 output.append(layerout);
+             }
+ 
+@@ -452,7 +467,7 @@
+             slices = [];
+             layerout = [];
+             lastOut = undefined;
+-        }
++        }// FOR DES CAKES
+ 
+         print.output = output;
+ 
+@@ -572,6 +587,7 @@
+ 
+         // render if not explicitly disabled
+         if (render) {
++            console.log("output", output);
+             print.render = FDM.prepareRender(output, (progress, layer) => {
+                 update(0.5 + progress * 0.5, "render", layer);
+             }, { tools: device.extruders, thin: isThin, flat: isFlat, fdm: true });
+diff --git a/src/mode/fdm/slice.js b/src/mode/fdm/slice.js
+index a41742c8..0a818c7f 100644
+--- a/src/mode/fdm/slice.js
++++ b/src/mode/fdm/slice.js
+@@ -248,6 +248,8 @@
+ 
+             widget.slices = slices;
+ 
++            console.log("slices", slices);
++
+             if (!slices) {
+                 return;
+             }
+@@ -579,6 +581,8 @@
+     }
+ 
+     function doRender(slice, isSynth, params, devel) {
++        console.warn("doRender");
++
+         const output = slice.output();
+         const height = slice.height / 2;
+         const solidWidth = params.sliceFillWidth || 1;
+diff --git a/tibusEngineCode.js b/tibusEngineCode.js
+new file mode 100644
+index 00000000..00a06d26
+--- /dev/null
++++ b/tibusEngineCode.js
+@@ -0,0 +1,167 @@
++kiri.newEngine()
++    .setListener(display_message)
++    .load("/obj/cube.stl")
++    .then(eng => eng.moveTo(1,1,1))
++    .then(eng => eng.setProcess({
++         "sName":"Ender3_test",
++         "sliceHeight":0.25,
++         "sliceShells":3,
++         "sliceShellOrder":"in-out",
++         "sliceLayerStart":"last",
++         "sliceFillAngle":45,
++         "sliceFillOverlap":0.3,
++         "sliceFillSparse":0.2,
++         "sliceFillType":"gyroid",
++         "sliceAdaptive":false,
++         "sliceMinHeight":0,
++         "sliceSupportDensity":0.25,
++         "sliceSupportOffset":0.4,
++         "sliceSupportGap":1,
++         "sliceSupportSize":6,
++         "sliceSupportArea":1,
++         "sliceSupportExtra":0,
++         "sliceSupportAngle":50,
++         "sliceSupportNozzle":0,
++         "sliceSolidMinArea":10,
++         "sliceSolidLayers":3,
++         "sliceBottomLayers":3,
++         "sliceTopLayers":3,
++         "firstLayerRate":10,
++         "firstLayerPrintMult":1.15,
++         "firstLayerYOffset":0,
++         "firstLayerBrim":0,
++         "firstLayerBeltLead":3,
++         "outputTemp":210,
++         "outputBedTemp":60,
++         "outputFeedrate":50,
++         "outputFinishrate":50,
++         "outputSeekrate":80,
++         "outputShellMult":1.25,
++         "outputFillMult":1.25,
++         "outputSparseMult":1.25,
++         "outputRetractDist":4,
++         "outputRetractSpeed":30,
++         "outputRetractDwell":30,
++         "outputShortPoly":100,
++         "outputMinSpeed":10,
++         "outputCoastDist":0.1,
++         "outputLayerRetract":true,
++         "detectThinWalls":true,
++         "zHopDistance":0,
++         "antiBacklash":0,
++         "outputOriginCenter":false,
++         "sliceFillRate":0,
++         "sliceSupportEnable":false,
++         "firstSliceHeight":0.25,
++         "firstLayerFillRate":35,
++         "firstLayerLineMult":1,
++         "firstLayerNozzleTemp":0,
++         "firstLayerBedTemp":0,
++         "firstLayerBrimTrig":0,
++         "outputRaft":false,
++         "outputRaftSpacing":0.2,
++         "outputRetractWipe":0,
++         "outputBrimCount":2,
++         "outputBrimOffset":2,
++         "outputLoopLayers":null,
++         "outputInvertX":false,
++         "outputInvertY":false,
++         "arcTolerance":0,
++         "gcodePause":"",
++         "ranges":[
++
++         ],
++         "firstLayerFanSpeed":0,
++         "outputFanSpeed":255
++      }))
++    .then(eng => eng.setDevice({
++         "noclone":false,
++         "mode":"FDM",
++         "internal":0,
++         "imageURL":"",
++         "imageScale":0.75,
++         "imageAnchor":0,
++         "bedHeight":2.5,
++         "bedWidth":220,
++         "bedDepth":220,
++         "bedRound":false,
++         "bedBelt":false,
++         "maxHeight":300,
++         "originCenter":false,
++         "extrudeAbs":true,
++         "spindleMax":0,
++         "gcodeFan":[
++            "M106 S{fan_speed}"
++         ],
++         "gcodeTrack":[
++
++         ],
++         "gcodeLayer":[
++
++         ],
++         "gcodePre":[
++            "M107                     ; turn off filament cooling fan",
++            "G90                      ; set absolute positioning mode",
++            "M82                      ; set absolute positioning for extruder",
++            "M104 S{temp} T{tool}     ; set extruder temperature",
++            "M140 S{bed_temp} T{tool} ; set bed temperature",
++            "G28                      ; home axes",
++            "G92 X0 Y0 Z0 E0          ; reset all axes positions",
++            "G1 X0 Y0 Z0.25 F180      ; move XY to 0,0 and Z 0.25mm over bed",
++            "G92 E0                   ; zero the extruded",
++            "M190 S{bed_temp} T{tool} ; wait for bed to reach target temp",
++            "M109 S{temp} T{tool}     ; wait for extruder to reach target temp",
++            "G92 E0                   ; zero the extruded",
++            "G1 F225                  ; set feed speed"
++         ],
++         "gcodePost":[
++            "M107                     ; turn off filament cooling fan",
++            "M104 S0 T{tool}          ; turn off right extruder",
++            "M140 S0 T{tool}          ; turn off bed",
++            "G1 X0 Y300 F1200         ; end move",
++            "M84                      ; disable stepper motors"
++         ],
++         "gcodeProc":"",
++         "gcodePause":[
++
++         ],
++         "gcodeDwell":[
++
++         ],
++         "gcodeSpindle":[
++
++         ],
++         "gcodeChange":[
++
++         ],
++         "gcodeFExt":"gcode",
++         "gcodeSpace":true,
++         "gcodeStrip":false,
++         "gcodeLaserOn":[
++
++         ],
++         "gcodeLaserOff":[
++
++         ],
++         "extruders":[
++            {
++               "extFilament":1.75,
++               "extNozzle":0.4,
++               "extSelect":[
++                  "T0"
++               ],
++               "extDeselect":[
++
++               ],
++               "extOffsetX":0,
++               "extOffsetY":0
++            }
++         ],
++         "new":false,
++         "deviceName":"Creality.Ender.3"
++
++    }))
++    .then(eng => eng.slice())
++    .then(eng => eng.prepare())
++    .then(eng => eng.export())
++    .then(display_gcode);
+diff --git a/web/kiri/engine.html b/web/kiri/engine.html
+index 711ee395..e6e5663d 100644
+--- a/web/kiri/engine.html
++++ b/web/kiri/engine.html
+@@ -84,7 +84,10 @@
+         let edit, saveit = "";
+         function $(id) { return document.getElementById(id) }
+         function onload() {
+-            let fnstr = demo.toString().split("\n");
++
++          console.log(`kiri | init engine | ${kiri.version || "rogue"}`);
++
++          let fnstr = demo.toString().split("\n");
+             edit = ace.edit($("jbody"), {
+                 mode: "ace/mode/javascript",
+                 theme: "ace/theme/chrome",
+@@ -98,6 +101,7 @@
+                 .join('\n'));
+         }
+         function display_message(msg) {
++            // console.log("display_message", msg);
+             $('gfoot').innerText = msg ? Object.keys(msg).join(' - ') : '';
+         }
+         function display_gcode(gcode) {
+@@ -114,8 +118,8 @@
+         }
+         function demo() {
+             kiri.newEngine()
+-                .setListener(display_message)
+-                .load("/obj/cube.stl")
++                .setListener(display_message) // used for the log
++                .load("/obj/oneLayer.stl")
+                 .then(eng => eng.setProcess({
+                     sliceShells: 1,
+                     sliceFillSparse: 0.25,
+diff --git a/web/obj/cube.stl b/web/obj/cube.stl
+index 501c236d792d9a96a033d282da6586f39eeb444c..1460a8ff9c6f5f6cd83e16d9e21c1bf67bc2df34 100644
+GIT binary patch
+literal 684
+zcmb_Z!4bnS2xEW@(M?J>^C;OQ9xW0WqBMP0ce%<!0^^$f7hAL&@2l(XX8SaIeek<D
+ztHE)mZuTody<Eyy;-Hpbe>!8v;;e*@vm^#&e3ihdUCJ{-h2ZTf(KDv(<TZnCq7zeG
+z%KeeRK6PI-=y}26X6=qq2~Yj;R#W|S6E#Ek2;H-GZT_85mvTwqox0+(IXIzjm`eTc
+Mx4Ta`J?ok{0n>tH(*OVf
+
+literal 16084
+zcmbuGzl)z)6~^CzO;U)3h{85Y2qv8{A-FDBOftbGViPO`n-uOE5k(P+$X3G^He(Tj
+z2DY-AkYd|FKw<uY1e-;hERG->Frdw*v2Z=leeQG5bKV~l!GR%{_uS7tzwSNveBbZn
+z7eD*SkKR51%gei8KmX31@BiTZ<zHPs|Ns14-I@B&!O=7w9KX2z)BS0B9={j%51+h0
+z#(aL#p05#<IKgoe2YceC=~i3!FHb+crtz0P_(D9x^OJo(4{K(GB&40-`1e2m@M2K-
+z-IFCd(?{3j6UMR%<7rwFC;M|ko|8a~(vQRD2eord+c7@b=kp~Y$&!%g&;UILM~6@D
+z##+zf_iX(Bu8nu5H{;*;+W5;Kd^P^%4~Z&C;<L}bW%L%|v;J}WJB^@jCtTu$#?$m+
+zME6w$XVH&8KmFs3kROoLb?MVmhZBkwX4M$FRaN5aX56Of)7QRs9KT2Sw-T8H?JJy{
+zIe}B8bC3kBJ=tdltBxeJkFoAIKl%0kA6|bE=koQ14(t->I2%&mF}@RB$26tHiETeB
+zkrwj#^S;}cIw<jV7k=yo)uO8mA|}4aR2g`pVzv>i8IU-^F(cCQu}XOLxpU=qjjj>M
+znlhCcRAm@BA4HWTvF%4C(kDJ=J+6LKNfN7mTtv*I9aYBT<8d20IziicIvE9wWi4xB
+z&qpJq{l)FSkJ=7>vUW*S32Qs+AbsN4bu0<q4BJ*!Nv^x?xf6AkM<lE|j^9PB{6y*8
+z3_pzE8HB_Mj&1L*5;}LFb)p#crBx^UnZajmtn)bXF?3Xkdz;pd3fDZZM9$*#=j}#a
+zBP2<p`r(z@qgdlZT6ZlN-h-Y&)mlWMT3dDGDf08-=Z5p8Lu;`D@O+?lNjIN&9q6z2
+zn&e>TI^y2wJ|=OdJs&!fm?&|Ax|5i7OR+9v5<bP4yAS@I>Ca(}G|@vzmIP_*mf{|a
+z8z9z&hw=$ySw+tmL};HA@|*-CE4w1M!*-786LNm0`?Mg2WJ#1=65gX%#7%!LtWuwV
+zv3jj@kq`7*{6V~ufP_0y1oD6Gdg;g(1a~55v8!3rQ6;%9cct{XRZjRUJulr-v&tn-
+z$U;_(H62`wR&iFwu!pMct&G*2sB!D{>L~t=z8&3*JWL(hSEXKc0=<aNK@#-i%yn8=
+zbtIvEjCE0c-u~o2v7d2wRRUIF@2bC&g}xJ=V7=lVb)UBVs6<-Wo{v+o(9tEn?!u3~
+zpjxavw>9Ui3_RyC+lZ7n!7(E;dWNneiB?y-h3E`QbWI1crc7l9RT)Ok2T>(SsE#fD
+zs6<-Wo`;1SI))^PRX;8wFVc=G<MHvhjaYSpwzFn13VDC9R#rmV`57Rr3Jal6ez1!6
+z3^pBAl7w4Zbu5U;&Ct<K!G*}zLdTFWRv87Il`W#i$0LHM#&7dOJDeV7thA>Y!%Ac=
+z;ThC^<*9{*&5xl&CkN40WuQL4OI(LeC)RSJT6-!n;<ja#D#Oq*h^<&T;qmcGG_TaD
+zeJxfzQGOe=T~aJL)9$|Nxf9xPSj*3co--d#Xf2*j<{b50y7{~lasH+U$^j(W#~A1H
+z$K^eP6ORj#G>O_R9X|PY?`v=E-?{RyG3N7a0+LFQ#`E4S#qB&@qKE8|83m5>`8M&m
+z_qcPqTZK6FpF^|#F!rx}((`Qsl1jMeSpML1?99*`d>rw47*^ptzHH;xcO9IKy8AHm
+zkwlkN;=TR1Z@=~m0=r$aT8Fc$qe_zCu9Srg68&((XR(W-e?6$(bC);)3-4U{TaUs*
+zM~_vVl`*V3*u6@7u3O{Qt4~z9NAZb5-Xen<BRA1;wA&8Pov0EgJey9ailUE78t+?u
+z$2j2<CvrTuYMt<1xlQ!*(Y-w_R<ajFdYj{}1AR%0?mW-hiM5u*>_JpXMmKXa*WpBt
+zKf0#QV05oTM_To`*In)KTm8(>b)ZJ+JSY9o>f>odT7_9!3Hf)=UE;*5AK}ZR_^g&Y
+z+^x!rYF2eZwYGYm^l3z{%jn|WYl-g6Dy)?jHlN~~l$~j=qe_xUeWw%YQ?6vuZB|uD
+z5{Pc`<Cr;lbTM}|Dso!Y&Y=5Y1U{w6!z7aKeykF?E<bs_%Bp$>asKn><oUy?!Y)aP
+z`;_|TR#n1%(n>wL!;d8NjS{1P%9nn4Z3m$fl~%zL>A={DYOkW(dz2A%Cw%|Z9j-Gt
+z*U@&#sQRitwLU__jR(BT??!a_34;Bgf10>y?`kUHk|i;^zDv`D_0eZ(zas9k9pjtU
+zuY_4fxTF%<)r3_+9PGXP%{yOdenb?h9iLd9_wOCU+VQ*+E?E+zLylP8Jz~6Q2|q#5
+zCysBny})t!VT4O6f!!_wZ#WUFtKrX$*6;A0)s4u(+4e3A&(Uk?Elwp;GABL`ir?Lx
+zLPU?kSvOiIL*2PUXcc;#VU-c=2KiR4>X;LJ_eMYTR;?27gA&X_AB1)3liu8&LbTqH
+z1a9heKT_iBa?B`v@1H+>&?`{n1(u{$N%ItNzg5B|p3R$<*=-_Elx|MG8(0u#Ra)r#
+zZBF3iaL2h%ZtXVVv-}iP!X-&mKYn}k?IYFq#cm%voPO~0U?p5aKX@iW-=MdNtR=FF
+z9l)H(Jl727`|CN8l1gN~+9up5=AYH45-v%i`VslK#0~)84|+^$tnxGNoJffiUKyN#
+z_Pil$ozEKVgetXeoYdzvf1B`G@K1HV5-xFK%MZp%YxykDs(g_Tyt|6N1aAj@Ry|Q!
+z+bcm!R?px#&D%uYABs9F!;+A_ZXqMWdNn8VhOET4A4#}RyhYb^xFm_{N4;@!mi94k
+z2JZZ|n{%FXMZrCv>&VlIS-M}TTW_QM#)(<|4K1w7D#7RK8PxZnZ@_yv?JJHMpL_N^
+zJ0%b<SrVjcx1?SaJ(c=TjPLax72`^{q!M`^)%X1Atv8}C2}_3O9Mjvdc08|yOO}LU
+z<=ql3VQ%RY$M;&FsGK|Dl1k)l7dekwh{#@z&g_2csn|{2w+!<6=#~})B{O2|m^B?D
+za$kjx(K#)MA;B!|#QRo#P9w5LQOD?(svo1L@^z_ibYz<Ztm3R7Mz6K7YDj!tkK1?O
+zeFGgpucDqo?0nNP#+7i}LF=6J-0*xjp-*wFmUWM19dkmbmTNiT)@~C%Ys)H~b5(<^
+zwH~*s!`Jdz9+AKP`195QkkCoZSZxzrmpv6|?L_*-n&>(dUG`C|SJdZq#fe&@oN#Nm
+z37@rP6{4G!%!zH!o$y&6k;q5;_6qyA)shh(-{GMzY9gah371qN?~-jItEj(|ou&n0
+zR(S^Vwwn_vac|w)ZNg{yO;ib&BvJi{oZBZakB{$m-d(&6D&dk!WL?=N^8S!jtQd15
+zGvyZ2C!XdxkvC)|@{Zaj+$ZLLO@~X8sD9K+owHbpRCjp_bl3XLnOOsoQE<=aI_eqB
+zT9W&1PGm)fCAGGXo*|kUet)O8YOq)DNHNamyHUgVGbeTnku(X;CYhbL-d{03dcI9S
+z;-88&#`FID;4yUQ&E2p)>c{Y@jkk$idfSQS`5+=rZGHNYJ6tuGe&~7kV}*dk??H`8
+zaCPQ{Zyl%Ut$lsRhOypXVyxNt_h8Q@PU!o#|AA<o6V~Nh)g|GQx-P$oJDt$Ca+sxe
+zy-T7>eBBtgw|H~U7sQyAF|4tIA3S$hE7$e7jc@zne!`Dpf=p=)KlomJn(!Q-XL+MV
+zmW#xRyD{@+{6e=As4{p5fNGiag_xyXg0T}WaU#catJVq3l8$YnpO5$y25)QB*R86v
+zlIS|nx%TL01;~B8JKOD;okT`7^Wl|fuEXn6jxR)Q<eL}XQLZB`nV*TYw&laDa!Fd4
+z`sP-ls<C68+pgz5=PNqAQtz(&(JN5y_Ue;Y(e8OCQsP98&5s4)l^W5-U$>R$&aA>(
+zX<=6IxsEDHBK4h4q))k$MYma1B}pv&IF5KV!gqC!v19x;z-$pNsf7FFMD0JcZoi%T
+zeKjgWx9a`YJJ)*&-iq$A8dkNMG1kgi`FxvzBni*vmQ^6!TaEENf6zN*UCLO^^*K@P
+z&2=-gOC6c#y2Et_=R{kp*Fmp7weG^I$RbW|<ODYv{^AecBJsw--}vwr)pIARWJa`i
+z1Nc7r8&AJ@9KU<`*9qNZ{5zs}tJ>~F=<c%{;g(bjqw608?C)<nyAJ(j4c^xBJFlv5
+zK@5A7(DzY{2#EMatlD>X(2jR6@`>+Z+>bQ^YdN7Yby#%wBpEuIx4j#PJn6m9$YAV5
+zW^k1lboU|rz~2-lQQw#G`S2WG7lIPzfR@biu^0Jh-~RBkv%Yu4y2{O|M6<W=#6bkz
+zqOQL@>k;mISL;Ft{@<k{t>-<u$DkNpN#+FUv3Ie53qe}5e8*s>_OEA9duf>)&Bnhq
+zAM}=8m`A!3%_<V|BWCs8&gZgFaf+N@l<mwKZ68+kxMfXrf;ms3`84!FhrVr)B-cg$
+zv3GessCz-Q-0DP;Xx5g!+xJzEmDZ)_T-W0kI<yl>jJ2Hb=z@S{@ymC}ZTGzywsV(I
+z2kCM?3PFhz9P@c(uw{=q&xm?%IF^5w^YFuM$GV#3`fRuNSUv0CvM1sCFn{E|SD!6H
+G`u+<OpS7z1
+
+-- 
+2.20.1 (Apple Git-117)
+

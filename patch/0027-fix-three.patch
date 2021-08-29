@@ -1,0 +1,28 @@
+From f86b39b38bf48d8e7abb3297143ef19b2bb6965f Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sun, 27 Jun 2021 01:26:05 +0200
+Subject: [PATCH] fix three
+
+---
+ test.js | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/test.js b/test.js
+index bf2b0ff3..746ed399 100644
+--- a/test.js
++++ b/test.js
+@@ -15,8 +15,11 @@ let fs = require('fs');
+ /* ---------------------------- */
+ exports = {};
+ THREE = {}
++console.log(fs.readFileSync("src/ext/three.js").toString());
+ eval(fs.readFileSync("src/ext/three.js").toString());
+ Object.assign(THREE, exports); 
++
++return;
+ /* ---------------------------- */
+ /* only if THREE is not defined */
+ /* ---------------------------- */
+-- 
+2.20.1 (Apple Git-117)
+

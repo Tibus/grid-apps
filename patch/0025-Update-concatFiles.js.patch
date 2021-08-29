@@ -1,0 +1,38 @@
+From 16163618668eaecfb5c8941120ea1ee1f27355b9 Mon Sep 17 00:00:00 2001
+From: Julien Delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 19:25:20 -0400
+Subject: [PATCH] Update concatFiles.js
+
+---
+ concatFiles.js | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/concatFiles.js b/concatFiles.js
+index 789dbb39..6df4512d 100644
+--- a/concatFiles.js
++++ b/concatFiles.js
+@@ -1,13 +1,14 @@
+ const fs = require('fs');
++var os = require('os');
+ 
+ console.log("process", process.argv);
+ 
+ let content = fs.readFileSync(process.argv[2]).toString();
+ 
+ fs.writeFileSync(process.argv[3], "");
+-content.split("\n").forEach((file)=>{
+-    console.log("file", file);
+-    fs.existsSync(file) && fs.appendFileSync(process.argv[3], fs.readFileSync(file));
+-})
++let files = content.split(os.EOL);
++for(let i in files){
++    console.log("file", files[i], fs.existsSync(files[i]));
+ 
+-console.log("content", fs.readFileSync(process.argv[3]));
+\ No newline at end of file
++    fs.existsSync(files[i]) && fs.appendFileSync(process.argv[3], fs.readFileSync(files[i]));
++}
+\ No newline at end of file
+-- 
+2.20.1 (Apple Git-117)
+

@@ -1,0 +1,30 @@
+From 096e9f52ce2960d0955d9f9104ab68d5ee13d745 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 21:25:06 +0200
+Subject: [PATCH] keep code
+
+---
+ .gitignore | 2 +-
+ code/.keep | 0
+ 2 files changed, 1 insertion(+), 1 deletion(-)
+ create mode 100644 code/.keep
+
+diff --git a/.gitignore b/.gitignore
+index b1eec2ec..bf680c93 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,7 +2,7 @@ mod
+ tmp
+ .DS_Store
+ node_modules
+-code
++code/**.js
+ package-lock.json
+ logs/*
+ data/*
+diff --git a/code/.keep b/code/.keep
+new file mode 100644
+index 00000000..e69de29b
+-- 
+2.20.1 (Apple Git-117)
+

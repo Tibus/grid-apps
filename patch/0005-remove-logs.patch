@@ -1,0 +1,104 @@
+From f0e44feb3973e0ee5870bde49ac3d7bc5c41919e Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Fri, 7 May 2021 12:27:25 +0200
+Subject: [PATCH] remove logs
+
+---
+ src/kiri/client.js      |  2 +-
+ src/kiri/worker.js      |  4 ++--
+ src/mode/fdm/prepare.js | 12 ++++++------
+ 3 files changed, 9 insertions(+), 9 deletions(-)
+
+diff --git a/src/kiri/client.js b/src/kiri/client.js
+index 3335de28..2f3eb7c7 100644
+--- a/src/kiri/client.js
++++ b/src/kiri/client.js
+@@ -224,7 +224,7 @@ KIRI.work = {
+     export: function(settings, online, ondone) {
+         send("export", { settings }, function(reply) {
+             if (reply.line) {
+-                console.log("reply.line", reply.line);
++                // console.log("reply.line", reply.line);
+                 online(reply.line);
+             }
+             if (reply.done) {
+diff --git a/src/kiri/worker.js b/src/kiri/worker.js
+index 97fe2e37..8ba3dc51 100644
+--- a/src/kiri/worker.js
++++ b/src/kiri/worker.js
+@@ -371,7 +371,7 @@ KIRI.worker = {
+         const settings = data.settings;
+         const mode = settings.mode;
+         const driver = drivers[mode];
+-        console.log("driver", driver);
++        // console.log("driver", driver);
+ 
+         if (!(driver && driver.prepare)) {
+             return console.log({invalid_print_driver: mode, driver});
+@@ -413,7 +413,7 @@ KIRI.worker = {
+         }
+ 
+         let output;
+-        console.log("current.print", current.print);
++        // console.log("current.print", current.print);
+         driver.export(current.print, function(line, direct) {
+             send.data({line}, direct);
+         }, function(done) {
+diff --git a/src/mode/fdm/prepare.js b/src/mode/fdm/prepare.js
+index bbdb2005..9fb9049e 100644
+--- a/src/mode/fdm/prepare.js
++++ b/src/mode/fdm/prepare.js
+@@ -260,7 +260,7 @@
+             blok = { x:4, y:9 };
+         }
+ 
+-      console.log("extruders", extruders);
++    //   console.log("extruders", extruders);
+ 
+       // compute purge blocks
+         extruders = extruders.map((ext,i) => {
+@@ -276,7 +276,7 @@
+             return rec;
+         });
+ 
+-      console.log("after extruders", extruders);
++    //   console.log("after extruders", extruders);
+ 
+ 
+       // generate purge block for given nozzle
+@@ -339,7 +339,7 @@
+                 rec.slices.push(slice);
+             }
+         }
+-        console.log("cake", [...cake]);
++        // console.log("cake", [...cake]);
+ 
+         cake.sort((a, b) => {
+             return a.z - b.z;
+@@ -347,12 +347,12 @@
+ 
+         let lastWidget;
+ 
+-        console.log("cake", cake);
++        // console.log("cake", cake);
+         // walk cake layers bottom up
+         for (let layer of cake) {
+             // track purge blocks generated for each layer
+             let track = extruders.slice();
+-            console.log("track", track);
++            // console.log("track", track);
+             let lastOut;
+             let lastExt;
+ 
+@@ -451,7 +451,7 @@
+ 
+             // if layer produced output, append to output array
+             if (layerout.length) {
+-                console.log("layerout", layerout);
++                // console.log("layerout", layerout);
+                 output.append(layerout);
+             }
+ 
+-- 
+2.20.1 (Apple Git-117)
+

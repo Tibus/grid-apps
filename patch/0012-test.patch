@@ -1,0 +1,25 @@
+From 361de234091e00714fe6061c82712fe255d76a42 Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sat, 26 Jun 2021 20:28:44 +0200
+Subject: [PATCH] test
+
+---
+ cpp/main.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/cpp/main.cpp b/cpp/main.cpp
+index b7e4b557..44830229 100644
+--- a/cpp/main.cpp
++++ b/cpp/main.cpp
+@@ -2,7 +2,7 @@
+ 
+ Napi::Value test(const Napi::CallbackInfo &info){
+   Napi::Env env = info.Env();
+-  return Napi::String::New(env, "coucou");
++  return Napi::String::New(env, "coucou2");
+ }
+ 
+ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+-- 
+2.20.1 (Apple Git-117)
+

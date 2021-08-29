@@ -1,0 +1,32 @@
+From b31f0fb12c88861c2ab0ece85d14f4ef54ee04aa Mon Sep 17 00:00:00 2001
+From: julien delnatte <julien.delnatte@gmail.com>
+Date: Sun, 27 Jun 2021 02:58:43 +0200
+Subject: [PATCH] cleanForProd
+
+---
+ package.json | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/package.json b/package.json
+index 0af5dba9..5dda2295 100644
+--- a/package.json
++++ b/package.json
+@@ -6,13 +6,13 @@
+     "license": "MIT",
+     "private": false,
+     "main": "index.js",
++    "cleanForProd": "apps/ conf/ cpp/ data/ logs/ src/ web/",
+     "scripts": {
+         "test": "node --expose_gc ./test.js",
+         "concatModule": "node ./concatFiles.js ./concatModuleScripts.txt ./code/module.js",
+         "concatTest": "node ./concatFiles.js ./concatTestScripts.txt ./code/test.js",
+         "concatFiles": "npm run concatModule && npm run concatTest",
+-        "installAndTest": "npm install && npm run concatFiles && npm run test",
+-        "cleanForProd": "rimraf apps/ conf/ cpp/ data/ logs/ src/ web/"
++        "installAndTest": "npm install && npm run concatFiles && npm run test"
+     },
+     "repository": {
+         "type": "git",
+-- 
+2.20.1 (Apple Git-117)
+
