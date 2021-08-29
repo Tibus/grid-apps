@@ -1,0 +1,9 @@
+[submodule "cpp/vendors/Eigen"]
+	path = cpp/vendors/Eigen
+	url = https://github.com/Mango3D/Eigen.git
+[submodule "cpp/vendors/libigl"]
+	path = cpp/vendors/libigl
+	url = https://github.com/Mango3D/libigl.git
+[submodule "cpp/vendors/utils"]
+	path = cpp/vendors/utils
+	url = https://github.com/Mango3D/mangoslicer_cpp_utils.git
