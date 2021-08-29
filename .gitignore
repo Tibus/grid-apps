@@ -7,3 +7,11 @@ package-lock.json
 logs/*
 data/*
 /build
+/standalone.gcode
+/web/obj/**
+!/web/obj/cube.stl
+!/web/obj/donug.stl
+!/web/obj/meta-corner-1.stl
+!/web/obj/meta-corner-2.stl
+!/web/obj/meta-corner-3.stl
+!/web/obj/meta-corner-4.stl
