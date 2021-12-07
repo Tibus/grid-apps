@@ -5,7 +5,7 @@ node_modules
 package-lock.json
 logs/*
 data/*
-app/*
+apps/*
 /build
 /standalone.gcode
 /web/obj/**
