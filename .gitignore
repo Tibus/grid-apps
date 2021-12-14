@@ -15,3 +15,5 @@ apps/*
 !/web/obj/meta-corner-2.stl
 !/web/obj/meta-corner-3.stl
 !/web/obj/meta-corner-4.stl
+/code/module.js
+/code/test.js
