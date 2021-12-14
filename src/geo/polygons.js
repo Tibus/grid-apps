@@ -1,5 +1,5 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
-
+const Shape2D = require("bindings")("gridapp");
 "use strict";
 
 (function() {
@@ -338,9 +338,22 @@
             // more expensive? worth it?
             clip.StrictlySimple = true;
             if (outA) {
-                clip.AddPaths(sp1, ptyp.ptSubject, true);
-                clip.AddPaths(sp2, ptyp.ptClip, true);
-                if (clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
+                let shape2D = new Shape2D.Shape2D();
+                let success = false;
+                
+                if(global.forceUsingJSInsteadOfCPP == false){
+                    shape2D.addPaths(sp1, ptyp.ptSubject, true);
+                    shape2D.addPaths(sp2, ptyp.ptClip, true);
+            
+                    ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftEvenOdd, cfil.pftEvenOdd, false))
+                }else{
+                    console.log("--> 6");
+                    clip.AddPaths(sp1, ptyp.ptSubject, true);
+                    clip.AddPaths(sp2, ptyp.ptClip, true);
+                    success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
+                }
+        
+                if(success){
                     cleanClipperTree(ctre);
                     filter(fromClipperTree(ctre, z, null, null, min), outA);
                 }
@@ -549,18 +562,37 @@
             let coff = new ClipperLib.ClipperOffset(opts.miter, opts.arc),
                 ctre = new ClipperLib.PolyTree();
 
-            // setup offset
-            for (let poly of polys) {
-                // convert to clipper format
-                poly = poly.toClipper();
-                if (clean) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
-                if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
-                coff.AddPaths(poly, join, type);
+            let shape2D = new Shape2D.Shape2D();
+            let res, success = false;
+            
+            if(global.forceUsingJSInsteadOfCPP == false ){
+                for (let poly of polys) {
+                    poly = poly.toClipper();
+                    shape2D.addPathsToOffset(poly, join, type);               
+                }
+                //shape2D.executeClipperOffset(ctre, offs * CONF.clipper);
+                
+                // if(success){
+                //     res = shape2D.exportLine(minlen? minlen: 0, maxlen? maxlen: 0 , spacing, 1, zpos)
+                // }
+            }else {
+                 // setup offset
+                for (let poly of polys) {
+                    // convert to clipper format
+                    poly = poly.toClipper();
+                    if (clean) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
+                    if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
+                    coff.AddPaths(poly, join, type);
+                }
+                console.log("--> 10", join, type);
+                // perform offset
+                coff.Execute(ctre, offs * CONF.clipper);
+                // convert back from clipper output format
+                polys = fromClipperTree(ctre, zed, null, null, mina);
             }
-            // perform offset
-            coff.Execute(ctre, offs * CONF.clipper);
-            // convert back from clipper output format
-            polys = fromClipperTree(ctre, zed, null, null, mina);
+    
+           
+           
         }
 
 
@@ -711,25 +743,65 @@
             start.x += stepX;
             start.y += stepY;
         }
+        let shape2D = new Shape2D.Shape2D();
+        let res, success = false;
+        
+        if(global.forceUsingJSInsteadOfCPP == false){
+            shape2D.addPaths(lines, ptyp.ptSubject, false);
+            shape2D.addPaths(toClipper(polys), ptyp.ptClip, true);
+    
+            ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftNonZero, cfil.pftEvenOdd))
+        }
 
-        clip.AddPaths(lines, ptyp.ptSubject, false);
-        clip.AddPaths(toClipper(polys), ptyp.ptClip, true);
+        if(success){
+            res = shape2D.exportLine(minlen? minlen: 0, maxlen? maxlen: 0 , spacing, 1, zpos)
 
-        lines = [];
+            lines = [];
 
-        if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftNonZero, cfil.pftEvenOdd)) {
-            for (let poly of ctre.m_AllPolys) {
-                if (minlen || maxlen) {
-                    let plen = clib.JS.PerimeterOfPath(poly.m_polygon, false, 1);
-                    if (minlen && plen < minlen) return;
-                    if (maxlen && plen > maxlen) return;
+            if(res && res.lines){
+                for (let poly of res.lines) {
+                    //console.log("poly", poly.m_polygon.length);
+                    // if (minlen || maxlen) {
+                    //     let plen = clib.JS.PerimeterOfPath(poly.m_polygon, false, 1);
+                    //     if ((minlen && plen < minlen)||(maxlen && plen > maxlen)) {
+                    //         console.error("exit js");
+                    //         return;
+                    //     }
+                    // }
+                    let p1 = BASE.pointFromClipper(poly[0], zpos);
+                    let p2 = BASE.pointFromClipper(poly[1], zpos);
+                    let od = rayint.origin.distToLineNew(p1,p2) / spacing;
+                    lines.push([p1, p2, od]);
                 }
-                let p1 = BASE.pointFromClipper(poly.m_polygon[0], zpos);
-                let p2 = BASE.pointFromClipper(poly.m_polygon[1], zpos);
-                let od = rayint.origin.distToLineNew(p1,p2) / spacing;
-                lines.push([p1, p2, od]);
+            }
+            
+        }else{
+            clip.AddPaths(lines, ptyp.ptSubject, false); 
+            clip.AddPaths(toClipper(polys), ptyp.ptClip, true);
+
+            lines = [];
+    
+            if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftNonZero, cfil.pftEvenOdd)) {
+                let count =0;
+                for (let poly of ctre.m_AllPolys) {
+                    //console.log("poly", poly.m_polygon.length);
+                    if (minlen || maxlen) {
+                        let plen = clib.JS.PerimeterOfPath(poly.m_polygon, false, 1);
+                        if ((minlen && plen < minlen)||(maxlen && plen > maxlen)) {
+                            //console.error("exit js");
+                            return;
+                        }
+                    }
+    
+                    let p1 = BASE.pointFromClipper(poly.m_polygon[0], zpos);
+                    let p2 = BASE.pointFromClipper(poly.m_polygon[1], zpos);
+                    let od = rayint.origin.distToLineNew(p1,p2) / spacing;
+                    lines.push([p1, p2, od]);
+    
+                }
             }
         }
+        
 
         lines.sort(function(a,b) {
             return a[2] - b[2];

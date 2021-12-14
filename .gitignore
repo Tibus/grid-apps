@@ -18,3 +18,4 @@ apps/*
 !/web/obj/meta-corner-4.stl
 /code/module.js
 /code/test.js
+.vscode

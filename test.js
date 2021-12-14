@@ -27,12 +27,13 @@ Object.assign(THREE, exports);
 let kiri = require("./code/test.js").kiri;
 
 let engine = kiri.newEngine();
+global.forceUsingJSInsteadOfCPP = false;
 
-let buf = new Uint8Array(fs.readFileSync('./web/obj/one_layer.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // return;
 
 // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
-engine.setListener((mess)=>{console.log("mess", mess)});
+// engine.setListener((mess)=>{console.log("mess", mess)});
 
 console.time("slicing");
 engine.parse(buf)

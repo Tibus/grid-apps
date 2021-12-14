@@ -135,7 +135,7 @@ class Engine {
 
             // Todo: for loop on every non support widget
             KIRI.client.slice(this.settings, this.widget, msg => {
-                console.log("msg", msg);
+                // console.log("msg", msg);
 
                 this.listener({slice:msg});
                 if (msg.error) {
