@@ -367,6 +367,8 @@ KIRI.worker = {
                 send.data({error: error});
             } else {
                 const slices = widget.slices || [];
+                // console.log("worker slices", slices);
+
                 send.data({send_start: time()});
                 send.data({
                     stats: widget.stats,

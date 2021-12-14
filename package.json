@@ -1,13 +1,24 @@
 {
-    "name": "grid-apps",
-    "version": "3.1.9D",
+    "name": "@mango3d/addon_grid-apps",
+    "version": "3.1.9D.mango.9",
     "description": "grid.space 3d slice & modeling tools",
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
-    "private": false,
+    "main": "index.js",
+    "cleanForProd": "apps/ conf/ cpp/ data/ logs/ src/ web/",
+    "scripts": {
+        "preinstall": "npm run concatFiles",
+        "install": "node-gyp rebuild -j max",
+        "test": "node --expose_gc ./test.js",
+        "concatModule": "node ./concatFiles.js ./concatModuleScripts.txt ./code/module.js",
+        "concatTest": "node ./concatFiles.js ./concatTestScripts.txt ./code/test.js",
+        "concatFiles": "npm run concatModule && npm run concatTest",
+        "installAndTest": "npm install && npm run test",
+        "publish:release": "node ./scripts/publish.js"
+    },
     "repository": {
         "type": "git",
-        "url": "https://github.com/gridspace/apps.git"
+        "url": "https://github.com/Mango3D/mangoslicer_addon_grid-apps"
     },
     "keywords": [
         "grid.space",
@@ -22,8 +33,10 @@
     ],
     "dependencies": {
         "@fortawesome/fontawesome-free": "^5.15.4",
+        "@mango3d/three": "^0.131.3-mngo.4",
         "@tweenjs/tween.js": "^16.6.0",
         "base64-js": "^1.5.1",
+        "bindings": "^1.5.0",
         "buffer-crc32": "^0.2.13",
         "compression": "^1.7.4",
         "connect": "^3.7.0",
@@ -31,7 +44,10 @@
         "express-useragent": "^1.0.13",
         "jszip": "^3.7.1",
         "moment": "^2.24.0",
+        "node-abi": "^2.21.0",
+        "node-addon-api": "^3.1.0",
         "pixi.js": "^4.8.9",
+        "rimraf": "^3.0.2",
         "serve-static": "^1.14.1",
         "three": "^0.126.0",
         "uglify-es": "3.3.9",

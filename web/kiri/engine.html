@@ -84,7 +84,10 @@
         let edit, saveit = "";
         function $(id) { return document.getElementById(id) }
         function onload() {
-            let fnstr = demo.toString().split("\n");
+
+          console.log(`kiri | init engine | ${kiri.version || "rogue"}`);
+
+          let fnstr = demo.toString().split("\n");
             edit = ace.edit($("jbody"), {
                 mode: "ace/mode/javascript",
                 theme: "ace/theme/chrome",
@@ -98,6 +101,7 @@
                 .join('\n'));
         }
         function display_message(msg) {
+            // console.log("display_message", msg);
             $('gfoot').innerText = msg ? Object.keys(msg).join(' - ') : '';
         }
         function display_gcode(gcode) {
@@ -114,8 +118,8 @@
         }
         function demo() {
             kiri.newEngine()
-                .setListener(display_message)
-                .load("/obj/cube.stl")
+                .setListener(display_message) // used for the log
+                .load("/obj/oneLayer.stl")
                 .then(eng => eng.setProcess({
                     sliceShells: 1,
                     sliceFillSparse: 0.25,

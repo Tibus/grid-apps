@@ -381,7 +381,7 @@
      function union(polys, minarea, all, opt = {}) {
          if (polys.length < 2) return polys;
 
-         if (opt.wasm && geo.wasm) {
+         if (false && opt.wasm && geo.wasm) {
              let min = minarea || 0.01;
              // let deepLength = polys.map(p => p.deepLength).reduce((a,v) => a+v);
              // if (deepLength < 15000)

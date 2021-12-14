@@ -1,6 +1,13 @@
 console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 
 "use strict";
+let addon3D;
+
+try {
+  addon3D = require('../build/Debug/gridapp');
+} catch (error) {
+  addon3D = require('../build/Release/gridapp');
+}
 
 (function() {
 
