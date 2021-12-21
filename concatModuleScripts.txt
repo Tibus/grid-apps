@@ -1,4 +1,5 @@
 ./src/standalone.js
+./mangoUtils/consoleTool.js
 ./src/kiri.js
 ./src/ext/pngjs.js
 ./src/ext/jszip.js

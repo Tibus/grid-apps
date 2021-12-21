@@ -1,4 +1,5 @@
 let addon3D;
+let  ConsoleTool = require("./mangoUtils/consoleTool");
 
 try {
   addon3D = require('./build/Debug/gridapp');
@@ -184,4 +185,8 @@ engine.parse(buf)
     })
     .catch(error => {
         console.log({error});
+    }).then(() =>{
+        ConsoleTool.logCount();
+        ConsoleTool.logValue(); 
     });
+
