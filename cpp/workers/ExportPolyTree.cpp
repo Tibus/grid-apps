@@ -106,12 +106,13 @@ Napi::Object ExportPolyTree::ExportPolyNode(ClipperLib::PolyNode *node, Napi::En
     Napi::Object childJS = ExportPolyNode(nextNode, env);
     childrenJS.Set(index, childJS);
   }
+  Console::logOnce("<---- ExportPolyTree", node->Contour.size());
   polyNode.Set("m_Childs",childrenJS);
   return polyNode;
 }
 
 Napi::Value ExportPolyTree::OnOK(Napi::Env env) {
-  Console::logOnce("<---- ExportPolyTree", shape2D->resultPolyTree.Contour.size());
+  
  
   Napi::HandleScope scope(env);
   Napi::Object polyTree = Napi::Object::New(env);

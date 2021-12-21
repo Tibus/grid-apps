@@ -586,16 +586,14 @@ const Shape2D = require("bindings")("gridapp");
                 for (let poly of polys) {
                     // convert to clipper format
                     poly = poly.toClipper();
-                    if (clean) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
-                    if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
+                    if (clean && false) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
+                    if (simple && false) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
                     coff.AddPaths(poly, join, type);
                 }
                 
-                //ConsoleTool.conditionnalLogOnce(ctre.m_Childs.length>= 0 , "ctre", ctre);
                 // perform offset
                 coff.Execute(ctre, offs * CONF.clipper);
                 if(ConsoleTool.onlyTrueOnce("log tree")){
-                    ConsoleTool.log("clean and simple", simple);
                     ConsoleTool.log("c++", polytree);
                     ConsoleTool.log("JS", ctre.m_Childs[0]);
                 } 
