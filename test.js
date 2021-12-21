@@ -25,10 +25,11 @@ Object.assign(THREE, exports);
 
 
 // eval(fs.readFileSync("./code/standalone.js").toString());
-let kiri = require("./code/test.js").kiri;
+let self = require("./code/test.js");
+let kiri = self.kiri;
 
 let engine = kiri.newEngine();
-global.forceUsingJSInsteadOfCPP = false;
+self.forceUsingJSInsteadOfCPP = false;
 
 let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // return;
@@ -42,6 +43,7 @@ engine.parse(buf)
         // console.log({loaded: data});
     })
     .then(() => engine.moveTo(1,1,1))
+    // .then(() => engine.scale(2,2,2))
     .then(() => engine.setProcess({
         "sName":"Ender3_test",
         "sliceHeight":0.25,

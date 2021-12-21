@@ -13,10 +13,10 @@ if (electron && electron.remote){
 
 let THREE = global.THREE = require("@mango3d/three");
 
-
 let navigator = { userAgent: "" };
 let self = {
     THREE: THREE,
+    forceUsingJSInsteadOfCPP: false,
     kiri : { driver: {}, loader: [] },
     location : { hostname: 'local', port: 0, protocol: 'fake' },
 };

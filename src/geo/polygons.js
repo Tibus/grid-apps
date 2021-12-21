@@ -346,7 +346,7 @@ const Shape2D = require("bindings")("gridapp");
                 let shape2D = new Shape2D.Shape2D();
                 let success = false;
                 
-                // if(global.forceUsingJSInsteadOfCPP == false){
+                // if(window.forceUsingJSInsteadOfCPP == false){
                   
                 // }else{
                     clip.AddPaths(sp1, ptyp.ptSubject, true);
@@ -579,7 +579,7 @@ const Shape2D = require("bindings")("gridapp");
             let shape2D = new Shape2D.Shape2D();
             let res, success = false;
 
-            if(global.forceUsingJSInsteadOfCPP == false){
+            if(self.forceUsingJSInsteadOfCPP == false){
                 for (let poly of polys) {
                     poly = poly.toClipper();
                     shape2D.addPathsToOffset(poly, join, type, clean,CONF.clipperClean, simple, fill);               
@@ -759,7 +759,7 @@ const Shape2D = require("bindings")("gridapp");
         let shape2D = new Shape2D.Shape2D();
         let res, success = false;
         
-        if(global.forceUsingJSInsteadOfCPP == false){
+        if(self.forceUsingJSInsteadOfCPP == false){
             shape2D.addPaths(lines, ptyp.ptSubject, false);
             shape2D.addPaths(toClipper(polys), ptyp.ptClip, true);
     
