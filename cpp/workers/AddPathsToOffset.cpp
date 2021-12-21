@@ -120,7 +120,6 @@ void AddPathsToOffset::AddP(Napi::Env env) {
   ClipperLib::EndType endType = getEndType(endTypeInt);
   
   shape2D->clipperOffset.AddPaths(path, joinType, endType);
-  
 
 }
 

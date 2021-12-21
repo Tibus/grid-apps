@@ -1,5 +1,5 @@
-#ifndef ExportPolyThreeAsyncWorker_H
-#define ExportPolyThreeAsyncWorker_H
+#ifndef ExportPolyTreeAsyncWorker_H
+#define ExportPolyTreeAsyncWorker_H
 
 #include <iostream>
 #include <napi.h>
@@ -14,7 +14,7 @@
 #include "../vendors/utils/napi/EmptyCallBack.h"
 #include "../vendors/utils/napi/ParametersChecker.h"
 
-class ExportPolyThree
+class ExportPolyTree
 {
   public:
     float minlen = 0.f;
@@ -26,13 +26,14 @@ class ExportPolyThree
     bool result = false;
     static Napi::Value Init(const Napi::CallbackInfo& info, Shape2D *shape2D);
     Shape2D *shape2D;
-    ExportPolyThree(float minlen,float maxlen, float spacing, float precision, float zPosition, Shape2D *shape2D, const Napi::Object &resource);
+    ExportPolyTree(Shape2D *shape2D, const Napi::Object &resource);
     
   protected:
     static void SafeExecute(void* data);
     Napi::Value Execute(Napi::Env env);
     Napi::Value OnOK(Napi::Env env);
     Napi::Value OnError(Napi::Env env);
+    Napi::Object ExportPolyNode(ClipperLib::PolyNode *  nodes, Napi::Env env);
     void Export(Napi::Env env);
   
 };

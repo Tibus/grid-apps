@@ -20,7 +20,7 @@ Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("addPathsToOffset", &Shape2D::addPathsToOffset),
     InstanceMethod("executeClipper", &Shape2D::executeClipper),
     InstanceMethod("executeClipperOffset", &Shape2D::executeClipperOffset),
-    InstanceMethod("exportLine", &Shape2D::exportLine),
+    InstanceMethod("exportPolyTree", &Shape2D::exportPolyTree),
     InstanceMethod("exportLine", &Shape2D::exportLine)
   });
 
@@ -97,6 +97,12 @@ Napi::Value Shape2D::exportLine(const Napi::CallbackInfo& info) {
   // Napi::Env env = info.Env();
   // return env.Null();
   return ExportLine::Init(info, this);
+}
+
+Napi::Value Shape2D::exportPolyTree(const Napi::CallbackInfo& info) {
+  // Napi::Env env = info.Env();
+  // return env.Null();
+  return ExportPolyTree::Init(info, this);
 }
 
 

@@ -70,7 +70,7 @@ Napi::Value ExecuteClipperOffset::Execute(Napi::Env env) {
 
 void ExecuteClipperOffset::ExecClipperOffset(Napi::Env env) {
   
-  shape2D->clipperOffset.Execute(shape2D->resultPath, delta);
+  shape2D->clipperOffset.Execute(shape2D->resultPolyTree, delta);
 }
 
 Napi::Value ExecuteClipperOffset::OnError(Napi::Env env) {

@@ -1,5 +1,9 @@
+// const ConsoleTool = require("../../mangoUtils/consoleTool");
+
+
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 const Shape2D = require("bindings")("gridapp");
+
 "use strict";
 
 (function() {
@@ -74,13 +78,16 @@ const Shape2D = require("bindings")("gridapp");
         return poly;
     };
 
-    function fromClipperTree(tnode, z, tops, parent, minarea) {
+    function fromClipperTree(tnode, z, tops, parent, minarea, log = false, key="key") {
         let poly,
             polys = tops || [],
             min = numOrDefault(minarea, 0.1);
-
+        if(log){
+            ConsoleTool.logOnce(key, tnode.m_Childs);
+        }
         for (let child of tnode.m_Childs) {
             poly = fromClipperNode(child, z);
+            
             // throw out all tiny polygons
             if (!poly.open && poly.area() < min) {
                 continue;
@@ -564,18 +571,17 @@ const Shape2D = require("bindings")("gridapp");
 
             let shape2D = new Shape2D.Shape2D();
             let res, success = false;
-            
-            if(global.forceUsingJSInsteadOfCPP == false ){
+
+            if(global.forceUsingJSInsteadOfCPP == false){
                 for (let poly of polys) {
                     poly = poly.toClipper();
                     shape2D.addPathsToOffset(poly, join, type);               
                 }
-                //shape2D.executeClipperOffset(ctre, offs * CONF.clipper);
+                shape2D.executeClipperOffset( offs * CONF.clipper);
                 
-                // if(success){
-                //     res = shape2D.exportLine(minlen? minlen: 0, maxlen? maxlen: 0 , spacing, 1, zpos)
-                // }
-            }else {
+                let polytree = shape2D.exportPolyTree();
+                //let polys2 = fromClipperTree(polytree, zed, null, null, mina, true, "no");
+            //}else {
                  // setup offset
                 for (let poly of polys) {
                     // convert to clipper format
@@ -584,15 +590,20 @@ const Shape2D = require("bindings")("gridapp");
                     if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
                     coff.AddPaths(poly, join, type);
                 }
-                console.log("--> 10", join, type);
+                
+                //ConsoleTool.conditionnalLogOnce(ctre.m_Childs.length>= 0 , "ctre", ctre);
                 // perform offset
                 coff.Execute(ctre, offs * CONF.clipper);
+                if(ConsoleTool.onlyTrueOnce("log tree")){
+                    ConsoleTool.log("clean and simple", simple);
+                    ConsoleTool.log("c++", polytree);
+                    ConsoleTool.log("JS", ctre.m_Childs[0]);
+                } 
+                
                 // convert back from clipper output format
-                polys = fromClipperTree(ctre, zed, null, null, mina);
-            }
-    
-           
-           
+                polys = fromClipperTree(ctre, zed, null, null, mina, false, "poly JS");
+                      
+            }           
         }
 
 

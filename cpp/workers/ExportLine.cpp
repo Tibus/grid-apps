@@ -101,9 +101,9 @@ void ExportLine::Export(Napi::Env env) {
   // Console::log("----> ExportLine");
   float perim = 0.0;
   
-  ClipperLib::PolyNode* polynode = shape2D->resultPath.GetFirst();
+  ClipperLib::PolyNode* polynode = shape2D->resultPolyTree.GetFirst();
   uint32_t count = 0;
-  // Console::log("shape2D->resultPath", shape2D->resultPath.Total());
+  // Console::log("shape2D->resultPolyTree", shape2D->resultPolyTree.Total());
   while (polynode){
     perim = getPerimFromChild(polynode);
     if ((minlen > 0.0 && perim < minlen)||(maxlen > 0.0 && perim > maxlen)){
