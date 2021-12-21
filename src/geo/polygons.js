@@ -1,5 +1,3 @@
-// const ConsoleTool = require("../../mangoUtils/consoleTool");
-
 
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 const Shape2D = require("bindings")("gridapp");
@@ -348,17 +346,26 @@ const Shape2D = require("bindings")("gridapp");
                 let shape2D = new Shape2D.Shape2D();
                 let success = false;
                 
-                if(global.forceUsingJSInsteadOfCPP == false){
-                    shape2D.addPaths(sp1, ptyp.ptSubject, true);
-                    shape2D.addPaths(sp2, ptyp.ptClip, true);
-            
-                    ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftEvenOdd, cfil.pftEvenOdd, false))
-                }else{
-                    console.log("--> 6");
+                // if(global.forceUsingJSInsteadOfCPP == false){
+                  
+                // }else{
                     clip.AddPaths(sp1, ptyp.ptSubject, true);
                     clip.AddPaths(sp2, ptyp.ptClip, true);
                     success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
-                }
+                    if(false && ConsoleTool.onlyTrueOnce("log")){
+                        shape2D.addPaths(sp1, ptyp.ptSubject, true);
+                        shape2D.addPaths(sp2, ptyp.ptClip, true);
+                
+                        ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd, false))
+                        let polytree = shape2D.exportPolyTree();
+
+                        console.log("clip", clip.m_edges.length);
+                        console.log("polytree", polytree);
+                        console.log("ctre", ctre.m_AllPolys.length);
+                        console.log("ctre", ctre.m_Childs.length);
+                    }
+
+                //}
         
                 if(success){
                     cleanClipperTree(ctre);
@@ -575,32 +582,29 @@ const Shape2D = require("bindings")("gridapp");
             if(global.forceUsingJSInsteadOfCPP == false){
                 for (let poly of polys) {
                     poly = poly.toClipper();
-                    shape2D.addPathsToOffset(poly, join, type);               
+                    shape2D.addPathsToOffset(poly, join, type, clean,CONF.clipperClean, simple, fill);               
                 }
                 shape2D.executeClipperOffset( offs * CONF.clipper);
                 
                 let polytree = shape2D.exportPolyTree();
-                //let polys2 = fromClipperTree(polytree, zed, null, null, mina, true, "no");
-            //}else {
+                polys = fromClipperTree(polytree, zed, null, null, mina);
+            }else {
                  // setup offset
                 for (let poly of polys) {
                     // convert to clipper format
                     poly = poly.toClipper();
-                    if (clean && false) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
-                    if (simple && false) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
+                    if (clean) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
+                    if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
                     coff.AddPaths(poly, join, type);
                 }
                 
                 // perform offset
                 coff.Execute(ctre, offs * CONF.clipper);
-                if(ConsoleTool.onlyTrueOnce("log tree")){
-                    ConsoleTool.log("c++", polytree);
-                    ConsoleTool.log("JS", ctre.m_Childs[0]);
-                } 
+                
                 
                 // convert back from clipper output format
-                polys = fromClipperTree(ctre, zed, null, null, mina, false, "poly JS");
-                      
+                polys = fromClipperTree(ctre, zed, null, null, mina);
+                
             }           
         }
 

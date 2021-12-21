@@ -48,11 +48,27 @@ ClipperLib::EndType getEndType(uint8_t type){
     }
 }
 
+ClipperLib::PolyFillType getFillType(uint8_t type){
+    switch (type)
+    {
+    case 0 :
+      return ClipperLib::PolyFillType::pftEvenOdd;
+    case 1 :
+      return ClipperLib::PolyFillType::pftNonZero;
+    case 2 :
+      return ClipperLib::PolyFillType::pftPositive;
+    case 3 :
+      return ClipperLib::PolyFillType::pftNegative;
+    default :
+      return ClipperLib::PolyFillType::pftEvenOdd;
+    }
+}
+
 
 Napi::Value AddPathsToOffset::Init(const Napi::CallbackInfo& info, Shape2D *shape2D) {
   Napi::Env env = info.Env();
   Napi::HandleScope scope(env);
-  std::string checkResult = ParametersChecker(info, "Shape2D add path", { napi_object, napi_number , napi_number});
+  std::string checkResult = ParametersChecker(info, "Shape2D add path", { napi_object, napi_number , napi_number, napi_boolean,napi_number, napi_boolean,napi_number});
   if (checkResult != "") {
     return Napi::String::New(env, checkResult);
   }
@@ -60,6 +76,10 @@ Napi::Value AddPathsToOffset::Init(const Napi::CallbackInfo& info, Shape2D *shap
   uint32_t numberOfArray =  pointsArrays.Length();
   uint8_t joinTypeInt =  info[1].As<Napi::Number>().Uint32Value();
   uint8_t endTypeInt =  info[2].As<Napi::Number>().Uint32Value();
+  bool clean = info[3].As<Napi::Boolean>().Value();
+  double cleanDistance =  info[4].As<Napi::Number>().DoubleValue();
+  bool simple = info[5].As<Napi::Boolean>().Value();
+  uint8_t fillTypeInt =  info[6].As<Napi::Number>().Uint32Value();
   
   
   std::vector<std::vector<int>> segmentArray;
@@ -77,15 +97,15 @@ Napi::Value AddPathsToOffset::Init(const Napi::CallbackInfo& info, Shape2D *shap
     }
   }
   
-  AddPathsToOffset *worker = new AddPathsToOffset(path, joinTypeInt, endTypeInt, shape2D, Napi::Object::New(info.Env()));
+  AddPathsToOffset *worker = new AddPathsToOffset(path, joinTypeInt, endTypeInt, clean,cleanDistance, simple, fillTypeInt, shape2D, Napi::Object::New(info.Env()));
   return worker->Execute(env);
 }
 
 /**
  *  Constructor
  */
-AddPathsToOffset::AddPathsToOffset(ClipperLib::Paths path, uint8_t joinTypeInt,  uint8_t endTypeInt, Shape2D *shape2D, const Napi::Object &resource)
-  :  shape2D(shape2D), path(path), endTypeInt(endTypeInt), joinTypeInt(joinTypeInt)
+AddPathsToOffset::AddPathsToOffset(ClipperLib::Paths path, uint8_t joinTypeInt,  uint8_t endTypeInt,bool clean,double cleanDistance, bool simple, uint8_t fillTypeInt, Shape2D *shape2D, const Napi::Object &resource)
+  :  shape2D(shape2D), path(path), endTypeInt(endTypeInt), joinTypeInt(joinTypeInt), clean(clean), simple(simple)
   {
   }
 
@@ -118,6 +138,17 @@ void AddPathsToOffset::AddP(Napi::Env env) {
 
   ClipperLib::JoinType joinType = getJoinType(joinTypeInt);
   ClipperLib::EndType endType = getEndType(endTypeInt);
+
+  if(clean){
+    ClipperLib::CleanPolygons(path, cleanDistance);
+  } 
+  if(simple){
+    // ClipperLib::Path out_path;
+    ClipperLib::PolyFillType fillType = getFillType(fillTypeInt);
+    ClipperLib::SimplifyPolygons(path, fillType);
+    // path = out_path;
+  }
+
   
   shape2D->clipperOffset.AddPaths(path, joinType, endType);
 

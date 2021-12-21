@@ -17,9 +17,13 @@ class AddPathsToOffset
     ClipperLib::Paths path;
     uint8_t joinTypeInt;
     uint8_t endTypeInt;
+    bool clean;
+    double cleanDistance;
+    bool simple;
+    uint8_t fillTypeInt;
     static Napi::Value Init(const Napi::CallbackInfo& info, Shape2D *shape2D);
     Shape2D *shape2D;
-    AddPathsToOffset(ClipperLib::Paths path, uint8_t joinTypeInt,  uint8_t endTypeInt,  Shape2D *shape2D, const Napi::Object &resource);
+    AddPathsToOffset(ClipperLib::Paths path, uint8_t joinTypeInt,  uint8_t endTypeInt, bool clean, double cleanDistance, bool simple, uint8_t fillTypeInt, Shape2D *shape2D, const Napi::Object &resource);
     
   protected:
     static void SafeExecute(void* data);

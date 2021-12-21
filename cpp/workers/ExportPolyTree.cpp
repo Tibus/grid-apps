@@ -106,7 +106,7 @@ Napi::Object ExportPolyTree::ExportPolyNode(ClipperLib::PolyNode *node, Napi::En
     Napi::Object childJS = ExportPolyNode(nextNode, env);
     childrenJS.Set(index, childJS);
   }
-  Console::logOnce("<---- ExportPolyTree", node->Contour.size());
+  //Console::logOnce("<---- ExportPolyTree", node->Contour.size());
   polyNode.Set("m_Childs",childrenJS);
   return polyNode;
 }
@@ -134,7 +134,7 @@ Napi::Value ExportPolyTree::OnOK(Napi::Env env) {
  
   
   polyTree.Set("m_Childs",childrenJS);
-  polyTree.Set("IsHole", Napi::Boolean::New(env, shape2D->resultPolyTree.IsHole()));
+  //polyTree.Set("IsHole", Napi::Boolean::New(env, shape2D->resultPolyTree.IsHole()));
   polyTree.Set("IsOpen", Napi::Boolean::New(env, shape2D->resultPolyTree.IsOpen()));  
   //polyTree.Set("ChildCount", shape2D->resultPolyTree.ChildCount());
   //polyTree.Set("m_endtype", shape2D->resultPolyTree.m_endtype);
