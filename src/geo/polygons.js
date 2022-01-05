@@ -352,7 +352,7 @@ const Shape2D = require("bindings")("gridapp");
                     shape2D.addPaths(sp2, ptyp.ptClip, true);
                 
                     ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
-                    let polytree = shape2D.exportPolyTree();
+                    ctre = shape2D.exportPolyTree();
                     // if(ConsoleTool.onlyTrueOnce("log")){
                     //     console.log("polytree", polytree);
                     //     console.log("ctre", ctre);
@@ -380,7 +380,7 @@ const Shape2D = require("bindings")("gridapp");
                     shape2D.addPaths(sp1, ptyp.ptClip, true);
                 
                     ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
-                    let polytree = shape2D.exportPolyTree();
+                    ctre = shape2D.exportPolyTree();
                 }else{
                     if (outA) {
                         ctre.Clear();
