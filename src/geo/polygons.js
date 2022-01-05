@@ -352,17 +352,16 @@ const Shape2D = require("bindings")("gridapp");
                     clip.AddPaths(sp1, ptyp.ptSubject, true);
                     clip.AddPaths(sp2, ptyp.ptClip, true);
                     success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
-                    if(false && ConsoleTool.onlyTrueOnce("log")){
+                    if(ConsoleTool.onlyTrueOnce("log")){
                         shape2D.addPaths(sp1, ptyp.ptSubject, true);
                         shape2D.addPaths(sp2, ptyp.ptClip, true);
                 
-                        ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd, false))
+                        // ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd))
+                        const successcpp = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd);
                         let polytree = shape2D.exportPolyTree();
-
                         console.log("clip", clip.m_edges.length);
-                        console.log("polytree", polytree);
+                        console.log("polytree", polytree.m_Childs.length);
                         console.log("ctre", ctre.m_AllPolys.length);
-                        console.log("ctre", ctre.m_Childs.length);
                     }
 
                 //}

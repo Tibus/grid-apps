@@ -37,6 +37,7 @@ Napi::Value ExecuteClipper::Init(const Napi::CallbackInfo& info, Shape2D *shape2
 
   std::string checkResult = ParametersChecker(info, "Shape2D add path", { napi_number, napi_number , napi_number});
   if (checkResult != "") {
+      Console::debug("---- >>> ExecuteClipper problem with param <<< ----");
     return Napi::String::New(env, checkResult);
   }
   uint32_t clipTypeInt =  info[0].As<Napi::Number>().Uint32Value();
@@ -77,8 +78,9 @@ Napi::Value ExecuteClipper::Execute(Napi::Env env) {
   SafeExecuteData executeData;
   executeData.m_obj = this;
   executeData.m_env = &env;
-  if (!safeExecuteFunc(SafeExecute, &executeData))
+  if (!safeExecuteFunc(SafeExecute, &executeData)){
     return this->OnError(env);
+  }
 
  // //Console::timeEnd("Colision with rays");
  return this->OnOK(env);
@@ -111,11 +113,13 @@ void ExecuteClipper::ExecClipper(Napi::Env env) {
   }
   
   result = shape2D->clipper.Execute(clipType, shape2D->resultPolyTree, subjFillType, clipFillType);
-  // Console::log("resultPolyTree", shape2D->resultPolyTree.Total(), result);
+  //Console::log("resultPolyTree", shape2D->resultPolyTree.Total(), result);
 }
 
 Napi::Value ExecuteClipper::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
+   
+  Console::log("<---- ExecuteClipper error");
 
   // reject promise with error value
   // Call empty function
