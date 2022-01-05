@@ -343,28 +343,29 @@ const Shape2D = require("bindings")("gridapp");
             // more expensive? worth it?
             clip.StrictlySimple = true;
             if (outA) {
-                let shape2D = new Shape2D.Shape2D();
+            
                 let success = false;
                 
-                // if(window.forceUsingJSInsteadOfCPP == false){
-                  
-                // }else{
+                if(self.forceUsingJSInsteadOfCPP == false){
+                    let shape2D = new Shape2D.Shape2D();
+                    shape2D.addPaths(sp1, ptyp.ptSubject, true);
+                    shape2D.addPaths(sp2, ptyp.ptClip, true);
+                
+                    ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
+                    let polytree = shape2D.exportPolyTree();
+                    // if(ConsoleTool.onlyTrueOnce("log")){
+                    //     console.log("polytree", polytree);
+                    //     console.log("ctre", ctre);
+                    // }
+                    //const successcpp = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd);
+                    //let polytree = shape2D.exportPolyTree();
+                    //console.log("ctre cpp", ctre.m_Childs.length);
+
+                }else{
                     clip.AddPaths(sp1, ptyp.ptSubject, true);
                     clip.AddPaths(sp2, ptyp.ptClip, true);
                     success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
-                    if(ConsoleTool.onlyTrueOnce("log")){
-                        shape2D.addPaths(sp1, ptyp.ptSubject, true);
-                        shape2D.addPaths(sp2, ptyp.ptClip, true);
-                
-                        // ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd))
-                        const successcpp = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd);
-                        let polytree = shape2D.exportPolyTree();
-                        console.log("clip", clip.m_edges.length);
-                        console.log("polytree", polytree.m_Childs.length);
-                        console.log("ctre", ctre.m_AllPolys.length);
-                    }
-
-                //}
+                }
         
                 if(success){
                     cleanClipperTree(ctre);
@@ -372,16 +373,28 @@ const Shape2D = require("bindings")("gridapp");
                 }
             }
             if (outB) {
-                if (outA) {
-                    ctre.Clear();
-                    clip.Clear();
+                let success = false;
+                if(self.forceUsingJSInsteadOfCPP == false){
+                    let shape2D = new Shape2D.Shape2D();
+                    shape2D.addPaths(sp2, ptyp.ptSubject, true);
+                    shape2D.addPaths(sp1, ptyp.ptClip, true);
+                
+                    ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
+                    let polytree = shape2D.exportPolyTree();
+                }else{
+                    if (outA) {
+                        ctre.Clear();
+                        clip.Clear();
+                    }
+                    clip.AddPaths(sp2, ptyp.ptSubject, true);
+                	clip.AddPaths(sp1, ptyp.ptClip, true);
+                    success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd) 
                 }
-                clip.AddPaths(sp2, ptyp.ptSubject, true);
-                clip.AddPaths(sp1, ptyp.ptClip, true);
-                if (clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
+                if(success){
                     cleanClipperTree(ctre);
                     filter(fromClipperTree(ctre, z, null, null, min), outB);
                 }
+                
             }
         }
 
