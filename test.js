@@ -31,7 +31,9 @@ let kiri = self.kiri;
 let engine = kiri.newEngine();
 self.forceUsingJSInsteadOfCPP = false;
 
-let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+//let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+//let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/revert-poussin.stl')).buffer;
 // return;
 
 // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
@@ -43,9 +45,48 @@ engine.parse(buf)
         // console.log({loaded: data});
     })
     .then(() => engine.moveTo(1,1,1))
-    // .then(() => engine.scale(2,2,2))
+    //.then(() => engine.setCenter(110,110))
     .then(() => engine.setProcess({
+        "antiBacklash":0,
         "sName":"Ender3_test",
+
+        "firstLayerRate":10,
+        "firstLayerPrintMult":1.15,
+        "firstLayerYOffset":0,
+        "firstLayerBrim":0,
+        "firstLayerBeltLead":3, 
+        "firstSliceHeight":0.25,
+        "firstLayerFillRate":35,
+        "firstLayerLineMult":1,
+        "firstLayerNozzleTemp":0,
+        "firstLayerBedTemp":0,
+        "firstLayerBrimTrig":0,
+
+        "outputTemp":210,
+        "outputBedTemp":60,
+        "outputFeedrate":50,
+        "outputFinishrate":50,
+        "outputSeekrate":80,
+        "outputShellMult":1.25,
+        "outputFillMult":1.25,
+        "outputSparseMult":1.25,
+        "outputRetractDist":4,
+        "outputRetractSpeed":30,
+        "outputRetractDwell":30,
+        "outputShortPoly":100,
+        "outputMinSpeed":30,
+        "outputCoastDist":0.1,
+        "outputLayerRetract":true,
+        "outputRaft":false,
+        "outputRaftSpacing":0.2,
+        "outputRetractWipe":0,
+        "outputBrimCount":2,
+        "outputBrimOffset":2,
+        "outputLoopLayers":null,
+        "outputInvertX":false,
+        "outputInvertY":false,
+        "outputOriginCenter":false,
+
         "sliceHeight":0.25,
         "sliceShells":3,
         "sliceShellOrder":"in-out",
@@ -68,46 +109,14 @@ engine.parse(buf)
         "sliceSolidLayers":3,
         "sliceBottomLayers":3,
         "sliceTopLayers":3,
-        "firstLayerRate":10,
-        "firstLayerPrintMult":1.15,
-        "firstLayerYOffset":0,
-        "firstLayerBrim":0,
-        "firstLayerBeltLead":3,
-        "outputTemp":210,
-        "outputBedTemp":60,
-        "outputFeedrate":50,
-        "outputFinishrate":50,
-        "outputSeekrate":80,
-        "outputShellMult":1.25,
-        "outputFillMult":1.25,
-        "outputSparseMult":1.25,
-        "outputRetractDist":4,
-        "outputRetractSpeed":30,
-        "outputRetractDwell":30,
-        "outputShortPoly":100,
-        "outputMinSpeed":10,
-        "outputCoastDist":0.1,
-        "outputLayerRetract":true,
-        "detectThinWalls":true,
-        "zHopDistance":0,
-        "antiBacklash":0,
-        "outputOriginCenter":false,
+     
+        
         "sliceFillRate":0,
         "sliceSupportEnable":false,
-        "firstSliceHeight":0.25,
-        "firstLayerFillRate":35,
-        "firstLayerLineMult":1,
-        "firstLayerNozzleTemp":0,
-        "firstLayerBedTemp":0,
-        "firstLayerBrimTrig":0,
-        "outputRaft":false,
-        "outputRaftSpacing":0.2,
-        "outputRetractWipe":0,
-        "outputBrimCount":2,
-        "outputBrimOffset":2,
-        "outputLoopLayers":null,
-        "outputInvertX":false,
-        "outputInvertY":false,
+        "detectThinWalls":true,
+        "zHopDistance":0,
+        
+       
         "arcTolerance":0,
         "gcodePause":"",
         "ranges":[],

@@ -32,6 +32,17 @@ const ConsoleTool = function (){
     }
   }
 
+  this.logOnlyOnCount = function (key, count, logContent){
+    if(this.value[key]){
+      this.count[key]++
+    }else{
+      this.count[key] = 1;
+    }
+    if(this.count[key] == count){
+      console.log(`${key} : `, logContent);
+    }
+  }
+
   this.storeOnce = function (key, value){
     if(!this.value[key]){
       this.value[key] = value;
@@ -56,9 +67,9 @@ const ConsoleTool = function (){
   }
 
   this.conditionnalLogOnce = function(condition , key , value){
-    if(!this.onlyOnce[key]){
+    if(condition && !this.onlyOnce[key]){
       this.onlyOnce[key] = value;
-      this.conditionnalLog(condition, key, value);
+      this.log(key, value);
     }
   }
 

@@ -113,7 +113,6 @@ void ExecuteClipper::ExecClipper(Napi::Env env) {
   }
   
   result = shape2D->clipper.Execute(clipType, shape2D->resultPolyTree, subjFillType, clipFillType);
-  //Console::log("resultPolyTree", shape2D->resultPolyTree.Total(), result);
 }
 
 Napi::Value ExecuteClipper::OnError(Napi::Env env) {
