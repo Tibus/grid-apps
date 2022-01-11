@@ -15,6 +15,7 @@ Napi::Value test(const Napi::CallbackInfo &info){
 Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
   Shape2D::Init(env, exports);
   exports["test"] = Napi::Function::New(env, test);
+  exports["setDebug"] = Napi::Function::New(env, setDebug);
   return exports;
 }
 

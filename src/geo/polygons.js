@@ -354,25 +354,11 @@ const Shape2D = require("bindings")("gridapp");
                 
                    ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
                    ctre = shape2D.exportPolyTree();
-                    if(ConsoleTool.onlyTrueOnce("log cpp")){
-                        //console.log("sub z", z);
-                        //console.log("ctre", ctre);
-                        //console.log("sub ctre cpp", ctre.m_Childs.length);
-                    }
-                    //const successcpp = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd);
-                    //let polytree = shape2D.exportPolyTree();
-                    //console.log("ctre cpp", ctre.m_Childs.length);
-
+                  
                 }else{
                     clip.AddPaths(sp1, ptyp.ptSubject, true);
                     clip.AddPaths(sp2, ptyp.ptClip, true);
                     success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
-                    //ConsoleTool.conditionnalLogOnce(ctre.m_Childs.length > 0 , "log", z);
-                    if(ConsoleTool.onlyTrueOnce("log js")){
-                        console.log("z", z);
-                        console.log("ctre js", ctre.m_Childs.length);
-                        
-                    }
                 }
         
                 if(success){
@@ -593,13 +579,12 @@ const Shape2D = require("bindings")("gridapp");
                 return offset(polys, dist, opts);
             }
         } else {
-            let coff = new ClipperLib.ClipperOffset(opts.miter, opts.arc),
-                ctre = new ClipperLib.PolyTree();
+           
 
-            let shape2D = new Shape2D.Shape2D();
-            let res, success = false;
+         
 
             if(self.forceUsingJSInsteadOfCPP == false){
+                let shape2D = new Shape2D.Shape2D();
                 for (let poly of polys) {
                     poly = poly.toClipper();
                     shape2D.addPathsToOffset(poly, join, type, clean,CONF.clipperClean, simple, fill);               
@@ -607,8 +592,11 @@ const Shape2D = require("bindings")("gridapp");
                 shape2D.executeClipperOffset( offs * CONF.clipper);
                 
                 let polytree = shape2D.exportPolyTree();
-                let polysCpp = fromClipperTree(polytree, zed, null, null, mina);
-            //}else {
+                polys = fromClipperTree(polytree, zed, null, null, mina);
+            }else {
+                
+                let coff = new ClipperLib.ClipperOffset(opts.miter, opts.arc),
+                ctre = new ClipperLib.PolyTree();
                  // setup offset
                 for (let poly of polys) {
                     // convert to clipper format
@@ -624,22 +612,7 @@ const Shape2D = require("bindings")("gridapp");
                 
                 // convert back from clipper output format
                 polys = fromClipperTree(ctre, zed, null, null, mina);
-                // ConsoleTool.conditionnalLog(polys.length !== polysCpp.length, "z : ", zed + '   js'+polys + "   cpp: " +polysCpp.length);
-                if(polys.length !== polysCpp.length && ConsoleTool.onlyTrueOnce("plop")){
-                    let shape2D2 = new Shape2D.Shape2D();
-                    shape2D2.setDebug(true);
-                    for (let poly of polys) {
-                        poly = poly.toClipper();
-                        shape2D2.addPathsToOffset(poly, join, type, clean,CONF.clipperClean, simple, fill);               
-                    }
-                    shape2D2.executeClipperOffset( offs * CONF.clipper);
-                    
-                    let polytree2 = shape2D2.exportPolyTree();
-                    let polysCpp2 = fromClipperTree(polytree2, zed, null, null, mina);
-                    console.log("polysCpp2",polysCpp2);
-                    // shape2D2.setDebug(true);
-                }
-                ConsoleTool.conditionnalLogOnce(polys.length !== polysCpp.length, "poly js :",polys);
+
             }           
         }
 

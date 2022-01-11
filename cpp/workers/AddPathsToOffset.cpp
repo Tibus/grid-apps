@@ -105,7 +105,7 @@ Napi::Value AddPathsToOffset::Init(const Napi::CallbackInfo& info, Shape2D *shap
  *  Constructor
  */
 AddPathsToOffset::AddPathsToOffset(ClipperLib::Paths path, uint8_t joinTypeInt,  uint8_t endTypeInt,bool clean,double cleanDistance, bool simple, uint8_t fillTypeInt, Shape2D *shape2D, const Napi::Object &resource)
-  :  shape2D(shape2D), path(path), endTypeInt(endTypeInt), joinTypeInt(joinTypeInt), clean(clean), simple(simple)
+  :  shape2D(shape2D), path(path), endTypeInt(endTypeInt), joinTypeInt(joinTypeInt), clean(clean), simple(simple), fillTypeInt(fillTypeInt), cleanDistance(cleanDistance)
   {
   }
 

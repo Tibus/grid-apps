@@ -51,7 +51,7 @@ const ConsoleTool = function (){
 
   this.logOnce = function (key, value){
     if(!this.onlyOnce[key]){
-      this.onlyOnce[key] = value;
+      this.onlyOnce[key] = true;
       console.log(`${key}: `, value);
     }
   }
