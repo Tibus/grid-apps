@@ -5,7 +5,9 @@
 #include "./workers/ExecuteClipperOffset.h"
 #include "./workers/ExportLine.h"
 #include "./workers/ExportPolyTree.h"
-
+#include "./workers/CleanClipperPolygons.h"
+#include "./workers/CleanClipperAddon.h"
+#include "./workers/ExportPolyFromPaths.h"
 /**
  *  Class Initilisation
  */
@@ -21,7 +23,10 @@ Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("executeClipper", &Shape2D::executeClipper),
     InstanceMethod("executeClipperOffset", &Shape2D::executeClipperOffset),
     InstanceMethod("exportPolyTree", &Shape2D::exportPolyTree),
-    InstanceMethod("exportLine", &Shape2D::exportLine)
+    InstanceMethod("exportLine", &Shape2D::exportLine),
+    InstanceMethod("cleanClipperPolygons", &Shape2D::cleanClipperPolygons),
+    InstanceMethod("cleanClipperAddon", &Shape2D::cleanClipperAddon),
+    InstanceMethod("exportPolyFromPaths", &Shape2D::exportPolyFromPaths)
   });
 
   constructor = Napi::Persistent(func);
@@ -103,6 +108,24 @@ Napi::Value Shape2D::exportPolyTree(const Napi::CallbackInfo& info) {
   // Napi::Env env = info.Env();
   // return env.Null();
   return ExportPolyTree::Init(info, this);
+}
+
+Napi::Value Shape2D::cleanClipperPolygons(const Napi::CallbackInfo& info) {
+  // Napi::Env env = info.Env();
+  // return env.Null();
+  return CleanClipperPolygons::Init(info, this);
+}
+
+Napi::Value Shape2D::cleanClipperAddon(const Napi::CallbackInfo& info) {
+  // Napi::Env env = info.Env();
+  // return env.Null();
+  return CleanClipperAddon::Init(info, this);
+}
+
+Napi::Value Shape2D::exportPolyFromPaths(const Napi::CallbackInfo& info) {
+  // Napi::Env env = info.Env();
+  // return env.Null();
+  return ExportPolyFromPaths::Init(info, this);
 }
 
 

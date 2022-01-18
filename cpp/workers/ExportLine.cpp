@@ -171,7 +171,5 @@ Napi::Value ExportLine::OnOK(Napi::Env env) {
   props.Set("lines", linesJS);
   props.Set("success", Napi::Boolean::New(env, result));
 
-  // Console::timeEnd("exportToView");
-
  return props;
 }

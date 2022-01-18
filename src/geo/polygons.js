@@ -1,5 +1,3 @@
-//const ConsoleTool = require("../../mangoUtils/consoleTool");
-
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 const Shape2D = require("bindings")("gridapp");
 
@@ -81,9 +79,9 @@ const Shape2D = require("bindings")("gridapp");
         let poly,
             polys = tops || [],
             min = numOrDefault(minarea, 0.1);
-        if(log){
-            ConsoleTool.logOnce(key, tnode.m_Childs);
-        }
+        // if(log){
+        //     ConsoleTool.logOnce(key, tnode.m_Childs);
+        // }
         for (let child of tnode.m_Childs) {
             poly = fromClipperNode(child, z);
             
@@ -301,7 +299,8 @@ const Shape2D = require("bindings")("gridapp");
     function subtract(setA, setB, outA, outB, z, minArea, opt = {}) {
         let min = minArea || 0.1,
             out = [];
-
+        //ConsoleTool.timeStepEnd("alignWindings");
+        //ConsoleTool.timeStepStart("alignWindings");
         function filter(from, to = []) {
             from.forEach(function(poly) {
                 if (poly.area() >= min) {
@@ -348,23 +347,34 @@ const Shape2D = require("bindings")("gridapp");
                 let success = false;
                 
                 if(self.forceUsingJSInsteadOfCPP == false ){
-                    let shape2D = new Shape2D.Shape2D();
-                    shape2D.addPaths(sp1, ptyp.ptSubject, true);
-                    shape2D.addPaths(sp2, ptyp.ptClip, true);
-                
-                   ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
-                   ctre = shape2D.exportPolyTree();
+                        let points = []
+                        let shape2D = new Shape2D.Shape2D();
+                        shape2D.addPaths(sp1, ptyp.ptSubject, true);
+                        shape2D.addPaths(sp2, ptyp.ptClip, true);
+                        ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd, true));
+                        
+                        shape2D.cleanClipperPolygons( CONF.clipperClean);
+                        ({points} = shape2D.exportPolyFromPaths());
+                        shape2D.cleanClipperAddon();
+                        let polyCreated = BASE.newPolygon();
+                        for (let point of points) {
+                            polyCreated.push(BASE.pointFromClipper(point, z));
+                        }
+                        
+                        filter([polyCreated]);                 
                   
                 }else{
+                    
                     clip.AddPaths(sp1, ptyp.ptSubject, true);
                     clip.AddPaths(sp2, ptyp.ptClip, true);
                     success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
+                     if(success){
+                        cleanClipperTree(ctre);
+                        filter(romClipperTree(ctre, z, null, null, min), outA);
+                    }                    
                 }
         
-                if(success){
-                    cleanClipperTree(ctre);
-                    filter(fromClipperTree(ctre, z, null, null, min), outA);
-                }
+               
             }
             if (outB) {
                 let success = false;
@@ -373,8 +383,16 @@ const Shape2D = require("bindings")("gridapp");
                     shape2D.addPaths(sp2, ptyp.ptSubject, true);
                     shape2D.addPaths(sp1, ptyp.ptClip, true);
                 
-                    ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd));
-                    ctre = shape2D.exportPolyTree();
+                    ({success} = shape2D.executeClipper(ctyp.ctDifference, cfil.pftEvenOdd, cfil.pftEvenOdd, false));
+                    shape2D.cleanClipperPolygons( CONF.clipperClean);
+                    ({points} = shape2D.exportPolyFromPaths());
+                    shape2D.cleanClipperAddon();
+                    let polyCreated = BASE.newPolygon();
+                    for (let point of points) {
+                        polyCreated.push(BASE.pointFromClipper(point, z));
+                    }
+                    
+                    filter([polyCreated]);  
                 }else{
                     if (outA) {
                         ctre.Clear();
@@ -395,7 +413,7 @@ const Shape2D = require("bindings")("gridapp");
         if (opt.prof) {
             opt.prof.pout = (opt.prof.pout || 0) + points(out);
         }
-
+       
         return out;
     }
 
@@ -547,15 +565,22 @@ const Shape2D = require("bindings")("gridapp");
      */
     function offset(polys, dist, opts = {}) {
         // do not offset open lines
+        //ConsoleTool.timeStepStart("filter");
         polys = polys.filter(p => !p.open);
+        //ConsoleTool.timeStepEnd("filter");
+
 
         // cause inner / outer polys to be reversed from each other
+        //ConsoleTool.timeStepStart("alignWindings");
         alignWindings(polys);
         for (let poly of polys) {
             if (poly.inner) {
                 setWinding(poly.inner, !poly.isClockwise());
             }
         }
+
+        //ConsoleTool.timeStepEnd("alignWindings");
+        //ConsoleTool.timeStepStart("value");
 
         let orig = polys,
             count = numOrDefault(opts.count, 1),
@@ -570,6 +595,9 @@ const Shape2D = require("bindings")("gridapp");
             mina = numOrDefault(opts.minArea, 0.1),
             zed = opts.z || 0;
 
+        //ConsoleTool.timeStepEnd("value");
+        //ConsoleTool.timeStepStart("clipper");
+
         if (opts.wasm && geo.wasm) {
             try {
                 polys = geo.wasm.js.offset(polys, offs, zed, clean ? CONF.clipperClean : 0, simple ? 1 : 0);
@@ -579,10 +607,6 @@ const Shape2D = require("bindings")("gridapp");
                 return offset(polys, dist, opts);
             }
         } else {
-           
-
-         
-
             if(self.forceUsingJSInsteadOfCPP == false){
                 let shape2D = new Shape2D.Shape2D();
                 for (let poly of polys) {
@@ -616,6 +640,8 @@ const Shape2D = require("bindings")("gridapp");
             }           
         }
 
+        //ConsoleTool.timeStepEnd("clipper");
+        //ConsoleTool.timeStepStart("end");
 
         // if specified, perform offset gap analysis
         if (opts.gaps && polys.length) {
@@ -651,6 +677,7 @@ const Shape2D = require("bindings")("gridapp");
                 offset(polys, dist, opts);
             }
         }
+        //ConsoleTool.timeStepEnd("end");
 
         return opts.flat ? opts.outs : polys;
     }
@@ -771,24 +798,13 @@ const Shape2D = require("bindings")("gridapp");
             shape2D.addPaths(lines, ptyp.ptSubject, false);
             shape2D.addPaths(toClipper(polys), ptyp.ptClip, true);
     
-            ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftNonZero, cfil.pftEvenOdd))
-        }
-
-        if(success){
+            ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftNonZero, cfil.pftEvenOdd, false))
             res = shape2D.exportLine(minlen? minlen: 0, maxlen? maxlen: 0 , spacing, 1, zpos)
 
             lines = [];
 
             if(res && res.lines){
                 for (let poly of res.lines) {
-                    //console.log("poly", poly.m_polygon.length);
-                    // if (minlen || maxlen) {
-                    //     let plen = clib.JS.PerimeterOfPath(poly.m_polygon, false, 1);
-                    //     if ((minlen && plen < minlen)||(maxlen && plen > maxlen)) {
-                    //         console.error("exit js");
-                    //         return;
-                    //     }
-                    // }
                     let p1 = BASE.pointFromClipper(poly[0], zpos);
                     let p2 = BASE.pointFromClipper(poly[1], zpos);
                     let od = rayint.origin.distToLineNew(p1,p2) / spacing;
@@ -803,7 +819,6 @@ const Shape2D = require("bindings")("gridapp");
             lines = [];
     
             if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftNonZero, cfil.pftEvenOdd)) {
-                let count =0;
                 for (let poly of ctre.m_AllPolys) {
                     //console.log("poly", poly.m_polygon.length);
                     if (minlen || maxlen) {

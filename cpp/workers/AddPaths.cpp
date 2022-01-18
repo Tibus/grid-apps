@@ -82,9 +82,9 @@ Napi::Value AddPaths::Execute(Napi::Env env) {
 }
 
 void AddPaths::AddP(Napi::Env env) {
-  // Console::log("AddPaths ---->");
   // Console::time("AddPaths");
   ClipperLib::PolyType polyType = polyTypeInt==0? ClipperLib::PolyType::ptSubject : ClipperLib::PolyType::ptClip;
+  //Console::log("AddPaths ---->",polyType, closed);
   
   shape2D->clipper.AddPaths(path, polyType, closed);
   

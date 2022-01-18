@@ -1,5 +1,5 @@
-#ifndef ExecuteClipperAsyncWorker_H
-#define ExecuteClipperAsyncWorker_H
+#ifndef CleanClipperAddon_H
+#define CleanClipperAddon_H
 
 #include <iostream>
 #include <napi.h>
@@ -8,29 +8,23 @@
 #include "../Shape2D.h"
 #include "../lib/clipper.hpp"
 
-#include "../vendors/utils/progress/AbstractAsyncProgress.h"
 #include "../vendors/utils/napi/EmptyCallBack.h"
 #include "../vendors/utils/napi/ParametersChecker.h"
 
-class ExecuteClipper
+class CleanClipperAddon
 {
   public:
-    uint32_t clipTypeInt;
-    uint32_t subFillTypeInt;
-    uint32_t clipFillInt;
-    bool shouldOutPath;
-    bool result;
     static Napi::Value Init(const Napi::CallbackInfo& info, Shape2D *shape2D);
     Shape2D *shape2D;
-    ExecuteClipper(uint32_t clipTypeInt,uint32_t subFillTypeInt, uint32_t clipFillInt, bool shouldOutPath, Shape2D *shape2D, const Napi::Object &resource);
+    CleanClipperAddon(Shape2D *shape2D, const Napi::Object &resource);
     
   protected:
     static void SafeExecute(void* data);
     Napi::Value Execute(Napi::Env env);
     Napi::Value OnOK(Napi::Env env);
     Napi::Value OnError(Napi::Env env);
-    void ExecClipper(Napi::Env env);
-  
+    void Clean(Napi::Env env);
 };
+
   
 #endif

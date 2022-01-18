@@ -35,17 +35,18 @@ Napi::Value ExecuteClipper::Init(const Napi::CallbackInfo& info, Shape2D *shape2
   Napi::Env env = info.Env();
   Napi::HandleScope scope(env);
 
-  std::string checkResult = ParametersChecker(info, "Shape2D add path", { napi_number, napi_number , napi_number});
+  std::string checkResult = ParametersChecker(info, "Shape2D add path", { napi_number, napi_number , napi_number , napi_boolean});
   if (checkResult != "") {
       Console::debug("---- >>> ExecuteClipper problem with param <<< ----");
     return Napi::String::New(env, checkResult);
   }
   uint32_t clipTypeInt =  info[0].As<Napi::Number>().Uint32Value();
   uint32_t subFillTypeInt =  info[1].As<Napi::Number>().Uint32Value();
-  uint32_t clipFillType =  info[2].As<Napi::Number>().Uint32Value();
+  uint32_t clipFillInt =  info[2].As<Napi::Number>().Uint32Value();
+  bool shouldOutPath = info[3].As<Napi::Boolean>().Value();
  
  
-  ExecuteClipper *worker = new ExecuteClipper(clipTypeInt, subFillTypeInt, clipFillType, shape2D, Napi::Object::New(info.Env()));
+  ExecuteClipper *worker = new ExecuteClipper(clipTypeInt, subFillTypeInt, clipFillInt, shouldOutPath, shape2D, Napi::Object::New(info.Env()));
   return worker->Execute(env);
 
 }
@@ -53,8 +54,8 @@ Napi::Value ExecuteClipper::Init(const Napi::CallbackInfo& info, Shape2D *shape2
 /**
  *  Constructor
  */
-ExecuteClipper::ExecuteClipper(uint32_t clipTypeInt,uint32_t subFillTypeInt, uint32_t clipFillType, Shape2D *shape2D, const Napi::Object &resource)
-  : shape2D(shape2D), clipTypeInt(clipTypeInt), subFillTypeInt(subFillTypeInt), clipFillType(clipFillType)
+ExecuteClipper::ExecuteClipper(uint32_t clipTypeInt,uint32_t subFillTypeInt, uint32_t clipFillInt, bool shouldOutPath, Shape2D *shape2D, const Napi::Object &resource)
+  : shape2D(shape2D), clipTypeInt(clipTypeInt), subFillTypeInt(subFillTypeInt), clipFillInt(clipFillInt), shouldOutPath(shouldOutPath)
   {
   }
 
@@ -91,7 +92,7 @@ void ExecuteClipper::ExecClipper(Napi::Env env) {
   
   ClipperLib::ClipType clipType;
   ClipperLib::PolyFillType subjFillType = getPolyFillType(subFillTypeInt);
-  ClipperLib::PolyFillType clipFillType = getPolyFillType(clipTypeInt);
+  ClipperLib::PolyFillType clipFillType = getPolyFillType(clipFillInt);
 
   switch (clipTypeInt)
   {
@@ -112,7 +113,17 @@ void ExecuteClipper::ExecClipper(Napi::Env env) {
     break;
   }
   
-  result = shape2D->clipper.Execute(clipType, shape2D->resultPolyTree, subjFillType, clipFillType);
+  if(shouldOutPath){
+    //Console::log("clipType", clipType);
+    //ClipperLib::Paths out;
+    //result = shape2D->clipper.Execute(clipType, shape2D->resultPaths, subjFillType, clipFillType);
+    result = shape2D->clipper.Execute(clipType, shape2D->resultPaths, subjFillType, clipFillType);
+    //Console::log("clipType", out.size());
+    //shape2D->resultPaths= out;
+  }else{
+    result = shape2D->clipper.Execute(clipType, shape2D->resultPolyTree, subjFillType, clipFillType);
+  }
+  
 }
 
 Napi::Value ExecuteClipper::OnError(Napi::Env env) {
@@ -131,7 +142,7 @@ Napi::Value ExecuteClipper::OnError(Napi::Env env) {
 }
 
 Napi::Value ExecuteClipper::OnOK(Napi::Env env) {
-  // Console::log("<---- ExecuteClipper");
+  //Console::log("<---- ExecuteClipper");
 
   // Console::time("exportToView");
  

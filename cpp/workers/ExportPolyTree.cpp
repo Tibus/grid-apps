@@ -112,7 +112,7 @@ Napi::Object ExportPolyTree::ExportPolyNode(ClipperLib::PolyNode *node, Napi::En
 }
 
 Napi::Value ExportPolyTree::OnOK(Napi::Env env) {
-  
+  //Console::log("----> ExportPolyTree");
  
   Napi::HandleScope scope(env);
   Napi::Object polyTree = Napi::Object::New(env);
@@ -130,7 +130,7 @@ Napi::Value ExportPolyTree::OnOK(Napi::Env env) {
     point.Set("Y", shape2D->resultPolyTree.Contour[index].Y);
     polygon.Set(index, point);
   }
-  polyTree.Set("m_polygon", polygon);
+  polyTree.Set("m_AllPolys", polygon);
  
   
   polyTree.Set("m_Childs",childrenJS);

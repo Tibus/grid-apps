@@ -196,8 +196,9 @@ engine.parse(buf)
     })
     .catch(error => {
         console.log({error});
-    // }).then(() =>{
-    //     ConsoleTool.logCount();
-    //     ConsoleTool.logValue(); 
+    }).then(() =>{
+        //  ConsoleTool.logCount();
+         //ConsoleTool.logValue();
+         //ConsoleTool.logAllTimeStep();
     });
 

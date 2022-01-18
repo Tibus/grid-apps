@@ -6,6 +6,8 @@ const ConsoleTool = function (){
   this.value = {};
   this.onlyOnce = {};
   this.giveTrueOnce= {};
+  this.stepStorage = {};
+  this.totalStep= {};
 
   this.logCount = function (){
     console.log("----->>> START LOG COUNT <<<----")
@@ -68,7 +70,7 @@ const ConsoleTool = function (){
 
   this.conditionnalLogOnce = function(condition , key , value){
     if(condition && !this.onlyOnce[key]){
-      this.onlyOnce[key] = value;
+      this.onlyOnce[key] = true;
       this.log(key, value);
     }
   }
@@ -80,6 +82,31 @@ const ConsoleTool = function (){
     }
     return false;
   }
+
+  this.timeStepStart = function (key){
+    const start = Date.now();
+    this.stepStorage[key] = Date.now();
+  }
+
+  this.timeStepEnd = function (key){
+    if(this.stepStorage[key]){
+      if(this.totalStep[key]){
+        this.totalStep[key] += Date.now() - this.stepStorage[key];
+      }else{
+        this.totalStep[key] = Date.now() - this.stepStorage[key];
+      }
+    }
+    
+  }
+
+  this.logAllTimeStep =function (){
+    console.log("----->>> START TIME STEP LOG <<<----")
+    for(const key in this.totalStep){
+      console.log(`${key}: ${this.totalStep[key]} ms`);
+    }
+    console.log("-----<<< END TIME STEP LOG >>>----")
+  }
+
   return this;
 }();
 

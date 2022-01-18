@@ -18,7 +18,10 @@ public:
   ~Shape2D();
   
   ClipperLib::Paths mainPath;
+  
   ClipperLib::PolyTree resultPolyTree;
+  ClipperLib::Paths resultPaths;
+
   ClipperLib::Clipper clipper;
   ClipperLib::ClipperOffset clipperOffset;
 
@@ -46,6 +49,9 @@ private:
   Napi::Value executeClipperOffset(const Napi::CallbackInfo& info);
   Napi::Value exportLine(const Napi::CallbackInfo& info);
   Napi::Value exportPolyTree(const Napi::CallbackInfo& info);
+  Napi::Value cleanClipperPolygons(const Napi::CallbackInfo& info);
+  Napi::Value cleanClipperAddon(const Napi::CallbackInfo& info);
+  Napi::Value exportPolyFromPaths(const Napi::CallbackInfo& info);
   
   bool disposed = false;
 };
