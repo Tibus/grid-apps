@@ -800,7 +800,7 @@ const Shape2D = require("bindings")("gridapp");
     
             ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftNonZero, cfil.pftEvenOdd, false))
             res = shape2D.exportLine(minlen? minlen: 0, maxlen? maxlen: 0 , spacing, 1, zpos)
-
+            shape2D.cleanClipperAddon();
             lines = [];
 
             if(res && res.lines){
