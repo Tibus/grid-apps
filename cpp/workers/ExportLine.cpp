@@ -98,7 +98,7 @@ float getPerimFromChild(ClipperLib::PolyNode * node){
 
 
 void ExportLine::Export(Napi::Env env) {
-  // Console::log("----> ExportLine");
+  Console::log("----> ExportLine");
   float perim = 0.0;
   
   ClipperLib::PolyNode* polynode = shape2D->resultPolyTree.GetFirst();
@@ -131,6 +131,8 @@ void ExportLine::Export(Napi::Env env) {
 Napi::Value ExportLine::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
 
+  Console::log("<---- ExportLine error");
+
   // reject promise with error value
   // Call empty function
   Napi::Object props = Napi::Object::New(env);
@@ -142,7 +144,7 @@ Napi::Value ExportLine::OnError(Napi::Env env) {
 }
 
 Napi::Value ExportLine::OnOK(Napi::Env env) {
-  // Console::log("<---- ExportLine", lines.size());
+  Console::log("<---- ExportLine", lines.size());
 
   // Console::time("exportToView");
  

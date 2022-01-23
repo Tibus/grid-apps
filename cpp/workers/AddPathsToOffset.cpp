@@ -93,9 +93,15 @@ Napi::Value AddPathsToOffset::Init(const Napi::CallbackInfo& info, Shape2D *shap
       Napi::Object o = pointsArray[j].As<Napi::Object>();
       int32_t x = (int32_t) (o.Get("X").As<Napi::Number>().FloatValue() *  shape2D->precision );
       int32_t y = (int32_t) (o.Get("Y").As<Napi::Number>().FloatValue() *  shape2D->precision );
+      Console::log("o.Get(X).As<Napi::Number>().FloatValue()", o.Get("X").As<Napi::Number>().FloatValue(), shape2D->precision, x);
+      Console::log("o.Get(Y).As<Napi::Number>().FloatValue()", o.Get("Y").As<Napi::Number>().FloatValue(), shape2D->precision, y);
       path[i] << ClipperLib::IntPoint(x,y);
     }
   }
+  Console::log("----addPathToOffset");
+  Console::log("test", shape2D->test);
+  Console::log("precision", shape2D->precision);
+  Console::log("path", path);
   
   AddPathsToOffset *worker = new AddPathsToOffset(path, joinTypeInt, endTypeInt, clean,cleanDistance, simple, fillTypeInt, shape2D, Napi::Object::New(info.Env()));
   return worker->Execute(env);
@@ -123,6 +129,7 @@ void AddPathsToOffset::SafeExecute(void* data)
 }
 
 Napi::Value AddPathsToOffset::Execute(Napi::Env env) {
+  Console::log("AddPathsToOffset ----->");
 
   SafeExecuteData executeData;
   executeData.m_obj = this;
@@ -139,23 +146,44 @@ void AddPathsToOffset::AddP(Napi::Env env) {
   ClipperLib::JoinType joinType = getJoinType(joinTypeInt);
   ClipperLib::EndType endType = getEndType(endTypeInt);
 
-  if(clean){
-    ClipperLib::CleanPolygons(path, cleanDistance);
-  } 
-  if(simple){
-    // ClipperLib::Path out_path;
-    ClipperLib::PolyFillType fillType = getFillType(fillTypeInt);
-    ClipperLib::SimplifyPolygons(path, fillType);
-    // path = out_path;
+  try{
+    if(clean){
+      ClipperLib::CleanPolygons(path, cleanDistance);
+    } 
+  }catch(int e){
+    Console::log("CleanPolygons error", e);
+  }
+  
+  try{
+    if(simple){
+      // ClipperLib::Path out_path;
+      ClipperLib::PolyFillType fillType = getFillType(fillTypeInt);
+      ClipperLib::SimplifyPolygons(path, fillType);
+      // path = out_path;
+    }
+  }catch(int e){
+    Console::log("SimplifyPolygons error", e);
   }
 
   
-  shape2D->clipperOffset.AddPaths(path, joinType, endType);
+  Console::log("path", path);
+  Console::log("joinType", joinType);
+  Console::log("endType", endType);
+  Console::log("shape2D", shape2D);
+  Console::log("shape2D->clipperOffset", shape2D->clipperOffset.ArcTolerance);
+  
+  try{
+    shape2D->clipperOffset.AddPaths(path, joinType, endType);
+  }catch(int e){
+    Console::log("AddPaths error", e);
+  }
 
 }
 
 Napi::Value AddPathsToOffset::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
+
+  Console::log("<---- AddPathsToOffset error");
 
   // reject promise with error value
   // Call empty function
@@ -168,7 +196,7 @@ Napi::Value AddPathsToOffset::OnError(Napi::Env env) {
 }
 
 Napi::Value AddPathsToOffset::OnOK(Napi::Env env) {
-  // Console::log("<---- AddPaths");
+  Console::log("<---- AddPathsToOffset");
 
   // Console::time("exportToView");
  

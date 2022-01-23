@@ -61,20 +61,34 @@ Napi::Value ExecuteClipperOffset::Execute(Napi::Env env) {
   SafeExecuteData executeData;
   executeData.m_obj = this;
   executeData.m_env = &env;
-  if (!safeExecuteFunc(SafeExecute, &executeData))
-    return this->OnError(env);
+
+  this->ExecClipperOffset(env);
+
+  // SafeExecute(executeData);
+
+  // if (!safeExecuteFunc(SafeExecute, &executeData))
+  //   return this->OnError(env);
 
  // //Console::timeEnd("Colision with rays");
  return this->OnOK(env);
 }
 
 void ExecuteClipperOffset::ExecClipperOffset(Napi::Env env) {
-  
-  shape2D->clipperOffset.Execute(shape2D->resultPolyTree, delta);
+  Console::log("ExecClipperOffset ----->");
+
+  try{
+    shape2D->clipperOffset.Execute(shape2D->resultPolyTree, delta);
+  }catch(std::exception error){
+    Console::log("ExecClipperOffset error exception", error.what());
+  }catch(int error){
+    Console::log("ExecClipperOffset error int", error);
+  }
 }
 
 Napi::Value ExecuteClipperOffset::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
+
+  Console::log("<---- ExecuteClipperOffset error");
 
   // reject promise with error value
   // Call empty function
@@ -87,7 +101,7 @@ Napi::Value ExecuteClipperOffset::OnError(Napi::Env env) {
 }
 
 Napi::Value ExecuteClipperOffset::OnOK(Napi::Env env) {
-  // Console::log("<---- ExecuteClipperOffset");
+  Console::log("<---- ExecuteClipperOffset");
 
   // Console::time("exportToView");
  

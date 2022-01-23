@@ -14,11 +14,12 @@
 
 
 Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
-  Napi::HandleScope scope(env);
+  // Napi::HandleScope scope(env);
 
   // define the "Shape2D" functions and values here
   Napi::Function func = DefineClass(env, "Shape2D", {
     InstanceMethod("addPaths", &Shape2D::addPath),
+    InstanceMethod("init", &Shape2D::init),
     InstanceMethod("addPathsToOffset", &Shape2D::addPathsToOffset),
     InstanceMethod("executeClipper", &Shape2D::executeClipper),
     InstanceMethod("executeClipperOffset", &Shape2D::executeClipperOffset),
@@ -29,10 +30,15 @@ Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("exportPolyFromPaths", &Shape2D::exportPolyFromPaths)
   });
 
-  constructor = Napi::Persistent(func);
-  constructor.SuppressDestruct();
+  // constructor = Napi::Persistent(func);
+  // constructor.SuppressDestruct();
+
+  Napi::FunctionReference* constructor = new Napi::FunctionReference();
+  *constructor = Napi::Persistent(func);
 
   exports.Set("Shape2D", func);
+
+  env.SetInstanceData<Napi::FunctionReference>(constructor);
 
   return exports;
 }
@@ -41,10 +47,19 @@ Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
 //***********************  Constructor ***************************//
 //****************************************************************//
 
-Napi::FunctionReference Shape2D::constructor;
 Shape2D::Shape2D(const Napi::CallbackInfo& info) : Napi::ObjectWrap<Shape2D>(info) {
+  Napi::Env env = info.Env();
 
+  Console::log("----constructor 1");
+  Console::log("precision", precision);
+  Console::log("test", test);
 }
+
+// Shape2D::Shape2D() : Napi::ObjectWrap<Shape2D>() {
+//   Console::log("----constructor 2");
+//   Console::log("precision", precision);
+//   Console::log("test", test);
+// }
 
 
 
@@ -64,7 +79,7 @@ Napi::Value Shape2D::dispose(const Napi::CallbackInfo& info){
 
   if(disposed == false){
     disposed = true;
-    Console::log(_path, "disposed");
+    Console::log("Shape2D disposed");
   }
   return env.Null();
 }
@@ -77,13 +92,58 @@ Napi::Value Shape2D::dispose(const Napi::CallbackInfo& info){
 Napi::Value Shape2D::addPath(const Napi::CallbackInfo& info) {
   // Napi::Env env = info.Env();
   // return env.Null();
+  Console::log("---addPath");
+  Console::log("precision", precision);
+  Console::log("test", test);
+
   return AddPaths::Init(info, this);
 }
 
 
+Napi::Value Shape2D::init(const Napi::CallbackInfo& info) {
+  // Napi::Env env = info.Env();
+  // return env.Null();
+  Console::log("---init");
+
+  ClipperLib::Paths mainPath;
+  ClipperLib::PolyTree resultPolyTree;
+  ClipperLib::Paths resultPaths;
+  ClipperLib::Clipper clipper;
+  ClipperLib::ClipperOffset clipperOffset;
+  ClipperLib::Clipper c;
+  ClipperLib::PolyTree soln;
+
+  float shrinkValue{FLT_MAX};
+  float precision{1};
+  std::string test{"coucou"};
+
+  // this->mainPath = mainPath;
+  // this->resultPolyTree = resultPolyTree;
+  // this->resultPaths = resultPaths;
+  // this->clipper = clipper;
+  this->clipperOffset = clipperOffset;
+  // this->c = c;
+  // this->soln = soln;
+
+  this->shrinkValue = shrinkValue;
+  this->precision = precision;
+  this->test = test;
+
+  
+  Console::log("---init");
+  Console::log("precision", precision);
+  Console::log("test", test);
+
+  return this->Value();
+}
+
 Napi::Value Shape2D::addPathsToOffset(const Napi::CallbackInfo& info) {
   // Napi::Env env = info.Env();
   // return env.Null();
+  Console::log("---addPathsToOffset");
+  Console::log("precision", precision);
+  Console::log("test", test);
+
   return AddPathsToOffset::Init(info, this);
 }
 

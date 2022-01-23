@@ -29,11 +29,12 @@ let self = require("./code/test.js");
 let kiri = self.kiri;
 
 let engine = kiri.newEngine();
-self.forceUsingJSInsteadOfCPP = false;
+// self.forceUsingJSInsteadOfCPP = true;
 
-//let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
-//let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
-let buf = new Uint8Array(fs.readFileSync('./web/obj/revert-poussin.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('/Users/tibus/Works/resinPrinter/MangoApp/bin/stl/poussin.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/revert-poussin.stl')).buffer;
 // return;
 
 // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;

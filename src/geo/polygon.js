@@ -1460,9 +1460,33 @@
             cur = [],
             out = inout || [];
         out.push(poly.points.map(p => p.toClipper()));
+        
+        // console.log("out", out);
+
         if (poly.inner) {
             poly.inner.forEach(function(p) {
                 p.toClipper(out);
+            });
+        }
+        return out;
+    };
+
+    PRO.toInt32Array = function(inout) {
+        let poly = this,
+            cur = [],
+            out = inout || [];
+
+        let int32 = new Int32Array(poly.points.length * 2);
+        for(let i= 0; i<poly.points.length; i++){
+            int32[i*2] = poly.points[i].x* CONF.clipper;
+            int32[i*2 + 1] =  poly.points[i].y* CONF.clipper;
+        }
+        // console.log("int32", int32, int32.buffer);
+        out.push(int32.buffer);
+
+        if (poly.inner) {
+            poly.inner.forEach(function(p) {
+                p.toInt32Array(out);
             });
         }
         return out;

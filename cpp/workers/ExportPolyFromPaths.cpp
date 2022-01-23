@@ -53,7 +53,7 @@ void ExportPolyFromPaths::SafeExecute(void* data)
 }
 
 Napi::Value ExportPolyFromPaths::Execute(Napi::Env env) {
-  //Console::log("ColisionWithPath ---->");
+  Console::log("ColisionWithPath ---->");
 
   SafeExecuteData executeData;
   executeData.m_obj = this;
@@ -72,6 +72,8 @@ void ExportPolyFromPaths::Export(Napi::Env env) {
 Napi::Value ExportPolyFromPaths::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
 
+  Console::log("<---- ExportPolyFromPaths error");
+
   // reject promise with error value
   // Call empty function
   Napi::Object props = Napi::Object::New(env);
@@ -83,7 +85,8 @@ Napi::Value ExportPolyFromPaths::OnError(Napi::Env env) {
 }
 
 Napi::Value ExportPolyFromPaths::OnOK(Napi::Env env) {
-  
+  Console::log("<---- ExportPolyFromPaths");
+
   
   Napi::Object props = Napi::Object::New(env);
   uint64_t pathsSize = 0; 

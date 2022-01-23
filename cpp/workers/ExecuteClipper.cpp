@@ -59,10 +59,10 @@ ExecuteClipper::ExecuteClipper(uint32_t clipTypeInt,uint32_t subFillTypeInt, uin
   {
   }
 
-  class SafeExecuteData
+class SafeExecuteData
 {
 public:
-  ExecuteClipper* m_obj;
+  ExecuteClipper*   m_obj;
   Napi::Env*        m_env;
 };
 
@@ -73,7 +73,7 @@ void ExecuteClipper::SafeExecute(void* data)
 }
 
 Napi::Value ExecuteClipper::Execute(Napi::Env env) {
-  //Console::log("ColisionWithPath ---->");
+  Console::log("ExecuteClipper ---->");
   ////Console::time("Colision with rays");
 
   SafeExecuteData executeData;
@@ -142,7 +142,7 @@ Napi::Value ExecuteClipper::OnError(Napi::Env env) {
 }
 
 Napi::Value ExecuteClipper::OnOK(Napi::Env env) {
-  //Console::log("<---- ExecuteClipper");
+  Console::log("<---- ExecuteClipper");
 
   // Console::time("exportToView");
  

@@ -68,7 +68,7 @@ void AddPaths::SafeExecute(void* data)
 }
 
 Napi::Value AddPaths::Execute(Napi::Env env) {
-  //Console::log("AddPaths ---->");
+  Console::log("AddPaths ---->");
   ////Console::time("Colision with rays");
 
   SafeExecuteData executeData;
@@ -107,7 +107,7 @@ Napi::Value AddPaths::OnError(Napi::Env env) {
 }
 
 Napi::Value AddPaths::OnOK(Napi::Env env) {
-  // Console::log("<---- AddPaths");
+  Console::log("<---- AddPaths");
 
   // Console::time("exportToView");
  

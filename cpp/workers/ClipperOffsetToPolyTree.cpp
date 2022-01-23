@@ -49,6 +49,7 @@ ClipperLib::EndType getEndType2(uint8_t type){
     }
 }
 
+
 ClipperLib::PolyFillType getFillType2(uint8_t type){
     switch (type)
     {
@@ -121,9 +122,9 @@ Napi::Value ClipperOffsetToPolyTree::Execute(Napi::Env env) {
   SafeExecuteData executeData;
   executeData.m_obj = this;
   executeData.m_env = &env;
-  // if (!safeExecuteFunc(SafeExecute, &executeData))
-  //   return this->OnError(env);
-  this->ExecuteFunction(env);
+  if (!safeExecuteFunc(SafeExecute, &executeData))
+    return this->OnError(env);
+  // this->ExecuteFunction(env);
 
  //Console::timeEnd("Colision with rays");
  return this->OnOK(env);
@@ -141,31 +142,24 @@ void ClipperOffsetToPolyTree::ExecuteFunction(Napi::Env env) {
     uint32_t lengthPath =  paths.Length();
     ClipperLib::Paths ins(lengthPath);
 
-    Console::time("for");
+    // Console::time("for");
     for(uint32_t i = 0; i < lengthPath; i++){
-      Console::time("pointsArray");
-      const Napi::Array pointsArray = paths.Get(i).As<Napi::Array>();
-      uint32_t length =  pointsArray.Length();
-      Console::timeStep("pointsArray");
 
-      for(uint32_t j = 0; j < length; j ++){
-        Console::time("forO");
-        Napi::Object o = pointsArray[j].As<Napi::Object>();    
-        Console::timeStep("forO");
-
-        Console::time("forCast");
-        int32_t x = o.Get("X").As<Napi::Number>().Int32Value();
-        int32_t y = o.Get("Y").As<Napi::Number>().Int32Value();
-        Console::timeStep("forCast");
-
-        Console::time("forInsert");
-        ins[i] << ClipperLib::IntPoint(x,y);
-        Console::timeStep("forInsert");
+      // Console::time("pointsArray");
+      Napi::ArrayBuffer pointsArray = paths.Get(i).As<Napi::ArrayBuffer>();
+      int* points = reinterpret_cast<int *>(pointsArray.Data());
+      uint64_t size = pointsArray.ByteLength() / sizeof(int);
+      // Console::timeStep("pointsArray");
+    
+      for(uint64_t j = 0; j < size; j+=2){
+        // Console::time("forInsert");
+        ins[i] << ClipperLib::IntPoint(points[j], points[j+1]);
+        // Console::timeStep("forInsert");
       }
     }
-    Console::timeStep("for");
+    // Console::timeStep("for");
 
-    Console::time("clean");
+    // Console::time("clean");
     try{
       if(clean){
         ClipperLib::Paths cleans;
@@ -175,9 +169,9 @@ void ClipperOffsetToPolyTree::ExecuteFunction(Napi::Env env) {
     }catch(int e){
       Console::log("ClipperOffsetToPolyTree CleanPolygons error", e);
     }
-    Console::timeStep("clean");
+    // Console::timeStep("clean");
     
-    Console::time("simple");
+    // Console::time("simple");
     try{
       if(simple){
         ClipperLib::Paths simples;
@@ -188,20 +182,20 @@ void ClipperOffsetToPolyTree::ExecuteFunction(Napi::Env env) {
     }catch(int e){
       Console::log("ClipperOffsetToPolyTree SimplifyPolygons error", e);
     }
-    Console::timeStep("simple");
+    // Console::timeStep("simple");
 
-    Console::time("AddPaths");
+    // Console::time("AddPaths");
     co.AddPaths(ins, joinType, endType);
-    Console::timeStep("AddPaths");
+    // Console::timeStep("AddPaths");
   }
 
   try{
-    Console::time("Execute");
+    // Console::time("Execute");
     co.Execute(resultPolyTree, offset);
-    Console::timeStep("Execute");
+    // Console::timeStep("Execute");
   }catch(int e){
     // Console::log("ClipperOffsetToPolyTree Execute error", e);
-  }  
+  }
 }
 
 Napi::Value ClipperOffsetToPolyTree::OnError(Napi::Env env) {
@@ -221,31 +215,6 @@ Napi::Value ClipperOffsetToPolyTree::OnError(Napi::Env env) {
   return props;
 }
 
-Napi::Object ClipperOffsetToPolyTree::ExportPolyNode(ClipperLib::PolyNode *node, Napi::Env env){
-  Napi::Object polyNode = Napi::Object::New(env);
-  Napi::Array polygon = Napi::Array::New(env, node->Contour.size());
-  for(uint32_t index =0; index < node->Contour.size(); index++ ){
-    Napi::Object point = Napi::Object::New(env);
-    point.Set("X", node->Contour[index].X);
-    point.Set("Y", node->Contour[index].Y);
-    polygon.Set(index, point);
-  }
-  polyNode.Set("m_polygon", polygon);
-  polyNode.Set("IsHole", Napi::Boolean::New(env, node->IsHole()));
-  polyNode.Set("IsOpen", Napi::Boolean::New(env, node->IsOpen()));
-  //polyNode.Set("ChildCount", node->ChildCount());
-  
-  Napi::Array childrenJS = Napi::Array::New(env, node->ChildCount());
-  for(uint64_t index = 0; index < node->ChildCount(); index++){
-    ClipperLib::PolyNode * nextNode = node->Childs[index];
-    Napi::Object childJS = ExportPolyNode(nextNode, env);
-    childrenJS.Set(index, childJS);
-  }
-  //Console::logOnce("<---- ExportPolyTree", node->Contour.size());
-  polyNode.Set("m_Childs", childrenJS);
-  return polyNode;
-}
-
 Napi::Value ClipperOffsetToPolyTree::OnOK(Napi::Env env) {
   // Console::log("<---- ClipperOffsetToPolyTree");
 
@@ -256,32 +225,10 @@ Napi::Value ClipperOffsetToPolyTree::OnOK(Napi::Env env) {
 
   props.Set("success", Napi::Boolean::New(env, true));
 
-  Console::time("PolyTree");
-  Napi::Object polyTree = Napi::Object::New(env);
-  Napi::Array childrenJS = Napi::Array::New(env, resultPolyTree.Childs.size());
-  for(uint64_t index = 0; index < resultPolyTree.Childs.size(); index++){
-    ClipperLib::PolyNode * node = resultPolyTree.Childs[index];
-    Napi::Object childJS = ExportPolyNode(node, env);
-    childrenJS.Set(index, childJS);
-  }
-
-  Napi::Array polygon = Napi::Array::New(env, resultPolyTree.Contour.size());
-  for(uint32_t index =0; index < resultPolyTree.Contour.size(); index++ ){
-    Napi::Object point = Napi::Object::New(env);
-    point.Set("X", resultPolyTree.Contour[index].X);
-    point.Set("Y", resultPolyTree.Contour[index].Y);
-    polygon.Set(index, point);
-  }
-  polyTree.Set("m_AllPolys", polygon);
-  polyTree.Set("m_Childs",childrenJS);
-  //polyTree.Set("IsHole", Napi::Boolean::New(env, resultPolyTree.IsHole()));
-  polyTree.Set("IsOpen", Napi::Boolean::New(env, resultPolyTree.IsOpen()));  
-  //polyTree.Set("ChildCount", resultPolyTree.ChildCount());
-  //polyTree.Set("m_endtype", resultPolyTree.m_endtype);
-  //polyTree.Set("m_jointype", resultPolyTree.m_jointype);
+  Napi::Object polyTree = ExportPolyTree(&resultPolyTree, env);
 
   props.Set("polytree", polyTree);
-  Console::timeStep("PolyTree");
+  // Console::timeStep("PolyTree");
 
   co.Clear();
 

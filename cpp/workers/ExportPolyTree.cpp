@@ -54,7 +54,7 @@ void ExportPolyTree::SafeExecute(void* data)
 }
 
 Napi::Value ExportPolyTree::Execute(Napi::Env env) {
-  //Console::log("ColisionWithPath ---->");
+  Console::log("ExportPolyTree ---->");
   ////Console::time("Colision with rays");
 
   SafeExecuteData executeData;
@@ -112,8 +112,8 @@ Napi::Object ExportPolyTree::ExportPolyNode(ClipperLib::PolyNode *node, Napi::En
 }
 
 Napi::Value ExportPolyTree::OnOK(Napi::Env env) {
-  //Console::log("----> ExportPolyTree");
- 
+  Console::log("----> ExportPolyTree");
+  
   Napi::HandleScope scope(env);
   Napi::Object polyTree = Napi::Object::New(env);
   Napi::Array childrenJS = Napi::Array::New(env, shape2D->resultPolyTree.Childs.size());

@@ -51,7 +51,7 @@ void CleanClipperPolygons::SafeExecute(void* data)
 }
 
 Napi::Value CleanClipperPolygons::Execute(Napi::Env env) {
-  //Console::log("CleanClipperPolygon ---->");
+  Console::log("CleanClipperPolygon ---->");
   //Console::time("Colision with rays");
 
   SafeExecuteData executeData;
@@ -71,6 +71,8 @@ void CleanClipperPolygons::Clean(Napi::Env env) {
 Napi::Value CleanClipperPolygons::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
 
+  Console::log("<---- CleanClipperPolygons error");
+
   // reject promise with error value
   // Call empty function
   Napi::Object props = Napi::Object::New(env);
@@ -82,7 +84,7 @@ Napi::Value CleanClipperPolygons::OnError(Napi::Env env) {
 }
 
 Napi::Value CleanClipperPolygons::OnOK(Napi::Env env) {
-  
+  Console::log("<------- CleanClipperPolygons");
  
   Napi::HandleScope scope(env);
   Napi::Object props = Napi::Object::New(env);

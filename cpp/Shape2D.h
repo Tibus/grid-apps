@@ -11,6 +11,7 @@ class Shape2D : public Napi::ObjectWrap<Shape2D> {
 public:
   // Init function for setting the export key to JS
   static Napi::Object Init(Napi::Env env, Napi::Object exports);
+
   // Constructor to initialise
   Shape2D(const Napi::CallbackInfo &info);
   Shape2D();
@@ -25,23 +26,25 @@ public:
   ClipperLib::Clipper clipper;
   ClipperLib::ClipperOffset clipperOffset;
 
-  float shrinkValue = FLT_MAX;
-  float precision = 1;
-  std::vector<bool> isHoleArray;
-  std::string _path;
-
   //Console::time("segmentArray");
   ClipperLib::Clipper c;
   ClipperLib::PolyTree soln;
 
+  float shrinkValue{FLT_MAX};
+  float precision{1};
+  std::string test{"coucou"};
+
 private:
   // reference to store the class definition that needs to be exported to JS
-  static Napi::FunctionReference constructor;
+  // static Napi::FunctionReference constructor;
  
+
+
   /*
   Method
   */
  
+  Napi::Value init(const Napi::CallbackInfo& info);
   Napi::Value dispose(const Napi::CallbackInfo& info);
   Napi::Value addPath(const Napi::CallbackInfo& info);
   Napi::Value addPathsToOffset(const Napi::CallbackInfo& info);

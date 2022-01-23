@@ -49,7 +49,7 @@ void CleanClipperAddon::SafeExecute(void* data)
 }
 
 Napi::Value CleanClipperAddon::Execute(Napi::Env env) {
-  //Console::log("CleanClipperAddon ---->");
+  Console::log("CleanClipperAddon ---->");
   ////Console::time("Colision with rays");
 
   SafeExecuteData executeData;
@@ -74,6 +74,8 @@ void CleanClipperAddon::Clean(Napi::Env env) {
 Napi::Value CleanClipperAddon::OnError(Napi::Env env) {
   Napi::HandleScope scope(env);
 
+Console::log("<---- CleanClipperAddon error");
+
   // reject promise with error value
   // Call empty function
   Napi::Object props = Napi::Object::New(env);
@@ -85,7 +87,8 @@ Napi::Value CleanClipperAddon::OnError(Napi::Env env) {
 }
 
 Napi::Value CleanClipperAddon::OnOK(Napi::Env env) {
-  
+  Console::log("<------- CleanClipperAddon");
+
  
   Napi::HandleScope scope(env);
   Napi::Object props = Napi::Object::New(env);
