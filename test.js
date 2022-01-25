@@ -1,5 +1,4 @@
 let addon3D;
-let  ConsoleTool = require("./mangoUtils/consoleTool");
 
 try {
   addon3D = require('./build/Debug/gridapp');
@@ -38,9 +37,24 @@ let buf = new Uint8Array(fs.readFileSync('/Users/tibus/Works/resinPrinter/MangoA
 // return;
 
 // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
-// engine.setListener((mess)=>{console.log("mess", mess)});
+let previousUpdateStatus = "";
+engine.setListener((mess)=>{
+  // if (mess.updateStatus) {
+  //   if (mess.updateStatus !== previousUpdateStatus) {
+  //     console.timeEnd(previousUpdateStatus);
+  //     console.time(mess.updateStatus);
+  //     previousUpdateStatus = mess.updateStatus;
+  //   }
+  // }
+  //
+  // if (mess && mess.export && mess.export.done) {
+  //   console.timeEnd(previousUpdateStatus);
+  // }
 
-console.time("slicing");
+  // console.log("mess", mess)
+});
+
+console.time("totalSlicing");
 engine.parse(buf)
     .then(data => {
         // console.log({loaded: data});
@@ -55,7 +69,7 @@ engine.parse(buf)
         "firstLayerPrintMult":1.15,
         "firstLayerYOffset":0,
         "firstLayerBrim":0,
-        "firstLayerBeltLead":3, 
+        "firstLayerBeltLead":3,
         "firstSliceHeight":0.25,
         "firstLayerFillRate":35,
         "firstLayerLineMult":1,
@@ -110,14 +124,14 @@ engine.parse(buf)
         "sliceSolidLayers":3,
         "sliceBottomLayers":3,
         "sliceTopLayers":3,
-     
-        
+
+
         "sliceFillRate":0,
         "sliceSupportEnable":false,
         "detectThinWalls":true,
         "zHopDistance":0,
-        
-       
+
+
         "arcTolerance":0,
         "gcodePause":"",
         "ranges":[],
@@ -198,9 +212,9 @@ engine.parse(buf)
     .catch(error => {
         console.log({error});
     }).then(() =>{
-         ConsoleTool.logCount();
-         ConsoleTool.logValue();
-         ConsoleTool.logAllTimeStep();
-         self.Shape2D.logAll();
+        self.consoleTool.logCount();
+        self.consoleTool.logValue();
+        self.consoleTool.logAllTimeStep();
+        // self.Shape2D.logAll();
     });
 

@@ -12,6 +12,7 @@ const Shape2D = require("bindings")("gridapp");
 
     const BASE = self.base,
         UTIL = BASE.util,
+        ConsoleTool = self.consoleTool,
         CONF = BASE.config,
         DEG2RAD = Math.PI / 180,
         ABS = Math.abs,
@@ -85,7 +86,7 @@ const Shape2D = require("bindings")("gridapp");
         let poly = BASE.newPolygon();
         if(tnode.m_polygonBuffer){
             let indices = new Int32Array(tnode.m_polygonBuffer.buffer, tnode.m_polygonBuffer.byteOffset);
-            
+
             for (let i = 0; i<indices.length; i+=2) {
                 poly.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
@@ -94,7 +95,7 @@ const Shape2D = require("bindings")("gridapp");
                 poly.push(BASE.pointFromClipper(point, z));
             }
         }
-        
+
         poly.open = tnode.IsOpen;
         ConsoleTool.timeStepEnd("f_fromClipperNode");
         return poly;
@@ -116,10 +117,10 @@ const Shape2D = require("bindings")("gridapp");
                 polys.m_AllPolys.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
         }
-        
+
         for (let child of tnode.m_Childs) {
             poly = fromClipperNode(child, z);
-            
+
             // throw out all tiny polygons
             if (!poly.open && poly.area() < min) {
                 continue;
@@ -387,10 +388,10 @@ const Shape2D = require("bindings")("gridapp");
             successCpp = false;
 
             // console.log("----- subtract ------");
-            
+
             let sp1 = ToInt32Array(setA),
                 sp2 = ToInt32Array(setB);
-            
+
             let {success, error, polytreeA, polytreeB} = Shape2D.clipperDualSubtractPathToPolyTree(sp1, sp2, CONF.clipperClean, !!outA, !!outB);
             if(success && polytreeA){
                 successCpp = true;
@@ -404,7 +405,7 @@ const Shape2D = require("bindings")("gridapp");
             }
 
             // if (outA) {
-                
+
             //     //Todo Merge the two split
             //     let {success, error, polytree} = Shape2D.clipperSubtractPathToPolyTree(sp1, sp2, CONF.clipperClean,);
             //     if(polytreeA.m_Childs.length !== polytree.m_Childs.length){
@@ -433,7 +434,7 @@ const Shape2D = require("bindings")("gridapp");
             //         filter(fromClipperTree(polytree, z, null, null, min), outB);
             //     }
             // }
-            
+
             if(!successCpp){
                 console.log("success", success/*, error*/);
                 opt.cpp = false;
@@ -454,7 +455,7 @@ const Shape2D = require("bindings")("gridapp");
             clip.StrictlySimple = true;
             if (outA) {
                 let success = false;
-                
+
                 clip.AddPaths(sp1, ptyp.ptSubject, true);
                 clip.AddPaths(sp2, ptyp.ptClip, true);
                 success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd);
@@ -472,8 +473,8 @@ const Shape2D = require("bindings")("gridapp");
                 }
                 clip.AddPaths(sp2, ptyp.ptSubject, true);
                 clip.AddPaths(sp1, ptyp.ptClip, true);
-                success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd) 
-                
+                success = clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)
+
                 if(success){
                     cleanClipperTree(ctre);
                     filter(fromClipperTree(ctre, z, null, null, min), outB);
@@ -484,7 +485,7 @@ const Shape2D = require("bindings")("gridapp");
         if (opt.prof) {
             opt.prof.pout = (opt.prof.pout || 0) + points(out);
         }
-        
+
         ConsoleTool.timeStepEnd("f_subtract");
         return out;
     }
@@ -503,7 +504,7 @@ const Shape2D = require("bindings")("gridapp");
      */
      function union(polys, minarea, all, opt = {}) {
          if (polys.length < 2) return polys;
-         
+
          ConsoleTool.timeStepStart("f_union");
 
          if (false && opt.wasm && geo.wasm) {
@@ -540,7 +541,7 @@ const Shape2D = require("bindings")("gridapp");
          for (i=0; i<out.length; i++) {
              if (out[i]) uset.push(out[i]);
          }
-         
+
          ConsoleTool.timeStepEnd("f_union");
          return uset;
      }
@@ -699,9 +700,9 @@ const Shape2D = require("bindings")("gridapp");
             for (let poly of orig) {
                 polysCpp.push(poly.toInt32Array());
             }
-            
+
             let {success, error, polytree} = Shape2D.clipperOffsetToPolyTree(polysCpp, join, type, clean, CONF.clipperClean, simple, fill, offs * CONF.clipper, 1);
-            
+
             if(!success){
                 console.log("success", success, error);
                 opts.cpp = false;
@@ -710,10 +711,10 @@ const Shape2D = require("bindings")("gridapp");
             }
 
             ConsoleTool.timeStepStart("fromClipperTree");
-            polys = fromClipperTree(polytree, zed, null, null, mina);            
+            polys = fromClipperTree(polytree, zed, null, null, mina);
             ConsoleTool.timeStepEnd("fromClipperTree");
         } else{
-            
+
             let coff = new ClipperLib.ClipperOffset(opts.miter, opts.arc),
             ctre = new ClipperLib.PolyTree();
                 // setup offset
@@ -724,15 +725,15 @@ const Shape2D = require("bindings")("gridapp");
                 if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
                 coff.AddPaths(poly, join, type);
             }
-            
+
             // perform offset
             coff.Execute(ctre, offs * CONF.clipper);
-            
-            
+
+
             // convert back from clipper output format
             polys = fromClipperTree(ctre, zed, null, null, mina);
 
-            
+
             // if(polys.length !== polysCpp.length){
             //     console.log("polys.length !== polysCpp.length", polys.length, polysCpp.length);
             //     process.exit();
@@ -832,7 +833,7 @@ const Shape2D = require("bindings")("gridapp");
      * @returns {Point[]} supplied output or new array
      */
     function fillArea(polys, angle, spacing, output, minLen, maxLen, opt={}) {
-        
+
         if (polys.length === 0) return;
         ConsoleTool.timeStepStart("f_fillArea");
 
@@ -852,7 +853,7 @@ const Shape2D = require("bindings")("gridapp");
             Math.cos(angle * DEG2RAD) * spacing,
             Math.sin(angle * DEG2RAD) * spacing
         );
-        
+
         ConsoleTool.timeStepStart("f_fillArea_while");
         // compute union of top boundaries
         while (i < polys.length) {
@@ -882,7 +883,7 @@ const Shape2D = require("bindings")("gridapp");
 
         // store origin as start/affinity point for fill
         rayint.origin = newPoint(start.x, start.y, start.z);
-        
+
         ConsoleTool.timeStepStart("f_fillArea_AddPaths");
         if(opt.cpp !== false && self.forceUsingJSInsteadOfCPP == false){
 
@@ -899,9 +900,9 @@ const Shape2D = require("bindings")("gridapp");
 
             let linesInput = int32.buffer,
                 polysInput = ToInt32Array(polys);
-            
+
             let {success, error, polytree} = Shape2D.clipperFillAreaToPolyTree(linesInput, polysInput);
-            
+
             if (success && polytree) {
                 for (let poly of polytree.m_Childs) {
                     poly = fromClipperNode(poly, zpos);
@@ -913,15 +914,15 @@ const Shape2D = require("bindings")("gridapp");
                             return;
                         }
                     }
-    
+
                     let p1 = poly.points[0];//BASE.pointFromClipper(poly.m_polygon[0], zpos);
                     let p2 = poly.points[1];//BASE.pointFromClipper(poly.m_polygon[1], zpos);
                     let od = rayint.origin.distToLineNew(p1,p2) / spacing;
                     lines.push([p1, p2, od]);
-    
+
                 }
             }
-            
+
             if(!success){
                 console.log("success", success, error);
                 opt.cpp = false;
@@ -936,7 +937,7 @@ const Shape2D = require("bindings")("gridapp");
 
             // shape2D.addPaths(lines, ptyp.ptSubject, false);
             // shape2D.addPaths(toClipper(polys), ptyp.ptClip, true);
-    
+
             // ({success} = shape2D.executeClipper(ctyp.ctIntersection, cfil.pftNonZero, cfil.pftEvenOdd, false))
             // res = shape2D.exportLine(minlen? minlen: 0, maxlen? maxlen: 0 , spacing, 1, zpos)
             // shape2D.cleanClipperAddon();
@@ -950,7 +951,7 @@ const Shape2D = require("bindings")("gridapp");
             //         lines.push([p1, p2, od]);
             //     }
             // }
-            
+
         }else{
             for (i = 0; i < steps; i++) {
                 lines.push([
@@ -965,12 +966,12 @@ const Shape2D = require("bindings")("gridapp");
                 start.x += stepX;
                 start.y += stepY;
             }
-            
-            clip.AddPaths(lines, ptyp.ptSubject, false); 
+
+            clip.AddPaths(lines, ptyp.ptSubject, false);
             clip.AddPaths(toClipper(polys), ptyp.ptClip, true);
 
             lines = [];
-    
+
             if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftNonZero, cfil.pftEvenOdd)) {
                 for (let poly of ctre.m_AllPolys) {
                     //console.log("poly", poly.m_polygon.length);
@@ -981,17 +982,17 @@ const Shape2D = require("bindings")("gridapp");
                             return;
                         }
                     }
-    
+
                     let p1 = BASE.pointFromClipper(poly.m_polygon[0], zpos);
                     let p2 = BASE.pointFromClipper(poly.m_polygon[1], zpos);
                     let od = rayint.origin.distToLineNew(p1,p2) / spacing;
                     lines.push([p1, p2, od]);
-    
+
                 }
             }
         }
         ConsoleTool.timeStepEnd("f_fillArea_AddPaths");
-        
+
         ConsoleTool.timeStepStart("f_fillArea_sort");
         lines.sort(function(a,b) {
             return a[2] - b[2];
@@ -1007,8 +1008,8 @@ const Shape2D = require("bindings")("gridapp");
             rayint.push(line[1]);
         }
         ConsoleTool.timeStepEnd("f_fillArea_for");
-        
-        
+
+
         ConsoleTool.timeStepEnd("f_fillArea");
         return rayint;
     }
@@ -1151,7 +1152,7 @@ const Shape2D = require("bindings")("gridapp");
                 points = np;
             }
         }
-        
+
         ConsoleTool.timeStepEnd("f_rayIntersect");
         return points;
     }
