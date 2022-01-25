@@ -11,7 +11,6 @@
             "cpp/workers/ExecuteClipper.cpp",
             "cpp/workers/ExecuteClipperOffset.cpp",
             "cpp/workers/ExportLine.cpp",
-            "cpp/workers/ExportPolyTree.cpp",
             "cpp/workers/AddPathsToOffset.cpp",
             "cpp/workers/CleanClipperPolygons.cpp",
             "cpp/workers/CleanClipperAddon.cpp",
