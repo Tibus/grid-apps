@@ -33,13 +33,15 @@ self.postMessage = (msg) => {
 
 
 // fake fetch for worker to get wasm, if neededlet fetch = function(url) {
+let fetch = function(url) {
     let buf = fs.readFileSync(__dirname + "/../"+url);
     return new Promise((resolve, reject) => {
         resolve(new Promise((resolve, reject) => {
             resolve({
                 arrayBuffer: function() {
                     return buf;
-                }            });
+                }
+            });
         }));
     });
 };

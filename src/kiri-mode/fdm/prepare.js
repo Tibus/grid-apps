@@ -729,6 +729,7 @@
 
         // render if not explicitly disabled
         // ConsoleTool.timeStepStart("prepare_render");
+        console.error("render", render);
         if (render) {
             print.render = FDM.prepareRender(output, (progress, layer) => {
                 update(0.5 + progress * 0.5, "render", layer);
