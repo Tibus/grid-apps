@@ -2,6 +2,7 @@
 
 "use strict";
 
+
 /**
  * Slicing engine used by FDM, Laser, and SLA
  */
@@ -511,7 +512,6 @@
                 }
             }
         }
-
         if (lines.length == 0 && options.noEmpty) {
             return;
         }
@@ -519,15 +519,12 @@
         // de-dup and group lines
         lines = removeDuplicateLines(lines);
         let groups = connectLines(lines, z, options.debug);
-
         // simplistic healing of bad meshes
         if (options.union) {
             groups = POLY.flatten(POLY.union(POLY.nest(groups), 0.1, true), null, true);
         }
-
         let tops = POLY.nest(groups);
         let data = { lines, groups, tops };
-
         // look for driver-specific slice post-processor
         if (options.mode) {
             let fn = KIRI.driver[options.mode].slicePost;
@@ -535,7 +532,7 @@
                 fn(data, options, params);
             }
         }
-
+    
         return data;
     }
 

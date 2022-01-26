@@ -18,6 +18,9 @@
      * @param res {number} resolution (pixels/slices per side)
      */
     function slice(off, res, val) {
+
+
+
         // auto clear cach if it hasn't been hit in the last 20 seconds
         // or the requested resolution or tip values have changed
         let now = Date.now();
@@ -42,6 +45,9 @@
         let points = 0;
         let points_lr = 0;
         let points_td = 0;
+
+        ConsoleTool.timeStepStart("fillGyroid2");
+        
         for (let x=0; x<PI2; x += inc) {
             let vrow = []; // raw values row
             let erow = []; // edge values row
@@ -56,6 +62,8 @@
                 );
             }
         }
+        ConsoleTool.timeStepEnd("fillGyroid2");
+        ConsoleTool.timeStepStart("fillGyroid3");
 
         // left-right threshold search (red)
         vals.forEach((vrow, y) => {
@@ -73,7 +81,8 @@
                 lval = val;
             })
         });
-
+        ConsoleTool.timeStepEnd("fillGyroid3");
+        ConsoleTool.timeStepStart("fillGyroid4");
         // top-down threshold search (green)
         for (let x=0; x<rez; x++) {
             let lval = vals[vals.length-1][x];
@@ -94,6 +103,8 @@
                 lval = val;
             }
         }
+        ConsoleTool.timeStepEnd("fillGyroid4");
+        ConsoleTool.timeStepStart("fillGyroid5");
 
         // deterime prevailing direction for chaining
         let dir = points_td > points_lr ? 'lr' : 'td';
@@ -113,7 +124,8 @@
         sparse.sort((a,b) => {
             return b.dist - a.dist;
         });
-
+        ConsoleTool.timeStepEnd("fillGyroid5");
+        ConsoleTool.timeStepStart("fillGyroid6");
         // join sparse points array by closest distance
         let polys = [];
         let chain;
@@ -160,6 +172,7 @@
                 }
             } while (added);
         } while (cleared < sparse.length);
+        ConsoleTool.timeStepEnd("fillGyroid6");
 
         let psimple = polys
             .map(poly => filter(poly, 0))
@@ -167,6 +180,7 @@
 
         let slice = {edge, points, dir, polys: psimple};
         cache[key] = slice;
+
         return slice;
     }
 

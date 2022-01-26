@@ -111,19 +111,6 @@
         let tile_z = 1 / tile;
         let gyroid = BASE.gyroid.slice(target.zValue() * tile_z, (1 - density) * 500);
 
-        // gyroid.polys.forEach(poly => {
-        //     for (let tx=0; tx<=tile_x; tx++) {
-        //         for (let ty=0; ty<=tile_y; ty++) {
-        //             target.newline();
-        //             let bx = tx * tile + bounds.min.x;
-        //             let by = ty * tile + bounds.min.y;
-        //             poly.forEach(point => {
-        //                 target.emit(bx + point.x * tile, by + point.y * tile);
-        //             });
-        //         }
-        //     }
-        // });
-
         let polys = [];
         for (let tx=0; tx<=tile_x; tx++) {
             for (let ty=0; ty<=tile_y; ty++) {
@@ -140,6 +127,7 @@
                 }
             }
         }
+
         polys = connectOpenPolys(polys);
         for (let poly of polys.filter(p => p.perimeter() > 2)) {
             target.newline();
@@ -147,6 +135,7 @@
                 target.emit(point.x, point.y);
             }
         }
+
     }
 
     function connectOpenPolys(noff, dist = 0.1) {

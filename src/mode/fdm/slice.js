@@ -2,6 +2,7 @@
 
 "use strict";
 
+
 (function() {
 
     const KIRI = self.kiri,
@@ -67,6 +68,7 @@
             return;
         }
         let range = getRangeParameters(process, index);
+
         // calculate fractional shells
         let shellFrac = (range.sliceShells - (range.sliceShells | 0));
         let sliceShells = range.sliceShells | 0;
@@ -92,6 +94,7 @@
                 danger: isDanger
             }));
         }
+
         data.clip = clipOffset ? POLY.offset(nutops.map(t => t.simple), clipOffset) : undefined;
         data.tops = nutops;
     };
@@ -792,9 +795,13 @@
         let last = [],
             gaps = [];
 
+
+
         if (count) {
             // permit offset of 0 for laser and drag knife
+
             if (offset1 === 0 && count === 1) {
+
                 last = top_poly.clone(true);
                 top.shells = last;
             } else {
@@ -803,6 +810,11 @@
                     let dist = p.first().distTo2D(p.last());
                     if (dist < 1) p.open = false;
                 } });
+
+
+
+
+
                 if (opt.danger && opt.thin) {
                     top.thin_fill = [];
                     top.fill_sparse = [];
@@ -849,6 +861,7 @@
                         ));
                         gaps = polys;
                     });
+
                 } else {
                     // standard wall offsetting strategy
                     POLY.offset(
@@ -902,7 +915,6 @@
         // for diffing
         top.last = last;
         // top.last_simple = last.map(p => p.clean(true, undefined, CONF.clipper / 10));
-
         return top;
     }
 
