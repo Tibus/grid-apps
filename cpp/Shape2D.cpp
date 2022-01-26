@@ -28,9 +28,6 @@ Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("exportPolyFromPaths", &Shape2D::exportPolyFromPaths)
   });
 
-  // constructor = Napi::Persistent(func);
-  // constructor.SuppressDestruct();
-
   Napi::FunctionReference* constructor = new Napi::FunctionReference();
   *constructor = Napi::Persistent(func);
 

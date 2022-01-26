@@ -30,10 +30,10 @@ let kiri = self.kiri;
 let engine = kiri.newEngine();
 // self.forceUsingJSInsteadOfCPP = true;
 
-let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+//let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
-// let buf = new Uint8Array(fs.readFileSync('/Users/tibus/Works/resinPrinter/MangoApp/bin/stl/poussin.stl')).buffer;
-// let buf = new Uint8Array(fs.readFileSync('./web/obj/revert-poussin.stl')).buffer;
+//let buf = new Uint8Array(fs.readFileSync('/Users/tibus/Works/resinPrinter/MangoApp/bin/stl/poussin.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
 // return;
 
 // let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
@@ -73,7 +73,7 @@ engine.parse(buf)
             "firstLayerPrintMult":1.15,
             "firstLayerYOffset":0,
             "firstLayerBrim":0,
-            "firstLayerBeltLead":3,
+            "firstLayerBeltLead":3, 
             "firstSliceHeight":0.25,
             "firstLayerFillRate":35,
             "firstLayerLineMult":1,
@@ -113,7 +113,7 @@ engine.parse(buf)
             "sliceFillAngle":45,
             "sliceFillOverlap":0.3,
             "sliceFillSparse":0.2,
-            "sliceFillType":"grid",
+            "sliceFillType":"gyroid",
             "sliceAdaptive":false,
             "sliceMinHeight":0,
             "sliceSupportDensity":0.25,
@@ -128,14 +128,14 @@ engine.parse(buf)
             "sliceSolidLayers":3,
             "sliceBottomLayers":3,
             "sliceTopLayers":3,
-
-
+        
+            
             "sliceFillRate":0,
             "sliceSupportEnable":false,
             "detectThinWalls":true,
             "zHopDistance":0,
-
-
+            
+        
             "arcTolerance":0,
             "gcodePause":"",
             "ranges":[],
@@ -143,7 +143,7 @@ engine.parse(buf)
             "outputFanSpeed":255});
     })
     .then(() => {
-        console.timeEnd("move", "ms");
+        console.timeEnd("move");
         console.time("setDevice");
         return engine.setDevice({
             "noclone":false,
@@ -211,13 +211,13 @@ engine.parse(buf)
         });
     })
     .then(eng => {
-        console.timeEnd("setDevice", "ms");
+        console.timeEnd("setDevice");
         console.time("slice");
         return eng.slice();
-
+       
     })
     .then(eng => {
-        console.timeEnd("slice", "ms");
+        console.timeEnd("slice");
         console.time("prepare");
         return eng.prepare()
     })
