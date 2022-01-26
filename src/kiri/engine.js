@@ -33,13 +33,9 @@ class Engine {
     load(url) {
         return new Promise((accept, reject) => {
             try {
-                // console.time("load");
                 new self.load.STL().load(url, vertices => {
                     this.listener({loaded: url, vertices});
-                    // console.log("vertices", vertices);
-
                     this.widget.loadVertices(vertices).center();
-                    // console.timeEnd("load");
                     accept(this);
                 });
             } catch (error) {
@@ -124,14 +120,8 @@ class Engine {
     slice() {
         return new Promise((accept, reject) => {
             KIRI.client.clear();
-            // console.time("slice_sync")
-            KIRI.client.sync([ this.widget ]); // envoi un Sync dans le worker
+            KIRI.client.sync([ this.widget ]);
             KIRI.client.rotate(this.settings);
-            // console.timeEnd("slice_sync")
-
-            // console.log("this.settings", this.settings);
-
-            // Todo: for loop on every non support widget
             KIRI.client.slice(this.settings, this.widget, msg => {
                 this.listener({slice:msg});
                 if (msg.error) {

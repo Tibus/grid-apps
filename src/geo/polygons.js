@@ -351,8 +351,8 @@ const Shape2D = require("bindings")("gridapp");
 
         let min = minArea || 0.1,
             out = [];
-        // //ConsoleTool.timeStepEnd("alignWindings");
-        // //ConsoleTool.timeStepStart("alignWindings");
+        // ConsoleTool.timeStepEnd("alignWindings");
+        // ConsoleTool.timeStepStart("alignWindings");
         function filter(from, to = []) {
             from.forEach(function(poly) {
                 if (poly.area() >= min) {

@@ -9,5 +9,16 @@ let files = content.split(/\r?\n/);
 for(let i in files){
     //console.log("file", files[i], fs.existsSync(files[i]));
 
-    fs.existsSync(files[i]) && fs.appendFileSync(process.argv[3], fs.readFileSync(files[i]));
+    if(fs.existsSync(files[i])){
+        fs.appendFileSync(process.argv[3],
+`
+//---------------------------------
+//----- Concat : ${files[i]}
+//---------------------------------
+
+`);
+        fs.appendFileSync(process.argv[3], fs.readFileSync(files[i]));
+    }else{
+      console.log(`${files[i]} not found`);
+    }
 }

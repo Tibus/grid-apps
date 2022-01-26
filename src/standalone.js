@@ -1,7 +1,7 @@
 
 let electron;
 try{
-    electron = require('electron'); 
+    electron = require('electron');
 }catch(e){}
 
 let fs;
@@ -19,23 +19,27 @@ let self = {
     forceUsingJSInsteadOfCPP: false,
     kiri : { driver: {}, loader: [] },
     location : { hostname: 'local', port: 0, protocol: 'fake' },
-};
+}
+
+let gapp = {
+    register:(file)=>{
+        //...
+    }
+}
 
 self.postMessage = (msg) => {
     self.kiri.client.onmessage({data:msg});
 }
 
 
-// fake fetch for worker to get wasm, if needed
-let fetch = function(url) {
+// fake fetch for worker to get wasm, if neededlet fetch = function(url) {
     let buf = fs.readFileSync(__dirname + "/../"+url);
     return new Promise((resolve, reject) => {
         resolve(new Promise((resolve, reject) => {
             resolve({
                 arrayBuffer: function() {
                     return buf;
-                }
-            });
+                }            });
         }));
     });
 };
