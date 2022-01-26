@@ -38,8 +38,17 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
     function callExport(callback, mode, names) {
         let alert = API.feature.work_alerts ? API.show.alert("Exporting") : null;
         let gcode = [];
+        let section = [];
+        let sections = { };
         KIRI.client.export(API.conf.get(), (line) => {
+            if (typeof line !== 'string') {
+                if (line.section) {
+                    sections[line.section] = section = [];
+                }
+                return;
+            }
             gcode.push(line);
+            section.push(line);
         }, (output, error) => {
             API.hide.alert(alert);
             if (error) {
@@ -47,7 +56,7 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
             } else if (callback) {
                 callback(gcode.join('\r\n'), output);
             } else {
-                exportGCodeDialog(gcode.join('\r\n'), output, names);
+                exportGCodeDialog(gcode, mode === 'CAM' ? sections : undefined, output, names);
             }
         });
     }
@@ -86,24 +95,24 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
         const driver = KIRI.driver.LASER;
 
         function download_svg() {
-            saveAs(new Blob(
-                [driver.exportSVG(settings, data)],
-                {type:"application/octet-stream"}),
-                $('print-filename').value + ".svg");
+            API.util.download(
+                driver.exportSVG(settings, data),
+                $('print-filename').value + ".svg"
+            );
         }
 
         function download_dxf() {
-            saveAs(new Blob(
-                [driver.exportDXF(settings, data)],
-                {type:"application/octet-stream"}),
-                $('print-filename').value + ".dxf");
+            API.util.download(
+                driver.exportDXF(settings, data),
+                $('print-filename').value + ".dxf"
+            );
         }
 
         function download_gcode() {
-            saveAs(new Blob(
-                [driver.exportGCode(settings, data)],
-                {type:"application/octet-stream"}),
-                $('print-filename').value + ".gcode");
+            API.util.download(
+                driver.exportGCode(settings, data),
+                $('print-filename').value + ".gcode"
+            );
         }
 
         API.ajax("/kiri/output-laser.html", function(html) {
@@ -119,7 +128,7 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
         });
     }
 
-    function exportGCodeDialog(gcode, info, names) {
+    function exportGCodeDialog(gcode, sections, info, names) {
         SDB['kiri-print-seq'] = printSeq++;
 
         let settings = API.conf.get(),
@@ -137,6 +146,9 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
             grid_targets = {},
             grid_local,
             grid_uuid;
+
+        // join gcode array into a string
+        gcode = gcode.join('\r\n');
 
         // run gcode post processor function (when supplied and valid)
         if (codeproc && self[codeproc]) {
@@ -397,7 +409,8 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 
         function download() {
             filename = $('print-filename').value;
-            saveAs(getBlob(), filename + "." + fileext);
+            API.util.download(gcode, filename + "." + fileext);
+            // saveAs(getBlob(), filename + "." + fileext);
         }
 
         function pad(v) {
@@ -453,6 +466,29 @@ console.log/** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
             if (fdm) {
                 calcWeight();
             }
+
+            // in cam mode, show zip file option
+            let downloadZip = $('print-zip');
+            downloadZip.style.display = sections ? 'flex' : 'none';
+            downloadZip.onclick = function() {
+                let files = [];
+                for (let [ name, data ] of Object.entries(sections)) {
+                    if (name.indexOf('op-') === 0) {
+                        let head = sections.header || [];
+                        let foot = sections.footer || [];
+                        files.push({
+                            name: `${name}.${fileext}`,
+                            data: [ ...head, ...data, ...foot ].join('\r\n')
+                        })
+                    }
+                }
+                KIRI.client.zip(files, progress => {
+                    API.show.progress(progress.percent/100, "generating zip files");
+                }, output => {
+                    API.show.progress(0);
+                    API.util.download(output, `${$('print-filename').value}.zip`);
+                })
+            };
 
             // in palette mode, show download button
             let downloadPalette = $('print-palette');

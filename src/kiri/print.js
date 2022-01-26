@@ -24,8 +24,10 @@
     let lastPoint = null,
         lastEmit = null,
         lastOut = null,
+        lastE,
         lastPos,
-        nextType;
+        nextType,
+        debugE; // set to 1 to enable flow rate analysis (console)
 
     KIRI.Print = Print;
 
@@ -46,6 +48,7 @@
         this.id = id || new Date().getTime().toString(36);
         this.settings = settings;
         this.widgets = widgets;
+        debugE = settings.controller.devel ? 1 : 0;
     }
 
     PRO.addOutput = addOutput;
@@ -290,20 +293,22 @@
             }
 
             // debug extrusion rate
-            if (false && fdm && lastPos) {
-                let dE = (absE ? pos.E - lastPos.E : pos.E);
+            if (debugE && fdm && lastPos && pos.E) {
+                let dE = (absE ? pos.E - lastE : pos.E);
                 let dV = Math.sqrt(
                     (Math.pow(pos.X - lastPos.X, 2)) +
                     (Math.pow(pos.Y - lastPos.Y, 2))
                 );
                 let dR = (dE / dV); // filament per mm
-                if (dV > 2 && dE > 0.001 && (dR < 0.025 || dR > 0.35)) {
-                    console.log(height.toFixed(2), dV.toFixed(2), dE.toFixed(3), dR.toFixed(5));
+                if (dV > 2 && dE > 0.001) {
+                    let lab = (absE ? 'aA' : 'rR')[debugE++ % 2];
+                    console.log(lab, height.toFixed(2), dV.toFixed(2), dE.toFixed(3), dR.toFixed(4), pos.F.toFixed(0));
                 }
             }
             // add point to current sequence
             addOutput(seq, point, true, pos.F, tool).retract = retract;
             lastPos = Object.assign({}, pos);
+            lastE = pos.E;
         }
 
         lines.forEach(function(line, idx) {
@@ -834,6 +839,40 @@
             });
         }
 
+        function outputThin(lines) {
+            if (!lines) {
+                return;
+            }
+            let points = lines.group(2).map(grp => {
+                let [ p1, p2 ] = grp;
+                return newPoint(
+                    (p1.x + p2.x) / 2,
+                    (p1.y + p2.y) / 2,
+                    (p1.z + p2.z) / 2
+                )
+            });
+            let order = UTIL.orderClosest(points, (p1, p2) => p1.distTo2D(p2));
+            if (order.length === 0) {
+                return;
+            }
+            let first = points[0];
+            let last = first;
+            addOutput(preout, first, 0, moveSpeed, extruder);
+            for (let p of order) {
+                let dist = last ? last.distTo2D(p) : 0;
+                if (dist > thinWall) {
+                    retract();
+                    addOutput(preout, p, 0, moveSpeed, extruder);
+                }
+                addOutput(preout, p, 1, fillSpeed, extruder);
+                last = p;
+            }
+            // close a circle
+            if (last && last.distTo2D(first) <= thinWall) {
+                addOutput(preout, first, 1, fillSpeed, extruder);
+            }
+        }
+
         function outputFills(lines, opt = {}) {
             if (!lines || lines.length === 0) {
                 return;
@@ -1078,7 +1117,7 @@
                 setType('int');
 
                 // output thin fill
-                outputFills(next.thin_fill, {near: true});
+                outputThin(next.thin_fill);
 
                 // then output solid and sparse fill
                 outputFills(next.fill_lines, {flow: solidWidth});
@@ -1186,11 +1225,13 @@
                     if (d2f > mindist && d2l > mindist) {
                         continue;
                     }
-                    if (d2l < mindist && d2l < d2f) {
+                    if (d2l < mindist && d2l < d2f && opt.swapdir !== false) {
                         poly.reverse();
                         found = {poly:poly, index:0, point:poly.first()};
+                        mindist = d2l;
                     } else if (d2f < mindist) {
                         found = {poly:poly, index:0, point:poly.first()};
+                        mindist = d2f;
                     }
                     continue;
                 }

@@ -428,6 +428,39 @@
         return diff;
     }
 
+    // order array of elements using next closest element comparator
+    // used for things like next-closest point walks (fdm thin fill)
+    // in future, replace poly2poly and similar with this
+    function orderClosest(array, fn, from) {
+        if (!array.length) {
+            return array;
+        }
+        let out = new Array(array.length);
+        let outi = 0;
+        let root = 0;
+        if (!from) {
+            from = array[root++];
+            out[outi++] = from;
+        }
+        for (;;) {
+            let best, best_i, best_dist = Infinity;
+            for (let i=root; i<array.length; i++) {
+                let el = array[i];
+                if (!el) continue;
+                let dist = fn(from, el);
+                if (dist < best_dist) {
+                    best_dist = dist;
+                    best_i = i;
+                    best = el;
+                }
+            }
+            if (!best) break;
+            array[best_i] = undefined;
+            from = out[outi++] = best;
+        }
+        return out;
+    }
+
     /** ******************************************************************
      * Connect to base
      ******************************************************************* */
@@ -446,7 +479,8 @@
         // default # of decimal places in generated gcode
         gcode_decimals : 4,
         // heal disjoint polygons in slicing (experimental)
-        bridgeLineGapDistance : 0.0001,
+        bridgeLineGapDistance : 0.05,
+        bridgeLineGapDistanceMax : 25,
         // Bounds default margin nearTo
         // Polygon.offset mindist2 offset precision
         precision_offset : 0.05,
@@ -530,6 +564,7 @@
         intersect,
         determinant,
         numOrDefault,
+        orderClosest,
         zInPlane,
         comma: (v) => {
             if (!v) return v;

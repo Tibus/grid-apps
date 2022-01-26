@@ -357,7 +357,7 @@ try {
             geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
             geo.setAttribute('normal', undefined);
             geo.attributes.position.needsUpdate = true;
-            geo.computeFaceNormals();
+            // geo.computeFaceNormals();
             geo.computeVertexNormals();
             this.meta.vertices = vertices.length / 3;
             this.points = null;
@@ -458,15 +458,15 @@ try {
             geometry,
             new THREE.MeshPhongMaterial({
                 color: 0xffff00,
-                specular: 0x181818,
-                shininess: 100,
+                specular: 0x202020,
+                shininess: 125,
                 transparent: true,
                 opacity: solid_opacity
             })
         );
         mesh.renderOrder = 1;
         // fix invalid normals
-        geometry.computeFaceNormals();
+        // geometry.computeFaceNormals();
         geometry.computeVertexNormals();
         mesh.material.side = THREE.DoubleSide;
         mesh.castShadow = true;
@@ -505,19 +505,34 @@ try {
         this.slices = null;
     };
 
+    function rgb(c) {
+        return [ c >> 16, (c >> 8) & 0xff , c & 0xff ];
+    }
+
+    function avgc(c1, c2, w) {
+        let r1 = rgb(c1);
+        let r2 = rgb(c2);
+        let d = (w + 2);
+        return ((r1[0] * w + r2[0]) / d) << 16
+            | ((r1[1] * w + r2[1]) / d) << 8
+            | ((r1[2] * w + r2[2]) / d);
+    }
+
     /**
      * @param {number} color
      */
-    PRO.setColor = function(color,settings) {
+    PRO.setColor = function(color, settings, save = true) {
         if (settings) {
             console.trace('legacy call with settings');
         }
         if (Array.isArray(color)) {
             color = color[this.getExtruder() % color.length];
         }
-        this.color = color;
+        if (save) {
+            this.color = color;
+        }
         let material = this.mesh.material;
-        material.color.set(color);
+        material.color.set(this.meta.disabled ? avgc(0x888888, color, 3) : color);
     };
 
     PRO.getColor = function() {
@@ -563,6 +578,7 @@ try {
 
     /**
      * called by center() and Group.center()
+     * todo use new prototype.moveMesh()
      */
     PRO.moveMesh = function(x, y, z) {
         let gap = this.mesh.geometry.attributes.position,
@@ -575,6 +591,7 @@ try {
         }
         gap.needsUpdate = true;
         let bb = this.groupBounds();
+        // critical to layout and grouping
         this.track.box = {
             w: (bb.max.x - bb.min.x),
             h: (bb.max.y - bb.min.y),
@@ -746,7 +763,7 @@ try {
             arr[i*3+8] = z;
         }
         pos.needsUpdate = true;
-        geo.computeFaceNormals();
+        // geo.computeFaceNormals();
         geo.computeVertexNormals();
         ot.mirror = !ot.mirror;
         this.setModified();
@@ -952,10 +969,20 @@ try {
             this.wire = null;
         }
         if (set) {
-            let geo = new THREE.WireframeGeometry(mesh.geometry);
-            let mat = new THREE.LineBasicMaterial({ color: 0 });
-            let wire = widget.wire = new THREE.LineSegments(geo, mat);
+            let dark = KIRI.api.conf.get().controller.dark;
+            let mat = new THREE.MeshBasicMaterial({
+                wireframe: true,
+                color: dark ? 0xaaaaaa : 0,
+                opacity: 0.5,
+                transparent: true
+            })
+            let wire = widget.wire = new THREE.Mesh(mesh.geometry.shallowClone(), mat);
             mesh.add(wire);
+        }
+        if (KIRI.api.view.get() === KIRI.conf.VIEWS.ARRANGE) {
+            this.setColor(this.color);
+        } else {
+            this.setColor(0x888888,undefined,false);
         }
         if (opacity !== undefined) {
             widget.setOpacity(opacity);

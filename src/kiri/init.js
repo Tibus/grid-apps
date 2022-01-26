@@ -7,13 +7,11 @@
 
     if (self.kiri.init) return;
 
-    const KIRI = self.kiri,
+    let KIRI = self.kiri,
         BASE = self.base,
-        MOTO = self.moto,
         CONF = KIRI.conf,
         WIN = self.window,
         DOC = self.document,
-        LOC = self.location,
         API = KIRI.api,
         SDB = API.sdb,
         UI = API.ui,
@@ -193,7 +191,8 @@
         });
         UC.setHoverPop(false);
         updateFPS();
-        if (control.decals) {
+        if (control.decals && !control.dark) {
+            // disable decals in dark mode
             loadDeviceTexture(currentDevice, deviceTexture);
         } else {
             clearDeviceTexture();
@@ -911,7 +910,9 @@
     function loadDeviceTexture(dev, texture) {
         clearDeviceTexture();
         deviceTexture = texture;
-        if (!(texture && API.conf.get().controller.decals)) {
+        let { decals, dark } = API.conf.get().controller;
+        // disable decals in dark mode
+        if (!(texture && decals && !dark)) {
             return;
         }
         let { width, height } = texture.image;
@@ -1457,8 +1458,8 @@
             view.update_slider();
         });
 
-        SPACE.showSkyGrid(false);
-        SPACE.setSkyColor(controller.dark ? 0 : 0xffffff);
+        SPACE.sky.showGrid(false);
+        SPACE.sky.setColor(controller.dark ? 0 : 0xffffff);
         SPACE.init(container, function (delta) {
             let vars = API.var;
             if (vars.layer_max === 0 || !delta) return;
@@ -1526,8 +1527,14 @@
             speedbar:           $('speedbar'),
             context:            $('context-menu'),
 
+            options: {
+                area:           $('lt-options'),
+                trash:          $('lt-trash'),
+                enable:         $('lt-w-enable'),
+                disable:        $('lt-w-disable'),
+            },
+
             back:               $('lt-back'),
-            trash:              $('lt-trash'),
             ltsetup:            $('lt-setup'),
             ltfile:             $('lt-file'),
             ltview:             $('lt-view'),
@@ -1650,7 +1657,7 @@
             paletteCool:      UC.newInput(LANG.dv_paco_s, {title:LANG.dv_paco_l, modes:FDM, convert:UC.toInt}),
             palettePress:     UC.newInput(LANG.dv_pacm_s, {title:LANG.dv_pacm_l, modes:FDM, convert:UC.toInt}),
 
-            gcode:            UC.newGroup(LANG.dv_gr_out, $('device3'), {group:"dgco", inline:true, modes:CAM_LASER}),
+            gcode:            UC.newGroup(LANG.dv_gr_out, $('device2'), {group:"dgco", inline:true, modes:CAM_LASER}),
             gcodeSpace:       UC.newBoolean(LANG.dv_tksp_s, onBooleanClick, {title:LANG.dv_tksp_l, modes:CAM_LASER}),
             gcodeStrip:       UC.newBoolean(LANG.dv_strc_s, onBooleanClick, {title:LANG.dv_strc_l, modes:CAM}),
             gcodeFExt:        UC.newInput(LANG.dv_fext_s, {title:LANG.dv_fext_l, modes:CAM_LASER, size:7, text:true}),
@@ -1694,9 +1701,9 @@
             spaceLayout:      UC.newInput(LANG.op_spcr_s, {title:LANG.op_spcr_l, convert:UC.toFloat, size:3, units:true}),
 
             export:           UC.newGroup(LANG.xp_menu, $('prefs-xpo'), {inline: true}),
-            exportOcto:       UC.newBoolean(`OctoPrint`, booleanSave),
-            exportGhost:      UC.newBoolean(`Grid:Host`, booleanSave),
-            exportLocal:      UC.newBoolean(`Grid:Local`, booleanSave),
+            exportLocal:      UC.newBoolean(`Grid:Local`, booleanSave, {title:LANG.op_exgl_l}),
+            exportGhost:      UC.newBoolean(`Grid:Host`, booleanSave, {title:LANG.op_exgh_l}),
+            exportOcto:       UC.newBoolean(`OctoPrint`, booleanSave, {title:LANG.op_exop_l}),
             exportThumb:      UC.newBoolean(`Thumbnail`, booleanSave, {modes:FDM}),
             exportPreview:    UC.newBoolean(`Code Preview`, booleanSave),
 
@@ -2158,7 +2165,7 @@
             API.space.reload();
         };
 
-        SPACE.addEventHandlers(self, [
+        SPACE.event.addHandlers(self, [
             'keyup', keyUpHandler,
             'keydown', keyDownHandler,
             'keypress', keyHandler,
@@ -2229,7 +2236,7 @@
             }
         }
 
-        SPACE.onEnterKey([
+        SPACE.event.onEnterKey([
             UI.scaleX,        selectionScale,
             UI.scaleY,        selectionScale,
             UI.scaleZ,        selectionScale,
@@ -2500,7 +2507,8 @@
             platform.deselect();
             CATALOG.addFileListener(updateCatalog);
             SPACE.view.setZoom(control.reverseZoom, control.zoomSpeed);
-            SPACE.platform.setZOff(0.2);
+            SPACE.platform.setGridZOff(undefined);
+            SPACE.platform.setZOff(0.05);
 
             // restore UI state from settings
             UI.showOrigin.checked = control.showOrigin;
@@ -2605,7 +2613,9 @@
         $('file-recent').onclick = () => { API.modal.show('files') };
         $('file-import').onclick = (ev) => { API.event.import(ev) };
         UI.back.onclick = API.platform.layout;
-        UI.trash.onclick = API.selection.delete;
+        UI.options.trash.onclick = API.selection.delete;
+        UI.options.enable.onclick = API.selection.enable;
+        UI.options.disable.onclick = API.selection.disable;
         UI.func.slice.onclick = (ev) => { ev.stopPropagation(); API.function.slice() };
         UI.func.preview.onclick = (ev) => { ev.stopPropagation(); API.function.print() };
         UI.func.animate.onclick = (ev) => { ev.stopPropagation(); API.function.animate() };
@@ -2633,8 +2643,8 @@
         $('rot_z_gt').onclick = () => { API.selection.rotate(0,0,-d) };
         // rendering options
         $('render-hide').onclick = () => { API.view.wireframe(false, 0, 0); };
-        $('render-ghost').onclick = () => { API.view.wireframe(false, 0, 0.5); };
-        $('render-wire').onclick = () => { API.view.wireframe(true, 0, 0.5); };
+        $('render-ghost').onclick = () => { API.view.wireframe(false, 0, API.view.isArrange() ? 0.5 : 0.25); };
+        $('render-wire').onclick = () => { API.view.wireframe(true, 0, API.space.isDark() ? 0.25 : 0.5); };
         $('render-solid').onclick = () => { API.view.wireframe(false, 0, 1); };
         // mesh buttons
         $('mesh-heal').onclick = () => { API.widgets.heal() };
@@ -2693,11 +2703,14 @@
             let tid = tt.getAttribute('target');
             let target = tid ? $(tid) : parentWithClass(tt, 'movable');
             target.style.display = 'none';
-            tt.onmousedown = (ev) => {
+            let close = tt.onmousedown = (ev) => {
                 target.style.display = 'none';
-                ev.preventDefault();
-                ev.stopPropagation();
+                if (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                }
             };
+            API.event.on('key.esc', close);
         }
         // add drag behavior to movers
         [...document.getElementsByClassName('mover')].forEach(mover => {
@@ -2891,12 +2904,11 @@
         }
     }
 
-    if (document.readyState === 'loading') {
-        // schedule init_one to run after all page content is loaded
-        SPACE.addEventListener(DOC, 'DOMContentLoaded', init_lang);
-    } else {
-        // happens in debug mode when scripts are chain loaded
-        init_lang();
+    // setup init() trigger when dom + scripts complete
+    DOC.onreadystatechange = function() {
+        if (DOC.readyState === 'complete') {
+            init_lang();
+        }
     }
 
 })();

@@ -1,6 +1,6 @@
 {
     "name": "@mango3d/addon_grid-apps",
-    "version": "3.1.9D.mango.9",
+    "version": "3.2.3D.mango.9",
     "description": "grid.space 3d slice & modeling tools",
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
@@ -49,8 +49,8 @@
         "pixi.js": "^4.8.9",
         "rimraf": "^3.0.2",
         "serve-static": "^1.14.1",
-        "three": "^0.126.0",
-        "uglify-es": "3.3.9",
+        "three": "^0.136.0",
+        "uglify-js": "3.14.5",
         "validator": ">=13.7.0",
         "ws": "^7.5.5"
     }

@@ -265,6 +265,9 @@ kiri.lang['en-us'] = {
     op_unit_l:      ["workspace units affects","speeds and distances"],
     op_anim_s:      "animate",
     op_anim_l:      ["animation mesh density","higher is more dense","takes more memory","and is slower"],
+    op_exgl_l:      ["show Grid:Local devices in export dialog","includes Grid:Bots and OctoPrint plugins"],
+    op_exgh_l:      ["legacy Grid:Host local network support"],
+    op_exop_l:      ["legacy OctoPrint local network support","Grid:Space OctoPrint plugin recommended"],
 
     lo_menu:        "layout",
 
@@ -403,7 +406,7 @@ kiri.lang['en-us'] = {
 
     // LASER SLICING
     ls_offs_s:      "offset",
-    ls_offs_l:      ["adjust for beam width","in millimeters"],
+    ls_offs_l:      ["adjust for beam width","also known as kerf","in millimeters"],
     ls_lahi_s:      "height",
     ls_lahi_l:      ["layer height","in millimeters","0 = auto/detect"],
     ls_lahm_s:      "min",
@@ -485,7 +488,7 @@ kiri.lang['en-us'] = {
     // CNC TRACE
     cu_menu:        "trace",
     cu_type_s:      "type",
-    cu_type_l:      ["follow = tool tip follows line","right or left = tool tip","follows line offset by tool radius"],
+    cu_type_l:      ["clear = clear a closed-line pocket","follow = tool tip follows line","with offset option when closed"],
 
     // CNC DRILLING
     cd_menu:        "drill",

@@ -4,24 +4,24 @@
 
 (function() {
 
-    if (!self.moto) self.moto = {};
-    if (self.moto.Ajax) return;
+    gapp.register('moto.ajax');
 
-    const MOTO = self.moto;
+    let moto = self.moto = self.moto || {};
+    if (moto.Ajax) return;
 
-    MOTO.Ajax = Ajax;
+    moto.Ajax = Ajax;
 
-    MOTO.callAjax = function(url, handler) {
+    moto.callAjax = function(url, handler) {
         new Ajax(handler).request(url);
     };
 
     const AP = Ajax.prototype,
-        KV = moto.KV,
+        KV = data.Local,
         KEY = "moto-ajax",
         TIME = function() { return new Date().getTime() },
         MOKEY = moto.id = KV.getItem(KEY) || (TIME().toString(36)+rnd()+rnd());
 
-    MOTO.restore = function(id) {
+    moto.restore = function(id) {
         MOKEY = moto.id = id;
         KV.setItem(KEY, MOKEY);
     }

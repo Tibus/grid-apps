@@ -7,10 +7,10 @@ function require_fresh(path) {
 }
 
 const fs = require('fs');
-const uglify = require('uglify-es');
+const uglify = require('uglify-js');
 const moment = require('moment');
 const agent = require('express-useragent');
-const license = require_fresh('./src/license.js');
+const license = require_fresh('./src/moto/license.js');
 const version = license.VERSION || "rogue";
 
 const fileCache = {};
@@ -45,6 +45,78 @@ function init(mod) {
 
     cacheDir = mod.util.datadir("cache");
 
+    let depcache = {};
+
+    function find_deps(path, seen = []) {
+        let cached = depcache[path];
+        if (cached) {
+            return cached;
+        }
+        if (seen.indexOf(path) >= 0) {
+            if (debug) {
+                console.log(`circular dependency at ${path}`, seen);
+            }
+            return [];
+        }
+        seen.push(path);
+        let deps = [ "main/gapp" ];
+        let lines = fs.readFileSync(`${dir}/src/${path}.js`)
+            .toString()
+            .split('\n');
+        for (let line of lines) {
+            let dpos = line.indexOf('// dep:');
+            if (dpos >= 0) {
+                let dep = line.substring(dpos+7).trim().replace('.','/');
+                if (deps.indexOf(dep) < 0) {
+                    deps.push(dep);
+                }
+                let deep = find_deps(dep, seen);
+                deps = deps.filter(p => deep.indexOf(p) < 0);
+                // deeper dependencies go first
+                deps = [...deep, ...deps];
+            }
+        }
+        depcache[path] = deps;
+        return deps;
+    }
+
+    // process script dependencies, expand paths
+    for (let [key,val] of Object.entries(script)) {
+        let nval = val.map(p => p.charAt(0) === '&' ? p.substring(1) : p);
+        let modd = false;
+        for (let path of val) {
+            let fc = path.charAt(0);
+            if (fc === '@') {
+                continue;
+            }
+            if (fc === '&') {
+                path = path.substring(1);
+            } else {
+                continue;
+            }
+            let deps = find_deps(path);
+            if (deps) {
+                // remove deps already in list
+                deps = deps.filter(p => nval.indexOf(p) < 0);
+                let ppos = nval.indexOf(path);
+                if (ppos < 0) {
+                    throw `missing ${path} in nval`;
+                }
+                // inject deps
+                nval.splice(ppos,0,...deps);
+                modd = true;
+            }
+            // if list is modified, substitute
+            if (modd) {
+                if (debug) {
+                    console.log({path, val, nval});
+                }
+                val = nval;
+            }
+        }
+        script[key] = val.map(p => p.charAt(0) !== '@' ? `src/${p}.js` : p);
+    }
+
     mod.on.test((req) => {
         let cookie = cookieValue(req.headers.cookie, "version") || undefined;
         let vmatch = mod.meta.version || "*";
@@ -61,8 +133,10 @@ function init(mod) {
     mod.add(handleOptions);
     mod.add(fullpath({
         "/kiri"            : redir("/kiri/", 301),
+        "/mesh"            : redir("/mesh/", 301),
         "/meta"            : redir("/meta/", 301),
         "/kiri/index.html" : redir("/kiri/", 301),
+        "/mesh/index.html" : redir("/mesh/", 301),
         "/meta/index.html" : redir("/meta/", 301)
     }));
     mod.add(handleVersion);
@@ -81,6 +155,8 @@ function init(mod) {
     mod.add(rewriteHtmlVersion);
     mod.static("/src/", "src");
     mod.static("/obj/", "web/obj");
+    mod.static("/font/", "web/font");
+    mod.static("/mesh/", "web/mesh");
     mod.static("/moto/", "web/moto");
     mod.static("/meta/", "web/meta");
     mod.static("/kiri/", "web/kiri");
@@ -218,16 +294,17 @@ function initModule(mod, file, dir) {
 
 const script = {
     kiri : [
-        "kiri",
+        "main/gapp",
+        "moto/license",
+        "main/kiri",
         "ext/three",
         "ext/three-bgu",
         "ext/three-svg",
         "ext/jszip",
-        "license",
-        "ext/clip2", // work.test
+        "ext/clip2",
         "ext/tween",
         "ext/fsave",
-        "ext/earcut", // work.test
+        "ext/earcut",
         "ext/base64",
         "add/array",
         "add/three",
@@ -242,37 +319,38 @@ const script = {
         "geo/polygons",
         // "geo/gyroid",
         "geo/mesh",
-        "moto/kv",
+        "data/local",
+        "data/index",
         "moto/ajax",
-        "moto/ctrl",
-        "moto/pack",
+        "moto/orbit",
         "moto/space",
-        "moto/load-3mf",
-        "moto/load-obj",
-        "moto/load-stl",
-        "moto/load-svg",
-        "moto/load-url",
-        "moto/load-file",
+        "load/3mf",
+        "load/obj",
+        "load/stl",
+        "load/svg",
+        "load/url",
+        "load/file",
         "moto/broker",
-        "moto/db",
+        "moto/webui",
         "kiri/ui",
         "kiri/do",
+        "kiri/pack",
         "kiri/lang",
         "kiri/lang-en",
         "kiri/catalog",
         "kiri/slice",
         "kiri/layers",
         "kiri/client",
-        "mode/fdm/fill",
-        "mode/fdm/driver",
-        "mode/fdm/client",
-        "mode/sla/driver",
-        "mode/sla/client",
-        "mode/cam/driver",
-        "mode/cam/client",
-        "mode/cam/tool",
-        "mode/cam/animate",
-        "mode/laser/driver",
+        "kiri-mode/fdm/fill",
+        "kiri-mode/fdm/driver",
+        "kiri-mode/fdm/client",
+        "kiri-mode/sla/driver",
+        "kiri-mode/sla/client",
+        "kiri-mode/cam/driver",
+        "kiri-mode/cam/client",
+        "kiri-mode/cam/tool",
+        "kiri-mode/cam/animate",
+        "kiri-mode/laser/driver",
         "kiri/stack",
         "kiri/stacks",
         "kiri/widget",
@@ -285,13 +363,14 @@ const script = {
         "kiri/tools",
         "@devices",
         "@icons"
-    ].map(p => p.charAt(0) !== '@' ? `src/${p}.js` : p),
-    worker : [
-        "kiri",
+    ],
+    kiri_work : [
+        "main/gapp",
+        "moto/license",
+        "main/kiri",
         "ext/three",
         "ext/pngjs",
         "ext/jszip",
-        "license",
         "ext/clip2",
         "ext/earcut",
         "add/array",
@@ -308,39 +387,40 @@ const script = {
         "geo/polygons",
         "geo/gyroid",
         "geo/mesh",
-        "moto/pack",
-        "moto/broker",
+        // "moto/broker",
+        "kiri/pack",
         "kiri/slice",
         "kiri/slicer",
-        "kiri/slicer2",
         "kiri/layers",
-        "mode/fdm/fill",
-        "mode/fdm/driver",
-        "mode/fdm/slice",
-        "mode/fdm/prepare",
-        "mode/fdm/export",
-        "mode/sla/driver",
-        "mode/sla/slice",
-        "mode/sla/export",
-        "mode/sla/x_cxdlp",
-        "mode/sla/x_photon",
-        "mode/cam/driver",
-        "mode/cam/ops",
-        "mode/cam/tool",
-        "mode/cam/topo",
-        "mode/cam/slice",
-        "mode/cam/prepare",
-        "mode/cam/export",
-        "mode/cam/animate",
-        "mode/laser/driver",
+        "kiri-mode/fdm/fill",
+        "kiri-mode/fdm/driver",
+        "kiri-mode/fdm/slice",
+        "kiri-mode/fdm/prepare",
+        "kiri-mode/fdm/export",
+        "kiri-mode/sla/driver",
+        "kiri-mode/sla/slice",
+        "kiri-mode/sla/export",
+        "kiri-mode/sla/x_cxdlp",
+        "kiri-mode/sla/x_photon",
+        "kiri-mode/cam/slicer",
+        "kiri-mode/cam/driver",
+        "kiri-mode/cam/ops",
+        "kiri-mode/cam/tool",
+        "kiri-mode/cam/topo",
+        "kiri-mode/cam/slice",
+        "kiri-mode/cam/prepare",
+        "kiri-mode/cam/export",
+        "kiri-mode/cam/animate",
+        "kiri-mode/laser/driver",
         "kiri/widget",
         "kiri/print",
         "kiri/codec",
         "kiri/worker"
-    ].map(p => `src/${p}.js`),
-    minion : [
-        "kiri",
-        "license",
+    ],
+    kiri_pool : [
+        "main/gapp",
+        "moto/license",
+        "main/kiri",
         "ext/clip2",
         "ext/earcut",
         "add/array",
@@ -355,18 +435,20 @@ const script = {
         "geo/polygon",
         "geo/polygons",
         "geo/gyroid",
-        "mode/fdm/driver",
-        "mode/fdm/slice",
+        "kiri-mode/fdm/driver",
+        "kiri-mode/fdm/slice",
         "kiri/slice",
         "kiri/slicer",
         "kiri/layers",
         "kiri/widget",
         "kiri/codec",
         "kiri/minion"
-    ].map(p => `src/${p}.js`),
+    ],
     engine : [
-        "kiri",
-        "license",
+        "main/gapp",
+        "moto/license",
+        "main/kiri",
+        "data/local",
         "ext/three",
         "add/array",
         "add/three",
@@ -379,10 +461,9 @@ const script = {
         "geo/bounds",
         "geo/polygon",
         "geo/polygons",
-        "moto/kv",
         "moto/broker",
-        "moto/load-obj",
-        "moto/load-stl",
+        "load/obj",
+        "load/stl",
         "kiri/conf",
         "kiri/client",
         "kiri/slice",
@@ -390,38 +471,25 @@ const script = {
         "kiri/widget",
         "kiri/codec",
         "kiri/engine"
-    ].map(p => `src/${p}.js`),
+    ],
     frame : [
+        "main/gapp",
         "kiri/frame"
-    ].map(p => `src/${p}.js`),
+    ],
     meta : [
-        "ext/three",
-        "license",
-        "ext/tween",
-        "ext/fsave",
-        "ext/earcut",
-        "add/array",
-        "add/three",
-        "geo/base",
-        // "geo/render",
-        "geo/point",
-        "geo/slope",
-        "geo/line",
-        "geo/bounds",
-        "geo/polygon",
-        "geo/polygons",
-        "geo/gyroid",
-        "moto/kv",
-        "moto/ajax",
-        "moto/ctrl",
-        "moto/space",
-        "moto/load-obj",
-        "moto/load-stl",
-        "moto/db",
-        "moto/ui",
-        "kiri/catalog",
-        "meta"
-    ].map(p => `src/${p}.js`)
+        "main/gapp",
+        "moto/license",
+        "main/meta",
+    ],
+    mesh : [
+        "&main/mesh"
+    ],
+    mesh_work : [
+        "&mesh/work"
+    ],
+    mesh_pool : [
+        "&mesh/pool"
+    ]
 };
 
 // prevent caching of specified modules
@@ -461,7 +529,7 @@ function handleSetup(req, res, next) {
 
 function handleVersion(req, res, next) {
     let vstr = oversion || version;
-    if (req.app.path === "/kiri/" && req.url.indexOf(vstr) < 0) {
+    if (["/kiri/","/mesh/","/meta/"].indexOf(req.app.path) >= 0 && req.url.indexOf(vstr) < 0) {
         if (req.url.indexOf("?") > 0) {
             return http.redirect(res, `${req.url},ver:${vstr}`);
         } else {
@@ -489,7 +557,7 @@ function handleOptions(req, res, next) {
 function handleWasm(req, res, next) {
     let [root, file] = req.app.path.split('/').slice(1);
     let ext = (file || '').split('.')[1];
-    let path = `${dir}/wasm/${file}`;
+    let path = `${dir}/src/wasm/${file}`;
     let mod = lastmod(path);
 
     if (root === 'wasm' && ext === 'wasm' && mod) {
@@ -562,7 +630,7 @@ function serveCode(req, res, code) {
 }
 
 function generateIcons() {
-    let root = `${dir}/src/ico`;
+    let root = `${dir}/src/kiri-ico`;
     let icos = {};
     fs.readdirSync(root).forEach(file => {
         let name = file.split(".")[0]   ;
@@ -572,7 +640,7 @@ function generateIcons() {
 }
 
 function generateDevices() {
-    let root = `${dir}/src/dev`;
+    let root = `${dir}/src/kiri-dev`;
     let devs = {};
     fs.readdirSync(root).forEach(type => {
         let map = devs[type] = devs[type] || {};
@@ -586,12 +654,9 @@ function generateDevices() {
 function prepareScripts() {
     generateIcons();
     generateDevices();
-    code.meta = concatCode(script.meta);
-    code.kiri = concatCode(script.kiri);
-    code.worker = concatCode(script.worker);
-    code.minion = concatCode(script.minion);
-    code.engine = concatCode(script.engine);
-    code.frame = concatCode(script.frame);
+    for (let key of Object.keys(script)) {
+        code[key] = concatCode(script[key]);
+    }
 }
 
 function concatCode(array) {
@@ -692,6 +757,9 @@ function getCachedFile(file, fn) {
 
 function minify(path) {
     let code = fs.readFileSync(path);
+    if (path.indexOf("ext/three.js") > 0) {
+        return code;
+    }
     let mini = uglify.minify(code.toString());
     if (mini.error) {
         console.trace(mini.error);
@@ -795,16 +863,23 @@ function cookieValue(cookie,key) {
 }
 
 function rewriteHtmlVersion(req, res, next) {
-    if (req.app.path === "/kiri/") {
+    if (["/kiri/","/mesh/","/meta/"].indexOf(req.app.path) >= 0) {
         let real_write = res.write;
         let real_end = res.end;
+        let mlen = '{{version}}'.length;
+        let vstr = version;
+        if (vstr.length < mlen) {
+            vstr = vstr.padStart(mlen,0);
+        } else if (vstr.length > mlen) {
+            vstr = vstr.substring(0,mlen);
+        }
         res.write = function() {
-            arguments[0] = arguments[0].toString().replace(/{{version}}/g,version);
+            arguments[0] = arguments[0].toString().replace(/{{version}}/g,vstr);
             real_write.apply(res, arguments);
         };
         res.end = function() {
             if (arguments[0]) {
-                arguments[0] = arguments[0].toString().replace(/{{version}}/g,version);
+                arguments[0] = arguments[0].toString().replace(/{{version}}/g,vstr);
             }
             real_end.apply(res, arguments);
         };

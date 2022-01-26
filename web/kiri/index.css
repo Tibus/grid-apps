@@ -9,7 +9,7 @@
 }
 @font-face {
     font-family: 'Russo One';
-    src: url('ext/russo-one.ttf');
+    src: url('/moto/russo-one.ttf');
 }
 a, a:hover, a:visited {
     border: none;
@@ -647,10 +647,15 @@ th, tr, td, label {
     left: -5px;
 }
 
-#lt-back, #lt-trash {
+#lt-back, #lt-options {
+    flex-direction: row;
     position: absolute;
     display: none;
+    gap: 5px;
     top: 0;
+}
+#lt-trash:hover, #lt-w-enable:hover, #lt-w-disable:hover {
+    color: var(--main-color);
 }
 #act-sep, #lt-sep {
     border-top-right-radius: 3px;
@@ -1419,6 +1424,7 @@ th, tr, td, label {
 
 #layer-animate {
     position: absolute;
+    z-index: 2;
     left: 15px;
     right: 15px;
     bottom: 3px;
@@ -1442,6 +1448,7 @@ th, tr, td, label {
 
 #layer-toolpos {
     position: absolute;
+    display: none;
     right: 3px;
     bottom: 3px;
 }

@@ -683,7 +683,7 @@
                 lineType: "path",
                 autoSave: true,
                 reverseZoom: true,
-                showOrigin: true,
+                showOrigin: false,
                 showRulers: true,
                 showSpeeds: true,
                 freeLayout: true,
@@ -700,7 +700,7 @@
                 animesh: "200",
                 healMesh: false,
                 threaded: true,
-                assembly: true,
+                assembly: false,
                 ortho: false,
                 devel: false
             },

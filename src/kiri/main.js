@@ -4,8 +4,10 @@
 
 (function () {
 
-    let MOTO    = moto,
+    let MOTO    = self.moto,
+        DATA    = self.data,
         KIRI    = self.kiri,
+        LOAD    = self.load,
         BASE    = self.base,
         UTIL    = BASE.util,
         LANG    = KIRI.lang.current,
@@ -16,10 +18,10 @@
         SETUP   = parseOpt(LOC.search.substring(1)),
         SECURE  = isSecure(LOC.protocol),
         LOCAL   = self.debug && !SETUP.remote,
-        EVENT   = KIRI.broker = new Broker(),
-        SDB     = MOTO.KV,
-        ODB     = KIRI.odb = new MOTO.Storage(SETUP.d ? SETUP.d[0] : 'kiri'),
-        // K3DB    = KIRI.wdb = new MOTO.Storage('kiri3', { stores:["file","work"] }).init(),
+        EVENT   = KIRI.broker = gapp.broker,
+        SDB     = DATA.Local,
+        ODB     = KIRI.odb = new DATA.Index(SETUP.d ? SETUP.d[0] : 'kiri'),
+        // K3DB    = KIRI.wdb = new DATA.Index('kiri3', { stores:["file","work"] }).init(),
         SPACE   = KIRI.space = MOTO.Space,
         WIDGETS = KIRI.widgets = [],
         CATALOG = KIRI.catalog = KIRI.openCatalog(ODB),
@@ -54,10 +56,17 @@
         alerts = [],
         grouping = false,
         saveTimer = null,
+        version = KIRI.version = gapp.version,
         noop = () => {};
 
     // add show() to catalog for API
     CATALOG.show = showCatalog;
+
+    // patch broker for api backward compatibility
+    EVENT.on = (topic, listener) => {
+        EVENT.subscribe(topic, listener);
+        return EVENT;
+    };
 
     const PMODES = {
         SPEED: 1,
@@ -100,7 +109,13 @@
         update_bounds: updateSelectedBounds,
         update_info: updateSelectedInfo,
         delete: function() { platform.delete(selection.widgets()) },
-        export: exportSelection
+        export: exportSelection,
+        enable() { selection.setDisabled(false) },
+        disable() { selection.setDisabled(true) },
+        setDisabled(bool) {
+            forSelectedWidgets(w => w.meta.disabled = bool);
+            platformUpdateSelected();
+        }
     };
 
     const platform = {
@@ -126,8 +141,8 @@
         group_done: platformGroupDone,
         update: SPACE.platform.update,
         set_font: SPACE.platform.setFont,
-        set_axes: SPACE.platform.setAxes,
-        set_volume: SPACE.platform.setVolume,
+        show_axes: SPACE.platform.showAxes,
+        show_volume: SPACE.platform.showVolume,
         top_z: () => { return topZ },
         clear: () => { clearWorkspace(); saveWorkspace(true)  }
     };
@@ -307,7 +322,7 @@
             file: showHelpFile
         },
         event: {
-            on: (t,l) => { EVENT.subscribe(t,l) },
+            on: (t,l) => { return EVENT.on(t,l) },
             emit: (t,m,o) => { EVENT.publish(t,m,o) },
             bind: (t,m,o) => { return EVENT.bind(t,m,o) },
             import: loadFile,
@@ -377,7 +392,8 @@
             clear: clearWorkspace,
             save: saveWorkspace,
             set_focus: setFocus,
-            update: SPACE.update
+            update: SPACE.update,
+            isDark() { return settings.controller.dark }
         },
         tweak,
         util: {
@@ -389,14 +405,14 @@
             b64dec: obj => { return JSON.parse(new TextDecoder().decode(base64js.toByteArray(obj))) }
         },
         view: {
-            get: function() { return viewMode },
+            get() { return viewMode },
             set: setViewMode,
             update_slider: updateSlider,
             update_fields: updateFields,
             wireframe: setWireframe,
             snapshot: null,
             unit_scale: unitScale,
-            isArrange: function() { return viewMode === VIEWS.ARRANGE }
+            isArrange() { return viewMode === VIEWS.ARRANGE }
         },
         widgets: {
             map: function() {
@@ -417,9 +433,12 @@
             meshes: meshArray,
             opacity: setOpacity,
             annotate: (id) => {
-                // add per widget annotation
-                // for things like extruder and supports
-                return WIDGETS.filter(w => w.id === id)[0].anno;
+                let w = WIDGETS.filter(w => w.id === id)[0];
+                if (!w) {
+                    console.log(`annotate missing widget ${id}`);
+                    return {};
+                }
+                return (w.anno = w.anno || {});
             }
         },
         work: KIRI.work
@@ -515,7 +534,7 @@
                 break;
         }
         if (data.parse) {
-            new moto.STL().parse(data.parse, vertices => {
+            new load.STL().parse(data.parse, vertices => {
                 let widget = newWidget().loadVertices(vertices);
                 platform.add(widget);
             });
@@ -723,7 +742,7 @@
 
     function getOverlappingRanges(lo, hi) {
         let ranges = [];
-        for (let range of settings.process.ranges) {
+        for (let range of settings.process.ranges || []) {
             let in_lo = range.lo >= lo && range.lo <= hi;
             let in_hi = range.hi >= lo && range.hi <= hi;
             if (in_lo || in_hi) {
@@ -906,7 +925,7 @@
         } else {
             // dialog
             $('load-file').onchange = function(event) {
-                MOTO.File.load(event.target.files[0])
+                LOAD.File.load(event.target.files[0])
                     .then(data => onload(data[0].mesh))
                     .catch(error => console.log({error}));
             };
@@ -1117,7 +1136,7 @@
         API.conf.save();
         API.event.emit('slice.begin', getMode());
 
-        let slicing = WIDGETS.slice().filter(w => !w.track.ignore);
+        let slicing = WIDGETS.slice().filter(w => !w.track.ignore && !w.meta.disabled);
 
         // determing this widgets % of processing time estimated by vertex count
         for (let widget of slicing) {
@@ -1349,7 +1368,7 @@
                 let alert = feature.work_alerts ? API.show.alert("Rendering") : null;
                 startTime = Date.now();
                 STACKS.clear();
-                const stack = STACKS.create('print', SPACE.platform.world)
+                const stack = STACKS.create('print', SPACE.world)
                 output.forEach(layer => {
                     stack.add(layer);
                 });
@@ -1424,7 +1443,7 @@
         }, (layers, maxSpeed, minSpeed) => {
             API.show.progress(0);
             STACKS.clear();
-            const stack = STACKS.create('parse', SPACE.platform.world);
+            const stack = STACKS.create('parse', SPACE.world);
             layers.forEach(layer => stack.add(layer));
             updateSliderMax(true);
             updateSpeeds(maxSpeed, minSpeed);
@@ -1501,7 +1520,7 @@
             // mesh.castShadow = true;
             // mesh.receiveShadow = true;
             //
-            // SPACE.platform.world.add(mesh);
+            // SPACE.world.add(mesh);
             let widget = newWidget().loadVertices(bigv)
             widget.meta.file = opt.file;
             platform.add(widget);
@@ -1710,6 +1729,7 @@
         });
         if (format === "obj") {
             let obj = [];
+            let vpad = 0;
             for (let out of outs) {
                 let meta = out.widget.meta;
                 let name = meta.file || 'unnamed';
@@ -1721,15 +1741,16 @@
                     obj.push(`v ${pvals[pi++]} ${pvals[pi++]} ${pvals[pi++]}`);
                     obj.push(`v ${pvals[pi++]} ${pvals[pi++]} ${pvals[pi++]}`);
                     obj.push(`v ${pvals[pi++]} ${pvals[pi++]} ${pvals[pi++]}`);
-                    obj.push(`f ${i+1} ${i+2} ${i+3}`);
+                    obj.push(`f ${i+1+vpad} ${i+2+vpad} ${i+3+vpad}`);
                 }
+                vpad += position.count;
             }
             return obj.join('\n');
         }
-        let stl = new Uint8Array(80 + 4 + facets * 50);
+        let stl = new Uint8Array(80 + 4 + facets/3 * 50);
         let dat = new DataView(stl.buffer);
         let pos = 84;
-        dat.setInt32(80, facets, true);
+        dat.setInt32(80, facets/3, true);
         for (let out of outs) {
             let { position } = out.geo.attributes;
             let pvals = position.array;
@@ -1865,19 +1886,24 @@
             gridMinor = unitMM ? 5 : 25.4 / 10;
         if (updateDark) {
             if (ctrl.dark) {
-                SPACE.platform.setGrid(gridMajor, gridMinor, 0x999999, 0x333333);
-                SPACE.platform.opacity(0.8);
-                SPACE.setSkyColor(0);
+                SPACE.platform.set({ light: 0.08 });
+                SPACE.platform.setFont({rulerColor:'#888888'});
+                SPACE.platform.setGrid(gridMajor, gridMinor, 0x666666, 0x333333);
+                SPACE.platform.opacity(0.05);
+                SPACE.sky.set({ color: 0, ambient: { intensity: 0.6 } });
                 DOC.body.classList.add('dark');
             } else {
+                SPACE.platform.set({ light: 0.08 });
+                SPACE.platform.setFont({rulerColor:'#333333'});
                 SPACE.platform.setGrid(gridMajor, gridMinor, 0x999999, 0xcccccc);
-                SPACE.platform.opacity(0.3);
-                SPACE.setSkyColor(0xffffff);
+                SPACE.platform.opacity(0.2);
+                SPACE.sky.set({ color: 0xffffff, ambient: { intensity: 1.1 } });
                 DOC.body.classList.remove('dark');
             }
+            SPACE.platform.setSize();
         }
         SPACE.platform.setRulers(ruler, ruler, 1 / unitScale(), 'X', isBelt ? 'Z' : 'Y');
-        SPACE.platform.setGZOff(height/2 - 0.1);
+        // SPACE.platform.setGZOff(height/2 - 0.1);
         platform.update_origin();
     }
 
@@ -1936,9 +1962,14 @@
         let selreal = selection.widgets();
         let selwid = selection.widgets(true);
         let selcount = selwid.length;
-        let extruders = settings.device.extruders;
-        UI.trash.style.display = selreal.length ? 'flex' : '';
+        let { extruders } = settings.device;
+        let { area, enable, disable } = UI.options;
+        area.style.display = selreal.length ? 'flex' : '';
         if (selcount) {
+            let enaC = selwid.filter(w => w.meta.disabled !== true).length;
+            let disC = selwid.filter(w => w.meta.disabled === true).length;
+            enable.style.display = disC ? 'flex' : 'none';
+            disable.style.display = enaC ? 'flex' : 'none';
             UI.nozzle.classList.add('lt-active');
             if (feature.meta && selcount === 1) {
                 let sel = selwid[0];
@@ -1963,6 +1994,8 @@
                 UI.mesh.faces.innerText = '-';
             }
         } else {
+            enable.style.display = 'none';
+            disable.style.display = 'none';
             UI.mesh.name.innerText = '[0]';
             UI.mesh.points.innerText = '-';
             UI.mesh.faces.innerText = '-';
@@ -1981,6 +2014,10 @@
                 if (b) b.classList.add('pop-sel');
                 w.saveState();
             }, true);
+        } else {
+            forSelectedWidgets(w => {
+                w.setColor(color.selected);
+            });
         }
     }
 
@@ -2032,7 +2069,7 @@
 
     function platformLoadSTL(url, onload, formdata) {
         let scale = 1 / unitScale();
-        new MOTO.STL().load(url, function(vertices, filename) {
+        new LOAD.STL().load(url, function(vertices, filename) {
             if (vertices) {
                 let widget = newWidget().loadVertices(vertices);
                 widget.meta.file = filename;
@@ -2046,7 +2083,7 @@
 
     function platformLoadURL(url, options = {}) {
         platform.group();
-        MOTO.URL.load(url, options).then((objects) => {
+        LOAD.URL.load(url, options).then((objects) => {
             let widgets = [];
             for (let object of objects) {
                 let widget = newWidget(undefined, options.group).loadVertices(object.mesh);
@@ -2085,7 +2122,7 @@
     function platformAdd(widget, shift, nolayout) {
         widget.anno.extruder = widget.anno.extruder || 0;
         WIDGETS.push(widget);
-        SPACE.platform.add(widget.mesh);
+        SPACE.world.add(widget.mesh);
         platform.select(widget, shift);
         platform.compute_max_z();
         API.event.emit('widget.add', widget);
@@ -2150,7 +2187,7 @@
         KIRI.work.clear(widget);
         WIDGETS.remove(widget);
         Widget.Groups.remove(widget);
-        SPACE.platform.remove(widget.mesh);
+        SPACE.world.remove(widget.mesh);
         selectedMeshes.remove(widget.mesh);
         updateSliderMax();
         platform.compute_max_z();
@@ -2166,25 +2203,24 @@
     }
 
     function platformChanged() {
-        let fts = $('ft-select');
-        fts.innerHTML = '';
-        for (let w of WIDGETS) {
-            let b = DOC.createElement('button');
-            fts.appendChild(b);
-            b.innerText = w.meta.file || 'no name';
+        h.bind($('ft-select'), WIDGETS.map(w => {
             let color;
-            b.onmouseenter = function() {
-                color = w.getColor();
-                w.setColor(0x0088ff);
-            };
-            b.onmouseleave = function() {
-                w.setColor(color);
-            };
-            b.onclick = function() {
-                platformSelect(w, true, false);
-                color = w.getColor();
-            };
-        }
+            return [
+                h.button({ _: w.meta.file || 'no name',
+                    onmouseenter() {
+                        color = w.getColor();
+                        w.setColor(0x0088ff);
+                    },
+                    onmouseleave() {
+                        w.setColor(color);
+                    },
+                    onclick() {
+                        platformSelect(w, true, false);
+                        color = w.getColor();
+                    }
+                })
+            ]
+        }));
     }
 
     function platformSelectAll() {
@@ -2251,12 +2287,12 @@
             mp = [sz.x, sz.y],
             ms = [mp[0] / 2, mp[1] / 2],
             c = Widget.Groups.blocks().sort(MOTO.Sort),
-            p = new MOTO.Pack(ms[0], ms[1], gap).fit(c);
+            p = new KIRI.Pack(ms[0], ms[1], gap).fit(c);
 
         while (!p.packed) {
             ms[0] *= 1.1;
             ms[1] *= 1.1;
-            p = new MOTO.Pack(ms[0], ms[1], gap).fit(c);
+            p = new KIRI.Pack(ms[0], ms[1], gap).fit(c);
         }
 
         for (i = 0; i < c.length; i++) {
@@ -2273,7 +2309,7 @@
             forAllWidgets(widget => {
                 // only move the root widget in the group
                 if (widget.id === widget.group.id) {
-                    widget.move(0, movey + 5, 0)
+                    widget.move(0, movey, 0);
                 }
             });
         }
@@ -2545,6 +2581,76 @@
         });
     }
 
+    // import and convert prusa ini file
+    function settingsPrusaConvert(data) {
+        let map = {};
+        try {
+            data.split('\n')
+                .filter(l => l.charAt(0) !== '#')
+                .map(l => l.split('=').map(v => v.trim()))
+                .map(l => {
+                    // convert gcode string into a string array
+                    if (l[0].indexOf('_gcode') > 0) {
+                        l[1] = l[1].replaceAll('\\n','\n').split('\n');
+                    }
+                    return l;
+                })
+                .forEach(l => {
+                    map[l[0]] = l[1];
+                });
+        } catch (e) {
+            return UC.alert('invalid file');
+        }
+        // device setup
+        let device = Object.clone(KIRI.conf.defaults.fdm.d);
+        let dname = device.deviceName = map.printer_model;
+        if (dname) {
+            let mode = "FDM";
+            device.mode = mode;
+            device.extruders[0].extNozzle = parseFloat(map.nozzle_diameter);
+            device.gcodePre = map.start_gcode;
+            device.gcodePost = map.end_gcode;
+            device.gcodeLayer = map.layer_gcode || [];
+            device.maxHeight = parseInt(map.max_print_height || device.maxHeight);
+            if (map.bed_shape) {
+                let shape = map.bed_shape.split(',').map(l => l.split('x'));
+                device.bedWidth = parseInt(shape[2][0]);
+                device.bedDepth = parseInt(shape[2][1]);
+            }
+        }
+        // profile setup
+        let process = Object.clone(KIRI.conf.defaults.fdm.p);
+        let pname = process.processName = map.print_settings_id;
+        if (pname) {
+            process.sliceShells = parseInt(map.perimeters);
+            process.sliceHeight = parseFloat(map.layer_height);
+            process.outputFeedrate = parseInt(map.perimeter_speed);
+            process.outputSeekrate = parseInt(map.travel_speed);
+            process.outputTemp = parseInt(map.temperature);
+            process.outputBedTemp = parseInt(map.bed_temperature);
+            process.sliceTopLayers = parseInt(map.top_solid_layers);
+            process.sliceBottomLayers = parseInt(map.bottom_solid_layers);
+            process.firstSliceHeight = parseFloat(map.first_layer_height);
+            process.firstLayerNozzleTemp = parseInt(map.first_layer_temperature);
+            process.firstLayerRate = (
+                (parseFloat(map.first_layer_speed) / 100) * process.outputFeedrate);
+            process.firstLayerBedTemp = parseInt(map.first_layer_bed_temperature);
+            process.outputRetractDist = parseFloat(map.retract_length);
+            process.outputRetractSpeed = parseFloat(map.retract_speed);
+        }
+        UC.confirm(`Import "${dname}"?`).then(yes => {
+            if (yes) {
+                // create device, associated profile, set as current and show dialog
+                settings.devices[dname] = device;
+                settings.devproc[dname] = pname;
+                settings.process = settings.sproc.FDM[pname] = process;
+                settings.filter.FDM = dname;
+                settings.cproc.FDM = pname;
+                API.show.devices();
+            }
+        });
+    }
+
     function settingsImport(data, ask) {
         if (typeof(data) === 'string') {
             try {
@@ -2674,15 +2780,23 @@
                 isjpg = lower.indexOf(".jpg") > 0,
                 isgcode = lower.indexOf(".gcode") > 0 || lower.indexOf(".nc") > 0,
                 isset = lower.indexOf(".b64") > 0 || lower.indexOf(".km") > 0,
-                iskmz = lower.indexOf(".kmz") > 0;
+                iskmz = lower.indexOf(".kmz") > 0,
+                isini = lower.indexOf(".ini") > 0;
             reader.file = files[i];
             reader.onloadend = function (e) {
-                if (israw) platform.add(
-                    newWidget(undefined,group)
-                    .loadVertices(JSON.parse(e.target.result).toFloat32())
-                );
+                function load_dec() {
+                    if (--loaded === 0) platform.group_done(isgcode);
+                }
+                if (israw) {
+                    platform.add(
+                        newWidget(undefined,group)
+                        .loadVertices(JSON.parse(e.target.result).toFloat32())
+                    );
+                    load_dec();
+                }
                 else if (API.feature.on_load && (isstl || isobj || is3mf)) {
                     API.feature.on_load(e.target.result, file);
+                    load_dec();
                 }
                 else if (isstl) {
                     if (API.feature.on_add_stl) {
@@ -2690,13 +2804,14 @@
                     } else {
                         platform.add(
                             newWidget(undefined,group)
-                            .loadVertices(new MOTO.STL().parse(e.target.result,unitScale()))
+                            .loadVertices(new LOAD.STL().parse(e.target.result,unitScale()))
                             .saveToCatalog(e.target.file.name)
                         );
                     }
+                    load_dec();
                 }
                 else if (isobj) {
-                    let objs = MOTO.OBJ.parse(e.target.result);
+                    let objs = LOAD.OBJ.parse(e.target.result);
                     let odon = function() {
                         for (let obj of objs) {
                             let name = e.target.file.name;
@@ -2709,6 +2824,7 @@
                                 .saveToCatalog(name)
                             );
                         }
+                        load_dec();
                     };
                     if (objs.length > 1 && !group) {
                         UC.confirm('group objects?').then(ok => {
@@ -2735,10 +2851,11 @@
                                 .saveToCatalog(name)
                             );
                         }
+                        load_dec();
                         API.hide.alert(msg);
                     }
                     let msg = API.show.alert('Decoding 3MF');
-                    MOTO.TMF.parseAsync(e.target.result).then(models => {
+                    LOAD.TMF.parseAsync(e.target.result).then(models => {
                         API.hide.alert(msg);
                         if (models.length > 1 && !group) {
                             UC.confirm(`group ${models.length} objects?`).then(ok => {
@@ -2752,13 +2869,16 @@
                         }
                     });
                 }
-                else if (isgcode) loadCode(e.target.result, 'gcode');
+                else if (isgcode) {
+                    loadCode(e.target.result, 'gcode');
+                    load_dec();
+                }
                 else if (issvg) {
                     if (MODE === MODES.LASER) {
                         loadCode(e.target.result, 'svg');
                     } else {
                         let name = e.target.file.name;
-                        let svg = MOTO.SVG.parse(e.target.result);
+                        let svg = LOAD.SVG.parse(e.target.result);
                         let ind = 0;
                         for (let v of svg) {
                             let num = ind++;
@@ -2769,13 +2889,14 @@
                             );
                         }
                     }
+                    load_dec();
                 }
                 else if (iskmz) settingsImportZip(e.target.result, true);
                 else if (isset) settingsImport(e.target.result, true);
                 else if (ispng) loadImageDialog(e.target.result, e.target.file.name);
                 else if (isjpg) loadImageConvert(e.target.result, e.target.file.name);
+                else if (isini) settingsPrusaConvert(e.target.result);
                 else API.show.alert(`Unsupported file: ${files[i].name}`);
-                if (--loaded === 0) platform.group_done(isgcode);
             };
             if (isstl || ispng || isjpg || iskmz) {
                 reader.readAsArrayBuffer(reader.file);
@@ -3318,11 +3439,6 @@
 
     // prevent safari from exiting full screen mode
     DOC.onkeydown = function (evt) { if (evt.keyCode == 27) evt.preventDefault() }
-
-    // K3DB.onIdle(function() {
-        // upgrade on db idle. maybe delay init, too
-        // console.log("k3db idle");
-    // });
 
     // run optional module functions NOW before kiri-init has run
     if (Array.isArray(self.kirimod)) {

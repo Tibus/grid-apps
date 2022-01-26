@@ -4,7 +4,13 @@
 
 (function() {
 
-    var MP = THREE.Mesh.prototype,
+    // dep: ext.three
+    // dep: ext.three-bgu
+    // dep: ext.three-svg
+    gapp.register('add.three');
+
+    let MP = THREE.Mesh.prototype,
+        XP = THREE.Box3.prototype,
         BP = THREE.BufferGeometry.prototype;
 
     THREE.computeFaceNormal = function(vA,vB,vC) {
@@ -17,13 +23,22 @@
         return cb;
     };
 
+    // add .dim and .mid getters to Box3
+    Object.defineProperties(XP, {
+        dim: {
+            get: function() {
+                return this.max.clone().sub(this.min);
+            }
+        },
+        mid: {
+            get: function() {
+                return this.dim.clone().multiplyScalar(0.5).add(this.min);
+            }
+        }
+    });
+
     MP.getBoundingBox = function(update) {
         return this.geometry.getBoundingBox(update);
-    };
-
-    MP.center = function() {
-        this.geometry.center();
-        return this;
     };
 
     MP.mirrorX = function() {
@@ -41,7 +56,7 @@
     // fast mirror of vertices given axis array offset
     // array elements are repeating [x,y,z,x,y,z,...]
     MP.mirror = function(start) {
-        var i,
+        let i,
             geo = this.geometry,
             at = geo.attributes,
             pa = at.position.array,
@@ -54,60 +69,37 @@
         return this;
     };
 
-    // center geometry on x,y,z coordinates (defaults to 0,0,0)
-    BP.center = function(x,y,z) {
-        var box = this.getBoundingBox(),
-            mid = box.dim.clone().multiplyScalar(0.5),
-            dif = mid.clone().add(box.min),
-            pos = this.attributes.position,
-            arr = pos.array,
-            maxx = Math.max(mid.x, mid.y, mid.z),
-            i = 0;
-        if (x) dif.x -= (maxx - mid.x) * x;
-        if (y) dif.y -= (maxx - mid.y) * y;
-        if (z) dif.z -= (maxx - mid.z) * z;
-        while (i < arr.length) {
-            arr[i++] -= dif.x;
-            arr[i++] -= dif.y;
-            arr[i++] -= dif.z;
-        }
-        pos.needsUpdate = true;
-        // force update of (obsolete) bounding box
-        this.getBoundingBox(true);
-        return this;
-    };
-
     // return cached or refreshed (when update = true) bounding box
     BP.getBoundingBox = function(update) {
         if (update || !this.boundingBox) {
             this.boundingBox = null;
             this.computeBoundingBox();
         }
-        this.boundingBox.dim = this.boundingBox.max.clone().sub(this.boundingBox.min);
         return this.boundingBox;
     };
 
-    // uniformly scale any mesh to a max x/y/z dim of 'unit' (defaults to 1)
-    BP.unitScale = function(unit) {
-        var bbox = this.getBoundingBox().clone(),
-            scale = (unit || 1) / Math.max(
-                bbox.max.x - bbox.min.x,
-                bbox.max.y - bbox.min.y,
-                bbox.max.z - bbox.min.z
-            );
-        this.applyMatrix4(new THREE.Matrix4().makeScale(scale,scale,scale));
-        // force update of (obsolete) bounding box
-        this.getBoundingBox(true);
+    BP.moveMesh = function(x = 0, y = 0, z = 0) {
+        let gap = this.attributes.position,
+            pa = gap.array;
+        for (let i=0; i < pa.length; i += 3) {
+            pa[i    ] += x;
+            pa[i + 1] += y;
+            pa[i + 2] += z;
+        }
+        gap.needsUpdate = true;
         return this;
-    };
+    }
 
-    BP.fixNormals = function() {
-        this.computeVertexNormals();
-        return this;
+    BP.shallowClone = function() {
+        let geo = new THREE.BufferGeometry();
+        for (let [k, v] of Object.entries(this.attributes)) {
+            geo.setAttribute(k, new THREE.BufferAttribute(v.array, v.itemSize));
+        }
+        return geo;
     };
 
     THREE.Object3D.prototype.newGroup = function() {
-        var group = new THREE.Group();
+        let group = new THREE.Group();
         this.add(group);
         return group;
     };

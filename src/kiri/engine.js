@@ -27,17 +27,14 @@ class Engine {
             process: KIRI.conf.defaults.fdm.p, // slicing settings
             widget: { [ this.widget.id ]: {} }
         };
-
-        // console.log("initial settings", this.settings);
-
-      this.listener = () => {};
+        this.listener = () => {};
     }
 
     load(url) {
         return new Promise((accept, reject) => {
             try {
                 // console.time("load");
-                new self.moto.STL().load(url, vertices => {
+                new self.load.STL().load(url, vertices => {
                     this.listener({loaded: url, vertices});
                     // console.log("vertices", vertices);
 
@@ -54,7 +51,7 @@ class Engine {
     parse(data) {
         return new Promise((accept, reject) => {
             try {
-                let vertices = new self.moto.STL().parse(data);
+                let vertices = new self.load.STL().parse(data);
                 this.listener({parsed: data, vertices});
                 this.widget.loadVertices(vertices).center();
                 accept(this);
@@ -129,14 +126,13 @@ class Engine {
             KIRI.client.clear();
             // console.time("slice_sync")
             KIRI.client.sync([ this.widget ]); // envoi un Sync dans le worker
+            KIRI.client.rotate(this.settings);
             // console.timeEnd("slice_sync")
 
             // console.log("this.settings", this.settings);
 
             // Todo: for loop on every non support widget
             KIRI.client.slice(this.settings, this.widget, msg => {
-                // console.log("msg", msg);
-
                 this.listener({slice:msg});
                 if (msg.error) {
                     reject(msg.error);

@@ -3,7 +3,10 @@
 "use strict";
 
 (function() {
-    var AP = {};
+
+    gapp.register('add.array');
+
+    let AP = {};
 
     /** ******************************************************************
      * Array prototype helpers
@@ -60,6 +63,13 @@
                 // this.push.apply(this,arr); (slower?)
                 this.push(...arr);
             }
+        }
+        return this;
+    };
+
+    AP.addOnce = function(val) {
+        if (!this.contains(val)) {
+            this.push(val);
         }
         return this;
     };
@@ -168,6 +178,38 @@
 
     AP.hasNaN = function() {
         return this.filter(v => isNaN(v)).length > 0;
+    };
+
+    // turn array into arrays of specified size
+    AP.group = function(size) {
+        let na = new Array(Math.ceil(this.length / size));
+        let nai = 0;
+        for (let i=0; i<this.length; i += size) {
+            let grp = new Array(size);
+            for (let j=0; j<size; j++) {
+                grp[j] = this[i+j];
+            }
+            na[nai++] = grp;
+        }
+        return na;
+    };
+
+    // wrap a function and unroll the first parameter into
+    // successive function calls if it is an array
+    Array.handle = function(fn) {
+        return function() {
+            let args = [...arguments];
+            let val = args.shift();
+            if (Array.isArray(val)) {
+                let rv = [];
+                for (let v of val.slice()) {
+                    rv.push(fn(v, ...args));
+                }
+                return rv;
+            } else {
+                return fn(val, ...args);
+            }
+        }
     };
 
     for (let i in AP) {

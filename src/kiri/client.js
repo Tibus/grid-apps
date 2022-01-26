@@ -57,7 +57,7 @@ KIRI.work = {
         if (self.createWorker) {
             return self.createWorker();
         } else {
-            return new Worker(`/code/worker.js?${self.kiri.version}`);
+            return new Worker(`/code/kiri_work.js?${gapp.version}`);
         }
     },
 
@@ -166,6 +166,7 @@ KIRI.work = {
 
                 send("sync", {
                     id: widget.id,
+                    meta: widget.meta,
                     group: widget.group.id,
                     track: widget.track,
                     vertices: vertices,

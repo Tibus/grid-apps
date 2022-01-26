@@ -21,6 +21,8 @@ let BASE = self.base,
     minifns = {},
     miniseq = 0;
 
+KIRI.version = gapp.version;
+
 // catch clipper alerts and convert to console messages
 self.alert = function(o) {
     console.log(o);
@@ -40,11 +42,11 @@ if (concurrent) {
     }
 
     for (let i=0; i < concurrent; i++) {
-        let minion = new Worker(`/code/minion.js?${self.kiri.version}`);
+        let minion = new Worker(`/code/kiri_pool.js?${self.kiri.version}`);
         minion.onmessage = minhandler;
         minions.push(minion);
     }
-    console.log(`kiri | init mini | ${KIRI.version || "rogue"} | ${concurrent + 1}`);
+    console.log(`kiri | init pool | ${gapp.version || "rogue"} | ${concurrent + 1}`);
 }
 
 // for concurrent operations
@@ -185,7 +187,7 @@ KIRI.minions = {
     }
 };
 
-console.log(`kiri | init work | ${KIRI.version || "rogue"}`);
+console.log(`kiri | init work | ${gapp.version || "rogue"}`);
 
 // code is running in the worker / server context
 const dispatch =
@@ -271,6 +273,8 @@ KIRI.worker = {
         wcache[data.id] = widget;
         // stored for possible future rotations
         widget.vertices = vertices;
+        // restore meta
+        widget.meta = data.meta;
         // restore tracking object
         widget.track = data.track;
         send.done(data.id);
