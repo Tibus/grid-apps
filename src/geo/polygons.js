@@ -854,7 +854,7 @@ const Shape2D = require("bindings")("gridapp");
             let linesInput = int32.buffer,
                 polysInput = ToInt32Array(polys);
 
-            let {success, error, polytree} = Shape2D.clipperFillAreaToPolyTree(linesInput, polysInput);
+            let {success, error, polytree} = Shape2D.clipperFillAreaToPolyTree(linesInput, polysInput, false);
 
             if (success && polytree) {
                 for (let poly of polytree.m_Childs) {

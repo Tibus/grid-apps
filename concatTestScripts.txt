@@ -1,4 +1,3 @@
-
 ./src/standalone.js
 ./src/consoleTool.js
 ./src/main/kiri.js
@@ -27,7 +26,6 @@
 ./src/kiri/client.js
 ./src/kiri/slice.js
 ./src/kiri/slicer.js
-./src/kiri/slicer2.js
 ./src/kiri/layers.js
 ./src/kiri-mode/fdm/fill.js
 ./src/kiri-mode/fdm/driver.js
