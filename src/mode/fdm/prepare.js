@@ -6,6 +6,7 @@
 
     let KIRI = self.kiri,
         BASE = self.base,
+        ConsoleTool = self.consoleTool,
         UTIL = BASE.util,
         POLY = BASE.polygons,
         FDM = KIRI.driver.FDM,
@@ -23,6 +24,8 @@
     FDM.prepare = function(widgets, settings, update) {
         // filter ignored widgets
         widgets = widgets.filter(w => !w.track.ignore);
+
+        console.log("prepare");
 
         let render = settings.render !== false,
             { device, process, controller, bounds, mode } = settings,
@@ -48,6 +51,7 @@
             print = self.worker.print = KIRI.newPrint(settings, widgets),
             beltfact = Math.cos(Math.PI/4);
 
+        // ConsoleTool.timeStepStart("prepare_bounds");
         // compute bounds if missing
         if (!bounds) {
             bounds = new THREE.Box3();
@@ -62,7 +66,9 @@
             }
             settings.bounds = bounds;
         }
+        // ConsoleTool.timeStepEnd("prepare_brim");
 
+        // ConsoleTool.timeStepStart("prepare_brim");
         // TODO pick a widget with a slice on the first layer and use that nozzle
         // create brim, skirt, raft if specificed in FDM mode (code shared by laser)
         if (!isBelt && (process.outputBrimCount || process.outputRaft)) {
@@ -195,10 +201,12 @@
             bounds.max.x = Math.max(bounds.max.x, bbounds.maxx);
             bounds.max.y = Math.max(bounds.max.y, bbounds.maxy);
         }
+        // ConsoleTool.timeStepEnd("prepare_brim");
 
         // synthesize support widgets when needed
         // so that they can use a separate extruder
         // compute zmin for belt purge towers
+        // ConsoleTool.timeStepStart("prepare_slice");
         for (let widget of widgets.slice()) {
             let sslices = [];
             if (!widget.slices) {
@@ -228,6 +236,7 @@
                 widgets.push(swidget);
             }
         }
+        // ConsoleTool.timeStepEnd("prepare_slice");
 
         let lastPoly;
         let lastLayer;
@@ -305,7 +314,9 @@
             return rec;
         }
 
+        // ConsoleTool.timeStepStart("prepare_mkblok");
         mkblok(blokw, blokh);
+        // ConsoleTool.timeStepEnd("prepare_mkblok");
 
         // allocate tower space for extruders-1 locations
         let towers = extruders.slice(1).map((ext,i) => {
@@ -409,6 +420,7 @@
         }
 
         // establish offsets
+        // ConsoleTool.timeStepStart("prepare_offser");
         for (let widget of widgets) {
             let { rotinfo, belt } = widget;
             let offset = Object.clone(widget.track.pos);
@@ -425,10 +437,12 @@
             }
             widget.offset = offset;
         }
+        // ConsoleTool.timeStepEnd("prepare_offser");
 
         // create shuffled slice cake by z offset (slice.z + offset.z)
         let cake = [];
         let zrec = {};
+        // ConsoleTool.timeStepStart("prepare_shuffled");
         for (let widget of widgets) {
             // skip synthesized support widget(s)
             if (!widget.mesh) {
@@ -444,6 +458,7 @@
                 rec.slices.push(slice);
             }
         }
+        // ConsoleTool.timeStepEnd("prepare_shuffled");
         cake.sort((a, b) => {
             return a.z - b.z;
         });
@@ -454,11 +469,15 @@
         let lastOut;
 
         // walk cake layers bottom up
+        // ConsoleTool.timeStepStart("prepare_walk");
         for (let layer of cake) {
             // track purge blocks generated for each layer
+            // ConsoleTool.timeStepStart("prepare_walk_towers.slice");
             let track = towers.slice();
+            // ConsoleTool.timeStepEnd("prepare_walk_towers.slice");
 
             // iterate over layer slices, find closest widget, print, eliminate
+            // ConsoleTool.timeStepStart("prepare_walk_closest");
             for (;;) {
                 let order = [];
                 // select slices of the same extruder type first then distance
@@ -513,6 +532,7 @@
                 let wtb = slice.widget.track.box;
                 let beltStart = slice.belt && slice.belt.touch;// && (widgets.length === 1);
                 // output seek to start point between mesh slices if previous data
+                // ConsoleTool.timeStepStart("prepare_walk_track.slicePrintPath");
                 printPoint = print.slicePrintPath(
                     slice,
                     beltStart ? newPoint(-5000, 5000, 0) : printPoint.sub(offset),
@@ -540,6 +560,7 @@
                         }
                     }
                 );
+                // ConsoleTool.timeStepEnd("prepare_walk_track.slicePrintPath");
                 lastOut = slice;
                 lastExt = lastOut.extruder;
                 lastPoly = slice.lastPoly;
@@ -548,8 +569,10 @@
                     layerout.last().retract = true;
                 }
             }
+            // ConsoleTool.timeStepEnd("prepare_walk_closest");
 
             // clear slice.prep so it can be re-previewed in a different mode
+            // ConsoleTool.timeStepStart("prepare_walk_clear");
             for (let widget of widgets) {
                 // skip synthesized support widget(s)
                 if (!widget.mesh) {
@@ -559,12 +582,15 @@
                     slice.prep = false;
                 }
             }
+            // ConsoleTool.timeStepEnd("prepare_walk_clear");
 
             // if a declared extruder isn't used in a layer, use selected
             // extruder to fill the relevant purge blocks for later support
+            // ConsoleTool.timeStepStart("prepare_walk_track.slice");
             track.slice().forEach(ext => {
                 printPoint = purge(ext.extruder, track, layerout, printPoint, lastOut.z, lastExt, lastOffset);
             });
+            // ConsoleTool.timeStepEnd("prepare_walk_track.slice");
 
             // if layer produced output, append to output array
             if (layerout.length) {
@@ -582,6 +608,7 @@
 
             layerout = [];
         }
+        // ConsoleTool.timeStepEnd("prepare_walk");
 
         print.output = output;
 
@@ -701,6 +728,7 @@
         }
 
         // render if not explicitly disabled
+        // ConsoleTool.timeStepStart("prepare_render");
         if (render) {
             print.render = FDM.prepareRender(output, (progress, layer) => {
                 update(0.5 + progress * 0.5, "render", layer);
@@ -712,6 +740,7 @@
                 fdm: true
             });
         }
+        // ConsoleTool.timeStepEnd("prepare_render");
 
         return print.render;
     };

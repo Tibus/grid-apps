@@ -323,8 +323,11 @@
         }
 
         // create slices from each bucketed region
+        // console.time("sliceBuckets");
         sliceBuckets().then(slices => {
+            // console.timeEnd("sliceBuckets")
             slices = slices.sort((a,b) => a.index - b.index);
+            console.log("slices", slices);
 
             // connect slices into linked list for island/bridge projections
             for (i=1; i<slices.length; i++) {
