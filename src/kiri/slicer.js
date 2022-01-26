@@ -19,6 +19,7 @@
 
     let KIRI = self.kiri,
         BASE = self.base,
+        ConsoleTool = self.consoleTool,
         CONF = BASE.config,
         UTIL = BASE.util,
         POLY = BASE.polygons,
@@ -37,7 +38,9 @@
      * @param {Function} onupdate callback on incremental updates
      */
     function sliceWidget(widget, options, ondone, onupdate) {
+        ConsoleTool.timeStepStart("slicer_sliceWidget");
         slice(widget.getPoints(), widget.getBoundingBox(), options, ondone, onupdate);
+        ConsoleTool.timeStepEnd("slicer_sliceWidget");
     }
 
     /**
@@ -323,9 +326,9 @@
         }
 
         // create slices from each bucketed region
-        // console.time("sliceBuckets");
+        ConsoleTool.timeStepStart("slicer_sliceBuckets");
         sliceBuckets().then(slices => {
-            // console.timeEnd("sliceBuckets")
+            ConsoleTool.timeStepEnd("slicer_sliceBuckets");
             slices = slices.sort((a,b) => a.index - b.index);
 
             // connect slices into linked list for island/bridge projections
@@ -374,6 +377,8 @@
     }
 
     function createSlice(params, data, options = {}) {
+        ConsoleTool.timeStepStart("slicer_createSlice");
+
         let { index, z, height, thick } = params;
         let { lines, groups, tops, clip } = data;
         let slice = newSlice(z).addTops(tops);
@@ -387,6 +392,8 @@
             slice.groups = groups;
             slice.xray = options.xray;
         }
+        ConsoleTool.timeStepEnd("slicer_createSlice");
+
         return slice;
     }
 
@@ -401,6 +408,8 @@
      * @param {Obejct} where
      */
     function checkUnderOverOn(p, z, where) {
+        ConsoleTool.timeStepStart("slicer_checkUnderOverOn");
+
         let delta = p.z - z;
         if (Math.abs(delta) < CONF.precision_slice_z) { // on
             where.on.push(p);
@@ -409,6 +418,8 @@
         } else { // over
             where.over.push(p);
         }
+        ConsoleTool.timeStepEnd("slicer_checkUnderOverOn");
+
     }
 
     /**
@@ -421,12 +432,16 @@
      * @returns {Point} intersection point
      */
     function intersectPoints(over, under, z) {
+        ConsoleTool.timeStepStart("slicer_intersectPoints");
+
         let ip = [];
         for (let i = 0; i < over.length; i++) {
             for (let j = 0; j < under.length; j++) {
                 ip.push(over[i].intersectZ(under[j], z));
             }
         }
+        ConsoleTool.timeStepEnd("slicer_intersectPoints");
+
         return ip;
     }
 
@@ -456,11 +471,15 @@
      * @returns {Line}
      */
     function makeZLine(phash, p1, p2, coplanar, edge) {
+        ConsoleTool.timeStepStart("slicer_makeZLine");
+
         p1 = getCachedPoint(phash, p1);
         p2 = getCachedPoint(phash, p2);
         let line = newOrderedLine(p1,p2);
         line.coplanar = coplanar || false;
         line.edge = edge || false;
+        ConsoleTool.timeStepEnd("slicer_makeZLine");
+
         return line;
     }
 
@@ -556,6 +575,7 @@
      */
     function connectLines(input, z, opt = {}) {
         let { debug, union } = opt;
+        ConsoleTool.timeStepStart("slicer_connectLines");
 
         // map points to all other points they're connected to
         let CONF = BASE.config,
@@ -848,6 +868,7 @@
                 );
             }
         }
+        ConsoleTool.timeStepEnd("slicer_connectLines");
 
         return output;
     }

@@ -12,8 +12,8 @@ Napi::Object ExportPolyNode(ClipperLib::PolyNode *node, Napi::Env env){
 
   // polyNode.Set("m_polygon", polygon);
   polyNode.Set("m_polygonBuffer", polygonBuffer);
-  polyNode.Set("IsHole", Napi::Boolean::New(env, node->IsHole()));
-  polyNode.Set("IsOpen", Napi::Boolean::New(env, node->IsOpen()));
+  //polyNode.Set("IsHole", node->IsHole()? 1 : 0 );
+  polyNode.Set("IsOpen", node->IsOpen()? 1 : 0 );
   //polyNode.Set("ChildCount", node->ChildCount());
   
   Napi::Array childrenJS = Napi::Array::New(env, node->ChildCount());

@@ -22,7 +22,6 @@ Napi::Object Shape2D::Init(Napi::Env env, Napi::Object exports) {
     InstanceMethod("addPathsToOffset", &Shape2D::addPathsToOffset),
     InstanceMethod("executeClipper", &Shape2D::executeClipper),
     InstanceMethod("executeClipperOffset", &Shape2D::executeClipperOffset),
-    InstanceMethod("exportLine", &Shape2D::exportLine),
     InstanceMethod("cleanClipperPolygons", &Shape2D::cleanClipperPolygons),
     InstanceMethod("cleanClipperAddon", &Shape2D::cleanClipperAddon),
     InstanceMethod("exportPolyFromPaths", &Shape2D::exportPolyFromPaths)
@@ -151,12 +150,6 @@ Napi::Value Shape2D::executeClipper(const Napi::CallbackInfo& info) {
 Napi::Value Shape2D::executeClipperOffset(const Napi::CallbackInfo& info) {
   
   return ExecuteClipperOffset::Init(info, this);
-}
-
-Napi::Value Shape2D::exportLine(const Napi::CallbackInfo& info) {
-  // Napi::Env env = info.Env();
-  // return env.Null();
-  return ExportLine::Init(info, this);
 }
 
 Napi::Value Shape2D::cleanClipperPolygons(const Napi::CallbackInfo& info) {

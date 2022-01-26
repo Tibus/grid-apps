@@ -23,7 +23,7 @@ Napi::Object ExportPolyTree(ClipperLib::PolyTree *polyTree, Napi::Env env){
 
   result.Set("m_AllPolysBuffer", polygonBuffer);
   result.Set("m_Childs",childrenJS);
-  result.Set("IsOpen", Napi::Boolean::New(env, polyTree->IsOpen()));  
+  result.Set("IsOpen", polyTree->IsOpen()? 1 :0);  
   //result.Set("IsHole", Napi::Boolean::New(env, polyTree->IsHole()));
   //result.Set("ChildCount", polyTree->ChildCount());
   //result.Set("m_endtype", polyTree->m_endtype);

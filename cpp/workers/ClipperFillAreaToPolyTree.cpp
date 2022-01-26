@@ -18,7 +18,7 @@ Napi::Value ClipperFillAreaToPolyTree::Init(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   Napi::HandleScope scope(env);
   
-  std::string checkResult = ParametersChecker(info, "ClipperFillAreaToPolyTree", { napi_object, napi_object});
+  std::string checkResult = ParametersChecker(info, "ClipperFillAreaToPolyTree", { napi_object, napi_object, napi_boolean});
   if (checkResult != "") {
     Napi::Object props = Napi::Object::New(env);
     props.Set("success", Napi::Boolean::New(env, false));
@@ -28,16 +28,18 @@ Napi::Value ClipperFillAreaToPolyTree::Init(const Napi::CallbackInfo& info) {
 
   Napi::ArrayBuffer polyA = info[0].As<Napi::ArrayBuffer>();
   Napi::Array polyB = info[1].As<Napi::Array>();
+  bool outPutOnlyLine = info[2].As<Napi::Boolean>().Value();
+ 
   
-  ClipperFillAreaToPolyTree *worker = new ClipperFillAreaToPolyTree(&polyA, &polyB, Napi::Object::New(info.Env()));
+  ClipperFillAreaToPolyTree *worker = new ClipperFillAreaToPolyTree(&polyA, &polyB, outPutOnlyLine, Napi::Object::New(info.Env()));
   return worker->Execute(env);
 }
 
 /**
  *  Constructor
  */
-ClipperFillAreaToPolyTree::ClipperFillAreaToPolyTree(Napi::ArrayBuffer *polyA, Napi::Array *polyB, const Napi::Object &resource)
-  : polyA(polyA), polyB(polyB)
+ClipperFillAreaToPolyTree::ClipperFillAreaToPolyTree(Napi::ArrayBuffer *polyA, Napi::Array *polyB,bool outPutOnlyLine, const Napi::Object &resource)
+  : polyA(polyA), polyB(polyB), outPutOnlyLine(outPutOnlyLine)
   {
     success = false;
   }
@@ -118,8 +120,7 @@ void ClipperFillAreaToPolyTree::ExecuteFunction(Napi::Env env) {
   try{
     // Console::time("Execute");
     success = co.Execute(ClipperLib::ctIntersection, resultPolyTree, ClipperLib::pftNonZero, ClipperLib::pftEvenOdd);
-    // Console::log("success", success);
-    // Console::timeEnd("Execute");
+    
   }catch(int e){
     Console::log("ClipperFillAreaToPolyTree Execute error", e);
   }
@@ -143,7 +144,7 @@ Napi::Value ClipperFillAreaToPolyTree::OnError(Napi::Env env) {
 }
 
 Napi::Value ClipperFillAreaToPolyTree::OnOK(Napi::Env env) {
-  // Console::log("<---- ClipperFillAreaToPolyTree");
+  //Console::log("<---- ClipperFillAreaToPolyTree", outPutOnlyLine);
 
   // Console::time("exportToView");
  
@@ -151,10 +152,14 @@ Napi::Value ClipperFillAreaToPolyTree::OnOK(Napi::Env env) {
   Napi::Object props = Napi::Object::New(env);
 
   props.Set("success", Napi::Boolean::New(env, success));
-
-  Napi::Object polyTree = ExportPolyTree(&resultPolyTree, env);
+  if(outPutOnlyLine){
+    Napi::Buffer<int32_t> lines = ExportLine(&resultPolyTree, env);
+  }else{
+    Napi::Object polyTree = ExportPolyTree(&resultPolyTree, env);
 
   props.Set("polytree", polyTree);
+  }
+  
   // Console::timeStep("PolyTree");
 
   co.Clear();

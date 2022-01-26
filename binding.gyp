@@ -10,7 +10,7 @@
             "cpp/workers/AddPaths.cpp",
             "cpp/workers/ExecuteClipper.cpp",
             "cpp/workers/ExecuteClipperOffset.cpp",
-            "cpp/workers/ExportLine.cpp",
+           
             "cpp/workers/AddPathsToOffset.cpp",
             "cpp/workers/CleanClipperPolygons.cpp",
             "cpp/workers/CleanClipperAddon.cpp",
@@ -22,6 +22,7 @@
             "cpp/workers/ClipperFillAreaToPolyTree.cpp",
             "cpp/workers/utils/ExportPolyTree.cpp",
             "cpp/workers/utils/ExportPolyNode.cpp",
+            "cpp/workers/utils/ExportLine.cpp",
             "cpp/workers/utils/ExportPolyContour.cpp",
             "cpp/workers/utils/CleanPolyTree.cpp",
 

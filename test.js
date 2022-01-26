@@ -230,7 +230,7 @@ engine.parse(buf)
     .then((gcode) => {
         console.timeEnd("export");
         fs.writeFileSync("standalone.gcode", gcode);
-        console.timeEnd("slicing");
+        console.timeEnd("totalSlicing");
     })
     .catch(error => {
         console.log({error});

@@ -11,6 +11,7 @@
 #include "../vendors/utils/napi/EmptyCallBack.h"
 #include "../vendors/utils/napi/ParametersChecker.h"
 #include "./utils/ExportPolyTree.h"
+#include "./utils/ExportLine.h"
 #include "./utils/CleanPolyTree.h"
 
 class ClipperFillAreaToPolyTree
@@ -21,10 +22,11 @@ class ClipperFillAreaToPolyTree
 
     Napi::ArrayBuffer *polyA;
     Napi::Array *polyB;
+    bool outPutOnlyLine;
 
     static Napi::Value Init(const Napi::CallbackInfo& info);
     
-    ClipperFillAreaToPolyTree(Napi::ArrayBuffer *polyA, Napi::Array *polyB, const Napi::Object &resource);
+    ClipperFillAreaToPolyTree(Napi::ArrayBuffer *polyA, Napi::Array *polyB, bool outPutOnlyLine, const Napi::Object &resource);
     
   protected:
     static void SafeExecute(void* data);

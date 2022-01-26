@@ -6,7 +6,7 @@
  */
 
 Napi::Buffer<int32_t> ExportPolyContour(ClipperLib::Path *node, Napi::Env env){
-  Napi::Object polyNode = Napi::Object::New(env);
+  
 
   // Napi::Array polygon = Napi::Array::New(env, node->size());
   // for(uint32_t index =0; index < node->size(); index++ ){
