@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Test only" type="CLionExternalRunConfiguration" factoryName="Application" PROGRAM_PARAMS="--inspect=9882 ./test" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="mangoslicer_addon_grid-apps" TARGET_NAME="Unnamed" CONFIG_NAME="Unnamed" RUN_PATH="/usr/local/bin/node">
+  <configuration default="false" name="Test only" type="CLionExternalRunConfiguration" factoryName="Application" PROGRAM_PARAMS="--inspect=9882 ./test" REDIRECT_INPUT="false" ELEVATE="true" USE_EXTERNAL_CONSOLE="false" WORKING_DIR="file://$PROJECT_DIR$" PASS_PARENT_ENVS_2="true" PROJECT_NAME="mangoslicer_addon_grid-apps" TARGET_NAME="Unnamed" CONFIG_NAME="Unnamed" RUN_PATH="/usr/local/bin/node">
     <method v="2" />
   </configuration>
 </component>
