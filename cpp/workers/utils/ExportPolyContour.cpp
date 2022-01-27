@@ -29,5 +29,10 @@ Napi::Buffer<int32_t> ExportPolyContour(ClipperLib::Path *node, Napi::Env env){
 
   // Console::log("poly2", poly2);
 
-  return Napi::Buffer<int32_t>::New(env, poly2, node->size() * 2);
+  Napi::Buffer<int32_t> buffer = Napi::Buffer<int32_t>::Copy(env, poly2, node->size() * 2);
+
+  free(poly2);
+  poly2 = nullptr;
+
+  return buffer;
 }

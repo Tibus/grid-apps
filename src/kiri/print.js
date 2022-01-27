@@ -447,6 +447,12 @@
         lastEmit = emit;
         lastOut = new Output(point, emit, speed, tool, nextType);
         array.push(lastOut);
+        if(emit && emit>0){
+            array.numMove += 1;
+        }else{
+            array.numLine += 1;
+        }
+
         nextType = undefined;
         return lastOut;
     }

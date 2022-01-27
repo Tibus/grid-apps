@@ -83,10 +83,12 @@
         let poly = BASE.newPolygon();
         if(tnode.m_polygonBuffer){
             let indices = new Int32Array(tnode.m_polygonBuffer.buffer, tnode.m_polygonBuffer.byteOffset);
-
             for (let i = 0; i<indices.length; i+=2) {
                 poly.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
+            tnode.m_polygonBuffer = null;
+            indices = null;
+
         }else{
             for (let point of tnode.m_polygon) {
                 poly.push(BASE.pointFromClipper(point, z));
@@ -113,6 +115,8 @@
             for (let i = 0; i<indices.length; i+=2) {
                 polys.m_AllPolys.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
+            indices = null;
+            tnode.m_AllPolysBuffer = null;
         }
 
         for (let child of tnode.m_Childs) {

@@ -164,6 +164,7 @@ void ClipperOffsetToPolyTree::ExecuteFunction(Napi::Env env) {
       if(clean){
         ClipperLib::Paths cleans;
         ClipperLib::CleanPolygons(ins, cleans, cleanDistance);
+        ins.clear();
         ins = cleans;
       }
     }catch(int e){
@@ -177,6 +178,7 @@ void ClipperOffsetToPolyTree::ExecuteFunction(Napi::Env env) {
         ClipperLib::Paths simples;
         ClipperLib::PolyFillType fillType = getFillType2(fillTypeInt);
         ClipperLib::SimplifyPolygons(ins, simples, fillType);
+        ins.clear();
         ins = simples;      
       }
     }catch(int e){

@@ -14,6 +14,7 @@
      * @returns {Array} gcode lines
      */
     FDM.export = function(print, online, ondone, ondebug) {
+
         let layers = print.output,
             settings = print.settings,
             controller = settings.controller,

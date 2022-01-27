@@ -128,6 +128,7 @@ void ClipperFillAreaToPolyTree::ExecuteFunction(Napi::Env env) {
   try{
     insA.clear();
     insB.clear();
+    co.Clear();
   }catch(int e){
     Console::log("ClipperFillAreaToPolyTree Clean Path error", e);
   }

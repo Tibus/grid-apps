@@ -104,6 +104,7 @@ void ClipperSubtractPathToPolyTree::ExecuteFunction(Napi::Env env) {
   try{
     // Console::time("AddPaths1");
     co.AddPaths(insA, ClipperLib::ptSubject, true);
+    insA.clear();
     // Console::timeEnd("AddPaths1");
   }catch(int e){
     Console::log("ClipperSubtractPathToPolyTree AddPaths1 error", e);
@@ -112,6 +113,7 @@ void ClipperSubtractPathToPolyTree::ExecuteFunction(Napi::Env env) {
   try{
     // Console::time("AddPaths2");
     co.AddPaths(insB, ClipperLib::ptClip, true);
+    insB.clear();
     // Console::timeEnd("AddPaths2");
   }catch(int e){
     Console::log("ClipperSubtractPathToPolyTree AddPaths2 error", e);
@@ -120,6 +122,7 @@ void ClipperSubtractPathToPolyTree::ExecuteFunction(Napi::Env env) {
   try{
     // Console::time("Execute");
     success = co.Execute(ClipperLib::ctDifference, resultPolyTree, ClipperLib::pftEvenOdd, ClipperLib::pftEvenOdd);
+    co.Clear();
     // Console::log("success", success);
     // Console::timeEnd("Execute");
   }catch(int e){
@@ -137,6 +140,7 @@ void ClipperSubtractPathToPolyTree::ExecuteFunction(Napi::Env env) {
 
   try{
     insA.clear();
+    insB.clear();
     co.Clear();
   }catch(int e){
     Console::log("ClipperSubtractPathToPolyTree Clean Path error", e);

@@ -524,6 +524,9 @@
                 layerout.slice = slice;
                 // mark layer as anchor if slice is belt and flag set
                 layerout.anchor = slice.belt && slice.belt.anchor;
+                if(!layerout.numMove) layerout.numMove=0;
+                if(!layerout.numLine) layerout.numLine=0;
+
                 // detect extruder change and print purge block
                 if (!lastOut || lastOut.extruder !== slice.extruder) {
                     if (slice.extruder >= 0)
