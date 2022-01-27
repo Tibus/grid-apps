@@ -1,5 +1,5 @@
 //Do Not more/remove/modify this lines, it's for "in addon" running
-global.self = "selfToReplaceForTest";
+global.self = null;
 
 let fs = require('fs');
 const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/), "./src/kiri/engine.js"];

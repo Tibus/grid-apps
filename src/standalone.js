@@ -4,13 +4,7 @@ try{
     electron = require('electron');
 }catch(e){}
 
-let fs;
-if (electron && electron.remote){
-  fs = electron.remote.require("fs");
-}else{
-  fs = require("fs");
-}
-
+let fs = electron?.remote?.require("fs") || require("fs");
 let THREE = global.THREE = require("@mango3d/three");
 
 let navigator = global.navigator = { userAgent: "" };
@@ -21,26 +15,15 @@ let toSelf = {
     location : { hostname: 'local', port: 0, protocol: 'fake' },
 }
 
-let self;
-let inTestEnvironment = false;
-if(global.self === "selfToReplaceForTest"){
-    inTestEnvironment = true;
-    self = global.self = toSelf;
-}else{
-    self = toSelf;
-}
+let self = toSelf;
+let inTestEnvironment = global.self === null;
+inTestEnvironment && (global.self = toSelf)
 
 self.Shape2D = require("bindings")("gridapp");
 
 
-let gapp = {
-    register:(file)=>{
-        //...
-    }
-}
-if(inTestEnvironment){
-    global.gapp = gapp;
-}
+let gapp = {register:(file)=>{}};
+inTestEnvironment && (global.gapp = gapp)
 
 self.postMessage = (msg) => {
     self.kiri.client.onmessage({data:msg});
@@ -82,9 +65,7 @@ class Worker {
     }
 }
 
-if(inTestEnvironment){
-    global.Worker = Worker;
-}
+inTestEnvironment && (global.Worker = Worker)
 
 // node is missing these functions so put them in scope during eval
 function atob(a) {
