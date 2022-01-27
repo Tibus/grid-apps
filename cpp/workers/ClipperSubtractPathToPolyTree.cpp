@@ -137,6 +137,7 @@ void ClipperSubtractPathToPolyTree::ExecuteFunction(Napi::Env env) {
 
   try{
     insA.clear();
+    co.Clear();
   }catch(int e){
     Console::log("ClipperSubtractPathToPolyTree Clean Path error", e);
   }
@@ -173,10 +174,10 @@ Napi::Value ClipperSubtractPathToPolyTree::OnOK(Napi::Env env) {
   Napi::Object polyTree = ExportPolyTree(&resultPolyTree, env);
 
   props.Set("polytree", polyTree);
-  // Console::timeStep("PolyTree");
-
   co.Clear();
- 
+  resultPolyTree.Clear();
+
+  // Console::timeStep("PolyTree");
 
   return props;
 }

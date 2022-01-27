@@ -227,12 +227,13 @@ Napi::Value ClipperOffsetToPolyTree::OnOK(Napi::Env env) {
   props.Set("success", Napi::Boolean::New(env, true));
 
   Napi::Object polyTree = ExportPolyTree(&resultPolyTree, env);
+  resultPolyTree.Clear();
+  co.Clear();
 
   props.Set("polytree", polyTree);
   // Console::timeStep("PolyTree");
 
-  co.Clear();
-  //resultPolyTree.Clear();
-
+ 
+  
   return props;
 }

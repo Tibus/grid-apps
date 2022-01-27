@@ -171,7 +171,7 @@ Napi::Value ClipperFillAreaToPolyTree::OnOK(Napi::Env env) {
   // Console::timeStep("PolyTree");
 
   co.Clear();
-  //resultPolyTree.Clear();
+  resultPolyTree.Clear();
 
   return props;
 }
