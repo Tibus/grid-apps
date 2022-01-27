@@ -186,6 +186,7 @@ void ClipperOffsetToPolyTree::ExecuteFunction(Napi::Env env) {
 
     // Console::time("AddPaths");
     co.AddPaths(ins, joinType, endType);
+    ins.clear();
     // Console::timeStep("AddPaths");
   }
 
@@ -231,7 +232,7 @@ Napi::Value ClipperOffsetToPolyTree::OnOK(Napi::Env env) {
   // Console::timeStep("PolyTree");
 
   co.Clear();
-  resultPolyTree.Clear();
+  //resultPolyTree.Clear();
 
   return props;
 }
