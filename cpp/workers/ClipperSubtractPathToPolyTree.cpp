@@ -135,6 +135,12 @@ void ClipperSubtractPathToPolyTree::ExecuteFunction(Napi::Env env) {
     Console::log("ClipperSubtractPathToPolyTree CleanPolyTree error", e);
   }
 
+  try{
+    insA.clear();
+  }catch(int e){
+    Console::log("ClipperSubtractPathToPolyTree Clean Path error", e);
+  }
+
 }
 
 Napi::Value ClipperSubtractPathToPolyTree::OnError(Napi::Env env) {
@@ -170,7 +176,7 @@ Napi::Value ClipperSubtractPathToPolyTree::OnOK(Napi::Env env) {
   // Console::timeStep("PolyTree");
 
   co.Clear();
-  resultPolyTree.Clear();
+ 
 
   return props;
 }

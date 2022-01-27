@@ -124,6 +124,14 @@ void ClipperFillAreaToPolyTree::ExecuteFunction(Napi::Env env) {
   }catch(int e){
     Console::log("ClipperFillAreaToPolyTree Execute error", e);
   }
+
+  try{
+    insA.clear();
+    insB.clear();
+  }catch(int e){
+    Console::log("ClipperFillAreaToPolyTree Clean Path error", e);
+  }
+
 }
 
 Napi::Value ClipperFillAreaToPolyTree::OnError(Napi::Env env) {
@@ -163,7 +171,7 @@ Napi::Value ClipperFillAreaToPolyTree::OnOK(Napi::Env env) {
   // Console::timeStep("PolyTree");
 
   co.Clear();
-  resultPolyTree.Clear();
+  //resultPolyTree.Clear();
 
   return props;
 }
