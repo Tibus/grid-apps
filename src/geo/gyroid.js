@@ -19,9 +19,8 @@
      * @param res {number} resolution (pixels/slices per side)
      */
     function slice(off, res, val) {
-
-
-
+        ConsoleTool.timeStepStart("gyroid_slice");
+        
         // auto clear cach if it hasn't been hit in the last 20 seconds
         // or the requested resolution or tip values have changed
         let now = Date.now();
@@ -181,12 +180,15 @@
 
         let slice = {edge, points, dir, polys: psimple};
         cache[key] = slice;
+        ConsoleTool.timeStepEnd("gyroid_slice");
 
         return slice;
     }
 
     // merge co-linear and distance threshold
     function filter(poly, inc) {
+        ConsoleTool.timeStepStart("gyroid_filter");
+
         if (poly.length <= 2) {
             return poly;
         }
@@ -217,6 +219,8 @@
             e1 = el;
         }
         nupoly.push(poly[poly.length-1]);
+        ConsoleTool.timeStepEnd("gyroid_filter");
+
         return nupoly;
     }
 

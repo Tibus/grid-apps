@@ -59,27 +59,27 @@
     }
 
     function toClipper(polys = []) {
-        ConsoleTool.timeStepStart("f_toClipper");
+        ConsoleTool.timeStepStart("polygons_toClipper");
         let out = [];
         for (let poly of polys) {
             poly.toClipper(out);
         }
-        ConsoleTool.timeStepEnd("f_toClipper");
+        ConsoleTool.timeStepEnd("polygons_toClipper");
         return out;
     }
 
     function ToInt32Array(polys = []) {
-        ConsoleTool.timeStepStart("f_ToInt32Array");
+        ConsoleTool.timeStepStart("polygons_ToInt32Array");
         let out = [];
         for (let poly of polys) {
             poly.toInt32Array(out);
         }
-        ConsoleTool.timeStepEnd("f_ToInt32Array");
+        ConsoleTool.timeStepEnd("polygons_ToInt32Array");
         return out;
     }
 
     function fromClipperNode(tnode, z) {
-        ConsoleTool.timeStepStart("f_fromClipperNode");
+        ConsoleTool.timeStepStart("polygons_fromClipperNode");
         let poly = BASE.newPolygon();
         if(tnode.m_polygonBuffer){
             let indices = new Int32Array(tnode.m_polygonBuffer.buffer, tnode.m_polygonBuffer.byteOffset);
@@ -94,12 +94,12 @@
         }
 
         poly.open = tnode.IsOpen == 1;
-        ConsoleTool.timeStepEnd("f_fromClipperNode");
+        ConsoleTool.timeStepEnd("polygons_fromClipperNode");
         return poly;
     };
 
     function fromClipperTree(tnode, z, tops, parent, minarea, log = false, key="key") {
-        ConsoleTool.timeStepStart("f_fromClipperTree");
+        ConsoleTool.timeStepStart("polygons_fromClipperTree");
         let poly,
             polys = tops || [],
             min = numOrDefault(minarea, 0.1);
@@ -130,13 +130,14 @@
                 fromClipperTree(child, z, polys, parent ? null : poly, minarea);
             }
         }
-        ConsoleTool.timeStepEnd("f_fromClipperTree");
+
+        ConsoleTool.timeStepEnd("polygons_fromClipperTree");
 
         return polys;
     };
 
     function fromClipperTreeUnion(tnode, z, minarea, tops, parent) {
-        ConsoleTool.timeStepStart("f_fromClipperTreeUnion");
+        ConsoleTool.timeStepStart("polygons_fromClipperTreeUnion");
         let polys = tops || [], poly;
 
         for (let child of tnode.m_Childs) {
@@ -153,13 +154,13 @@
                 fromClipperTreeUnion(child, z, minarea, polys, parent ? null : poly);
             }
         }
-        ConsoleTool.timeStepEnd("f_fromClipperTreeUnion");
+        ConsoleTool.timeStepEnd("polygons_fromClipperTreeUnion");
 
         return polys;
     };
 
     function cleanClipperTree(tree) {
-        ConsoleTool.timeStepStart("f_cleanClipperTree");
+        ConsoleTool.timeStepStart("polygons_cleanClipperTree");
         let clib = self.ClipperLib,
             clip = clib.Clipper;
 
@@ -168,13 +169,13 @@
             child.m_polygon = clip.CleanPolygon(child.m_polygon, CONF.clipperClean);
             cleanClipperTree(child.m_Childs);
         }
-        ConsoleTool.timeStepEnd("f_cleanClipperTree");
+        ConsoleTool.timeStepEnd("polygons_cleanClipperTree");
 
         return tree;
     };
 
     function filter(array, output, fn) {
-        ConsoleTool.timeStepStart("f_filter");
+        ConsoleTool.timeStepStart("polygons_filter");
         for (let poly of array) {
             poly = fn(poly);
             if (poly) {
@@ -185,7 +186,7 @@
                 }
             }
         }
-        ConsoleTool.timeStepEnd("f_filter");
+        ConsoleTool.timeStepEnd("polygons_filter");
         return output;
     }
 
@@ -210,7 +211,7 @@
         if (!polygons) {
             return polygons;
         }
-        ConsoleTool.timeStepStart("f_nest");
+        ConsoleTool.timeStepStart("polygons_nest");
         // sort groups by size
         polygons.sort(function (a, b) {
             return a.area() - b.area();
@@ -260,7 +261,7 @@
                 }
             }
         }
-        ConsoleTool.timeStepEnd("f_nest");
+        ConsoleTool.timeStepEnd("polygons_nest");
         return tops;
     }
 
@@ -274,14 +275,14 @@
      */
     function setWinding(array, CW, recurse) {
         if (!array) return;
-        ConsoleTool.timeStepStart("f_setWinding");
+        ConsoleTool.timeStepStart("polygons_setWinding");
         let poly, i = 0;
         while (i < array.length) {
             poly = array[i++];
             if (poly.isClockwise() !== CW) poly.reverse();
             if (recurse && poly.inner) setWinding(poly.inner, !CW, false);
         }
-        ConsoleTool.timeStepEnd("f_setWinding");
+        ConsoleTool.timeStepEnd("polygons_setWinding");
     }
 
     /**
@@ -292,7 +293,7 @@
      * @return {boolean} true if aligned clockwise
      */
     function alignWindings(polys) {
-        ConsoleTool.timeStepStart("f_alignWindings");
+        ConsoleTool.timeStepStart("polygons_alignWindings");
         let len = polys.length,
             fwd = 0,
             pts = 0,
@@ -310,7 +311,7 @@
             poly = polys[i++];
             if (poly.isClockwise() != setCW) poly.reverse();
         }
-        ConsoleTool.timeStepEnd("f_alignWindings");
+        ConsoleTool.timeStepEnd("polygons_alignWindings");
         return setCW;
     }
 
@@ -322,13 +323,13 @@
     }
 
     function flatten(polys, to, crush) {
-         ConsoleTool.timeStepStart("f_flatten");
+         ConsoleTool.timeStepStart("polygons_flatten");
         if (!to) to = [];
         polys.forEach(function(poly) {
             poly.flattenTo(to);
             if (crush) poly.inner = null;
         });
-        ConsoleTool.timeStepEnd("f_flatten");
+        ConsoleTool.timeStepEnd("polygons_flatten");
         return to;
     }
 
@@ -345,7 +346,7 @@
      * @returns {Polygon[]} out
      */
     function subtract(setA, setB, outA, outB, z, minArea, opt = {}) {
-        ConsoleTool.timeStepStart("f_subtract");
+        ConsoleTool.timeStepStart("polygons_subtract");
 
         let min = minArea || 0.1,
             out = [];
@@ -392,6 +393,7 @@
             if(success && polytreeA){
                 successCpp = true;
                 filter(fromClipperTree(polytreeA, z, null, null, min), outA);
+
             }
             if(success && polytreeB){
                 successCpp = true;
@@ -401,7 +403,7 @@
             if(!successCpp){
                 console.log("success", success/*, error*/);
                 opt.cpp = false;
-                ConsoleTool.timeStepEnd("f_subtract");
+                ConsoleTool.timeStepEnd("polygons_subtract");
                 return subtract(setA, setB, outA, outB, z, minArea, opt);
             }
         } else {
@@ -442,7 +444,7 @@
             opt.prof.pout = (opt.prof.pout || 0) + points(out);
         }
 
-        ConsoleTool.timeStepEnd("f_subtract");
+        ConsoleTool.timeStepEnd("polygons_subtract");
         return out;
     }
 
@@ -461,7 +463,7 @@
      function union(polys, minarea, all, opt = {}) {
          if (polys.length < 2) return polys;
 
-         ConsoleTool.timeStepStart("f_union");
+         ConsoleTool.timeStepStart("polygons_union");
 
          if (false && opt.wasm && geo.wasm) {
              let min = minarea || 0.01;
@@ -498,7 +500,7 @@
              if (out[i]) uset.push(out[i]);
          }
 
-         ConsoleTool.timeStepEnd("f_union");
+         ConsoleTool.timeStepEnd("polygons_union");
          return uset;
      }
 
@@ -507,7 +509,7 @@
      * @returns {?Polygon[]}
      */
     function diff(setA, setB, z) {
-        ConsoleTool.timeStepStart("f_diff");
+        ConsoleTool.timeStepStart("polygons_diff");
         let clib = self.ClipperLib,
             ctyp = clib.ClipType,
             ptyp = clib.PolyType,
@@ -523,7 +525,7 @@
         if (clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
             let res = fromClipperTree(ctre, z);
 
-            ConsoleTool.timeStepEnd("f_diff");
+            ConsoleTool.timeStepEnd("polygons_diff");
             return res;
         } else {
             return null;
@@ -538,7 +540,7 @@
      * @returns {Polygon[]}
      */
     function trimTo(setA, setB) {
-        ConsoleTool.timeStepStart("f_trimTo");
+        ConsoleTool.timeStepStart("polygons_trimTo");
         // handle null/empty slices
         if (setA === setB || setA === null || setB === null) return null;
 
@@ -548,7 +550,7 @@
                 out.appendAll(tmp);
             }
         });
-        ConsoleTool.timeStepEnd("f_trimTo");
+        ConsoleTool.timeStepEnd("polygons_trimTo");
         return out;
     }
 
@@ -566,7 +568,7 @@
      * @param {number} [z] defaults to 0
      */
     function expand_lines(poly, distance, z) {
-        ConsoleTool.timeStepStart("f_expand_lines");
+        ConsoleTool.timeStepStart("polygons_expand_lines");
         let fact = CONF.clipper,
             clib = self.ClipperLib,
             cjnt = clib.JoinType,
@@ -579,7 +581,7 @@
 
         let res = fromClipperTree(ctre, z, null, null, 0);
 
-        ConsoleTool.timeStepEnd("f_expand_lines");
+        ConsoleTool.timeStepEnd("polygons_expand_lines");
         return res;
     }
 
@@ -594,11 +596,11 @@
      * @returns {Polygon[]} last offset
      */
     function expand(polys, distance, z, out, count, distance2, collector, min) {
-        ConsoleTool.timeStepStart("f_expand");
+        ConsoleTool.timeStepStart("polygons_expand");
         let res = offset(polys, [distance, distance2 || distance], {
             z, outs: out, call: collector, minArea: min, count, flat: true
         });
-        ConsoleTool.timeStepEnd("f_expand");
+        ConsoleTool.timeStepEnd("polygons_expand");
     }
 
     /**
@@ -607,24 +609,24 @@
      * in FDM mode and uncleared areas in CAM mode.
      */
     function offset(polys, dist, opts = {}) {
-        ConsoleTool.timeStepStart("f_offset");
+        ConsoleTool.timeStepStart("polygons_offset");
         // do not offset open lines
-        ConsoleTool.timeStepStart("filter");
+        ConsoleTool.timeStepStart("polygons_offset_filter");
         polys = polys.filter(p => !p.open);
-        ConsoleTool.timeStepEnd("filter");
+        ConsoleTool.timeStepEnd("polygons_offset_filter");
 
 
         // cause inner / outer polys to be reversed from each other
-        ConsoleTool.timeStepStart("alignWindings");
+        ConsoleTool.timeStepStart("polygons_offset_alignWindings");
         alignWindings(polys);
         for (let poly of polys) {
             if (poly.inner) {
                 setWinding(poly.inner, !poly.isClockwise());
             }
         }
-        ConsoleTool.timeStepEnd("alignWindings");
+        ConsoleTool.timeStepEnd("polygons_offset_alignWindings");
 
-        ConsoleTool.timeStepStart("value");
+        ConsoleTool.timeStepStart("polygons_offset_value");
 
         let orig = polys,
             count = numOrDefault(opts.count, 1),
@@ -640,8 +642,8 @@
             zed = opts.z || 0,
             polysCpp = [];
 
-        ConsoleTool.timeStepEnd("value");
-        ConsoleTool.timeStepStart("clipper");
+        ConsoleTool.timeStepEnd("polygons_offset_value");
+        ConsoleTool.timeStepStart("polygons_offset_clipper");
 
         if (opts.wasm && geo.wasm) {
             try {
@@ -663,13 +665,13 @@
             if(!success){
                 console.log("success", success, error);
                 opts.cpp = false;
-                ConsoleTool.timeStepEnd("f_offset");
+                ConsoleTool.timeStepEnd("polygons_offset");
                 return offset(polys, dist, opts);
             }
 
-            ConsoleTool.timeStepStart("fromClipperTree");
+            ConsoleTool.timeStepStart("polygons_offset_fromClipperTree");
             polys = fromClipperTree(polytree, zed, null, null, mina);
-            ConsoleTool.timeStepEnd("fromClipperTree");
+            ConsoleTool.timeStepEnd("polygons_offset_fromClipperTree");
         } else{
 
             let coff = new ClipperLib.ClipperOffset(opts.miter, opts.arc),
@@ -689,8 +691,8 @@
             polys = fromClipperTree(ctre, zed, null, null, mina);
         }
 
-        ConsoleTool.timeStepEnd("clipper");
-        ConsoleTool.timeStepStart("end");
+        ConsoleTool.timeStepEnd("polygons_offset_clipper");
+        ConsoleTool.timeStepStart("polygons_offset_end");
         // if specified, perform offset gap analysis
         if (opts.gaps && polys.length) {
             let oneg = offset(polys, -offs, {
@@ -725,9 +727,9 @@
                 offset(polys, dist, opts);
             }
         }
-        ConsoleTool.timeStepEnd("end");
+        ConsoleTool.timeStepEnd("polygons_offset_end");
 
-        ConsoleTool.timeStepEnd("f_offset");
+        ConsoleTool.timeStepEnd("polygons_offset");
         return opts.flat ? opts.outs : polys;
     }
 
@@ -737,7 +739,7 @@
      * and last offset (cmp) to produce gap candidates (for thinfill)
      */
     function inset(polys, dist, count, z, wasm) {
-        ConsoleTool.timeStepStart("f_inset");
+        ConsoleTool.timeStepStart("polygons_inset");
         let total = count;
         let layers = [];
         let ref = polys;
@@ -766,7 +768,7 @@
             }
             ref = off;
         }
-        ConsoleTool.timeStepEnd("f_inset");
+        ConsoleTool.timeStepEnd("polygons_inset");
         return layers;
     }
 
@@ -785,7 +787,7 @@
 
         if (polys.length === 0) return;
             
-        ConsoleTool.timeStepStart("f_fillArea");
+        ConsoleTool.timeStepStart("polygons_fillArea");
 
         let i = 1,
             p0 = polys[0],
@@ -804,12 +806,12 @@
             Math.sin(angle * DEG2RAD) * spacing
         );
 
-        ConsoleTool.timeStepStart("f_fillArea_while");
+        ConsoleTool.timeStepStart("polygons_fillArea_while");
         // compute union of top boundaries
         while (i < polys.length) {
             bounds.merge(polys[i++].bounds);
         }
-        ConsoleTool.timeStepEnd("f_fillArea_while");
+        ConsoleTool.timeStepEnd("polygons_fillArea_while");
 
         // ray stepping is an axis from the line perpendicular to the ray
         let rayint = output || [],
@@ -834,7 +836,7 @@
         // store origin as start/affinity point for fill
         rayint.origin = newPoint(start.x, start.y, start.z);
 
-        ConsoleTool.timeStepStart("f_fillArea_AddPaths");
+        ConsoleTool.timeStepStart("polygons_fillArea_AddPaths");
         if(opt.cpp !== false && self.forceUsingJSInsteadOfCPP == false){
 
             let int32 = new Int32Array(steps * 4);
@@ -874,8 +876,8 @@
             if(!success){
                 console.log("success", success, error);
                 opt.cpp = false;
-                ConsoleTool.timeStepEnd("f_fillArea");
-                ConsoleTool.timeStepEnd("f_fillArea_AddPaths");
+                ConsoleTool.timeStepEnd("polygons_fillArea");
+                ConsoleTool.timeStepEnd("polygons_fillArea_AddPaths");
                 return fillArea(polys, angle, spacing, output, minLen, maxLen, opt)
             }
 
@@ -913,15 +915,15 @@
                 }
             }
         }
-        ConsoleTool.timeStepEnd("f_fillArea_AddPaths");
+        ConsoleTool.timeStepEnd("polygons_fillArea_AddPaths");
 
-        ConsoleTool.timeStepStart("f_fillArea_sort");
+        ConsoleTool.timeStepStart("polygons_fillArea_sort");
         lines.sort(function(a,b) {
             return a[2] - b[2];
         })
-        ConsoleTool.timeStepEnd("f_fillArea_sort");
+        ConsoleTool.timeStepEnd("polygons_fillArea_sort");
 
-        ConsoleTool.timeStepStart("f_fillArea_for");
+        ConsoleTool.timeStepStart("polygons_fillArea_for");
         for (let line of lines) {
             let dist = Math.round(line[2]);
             line[0].index = dist;
@@ -929,10 +931,10 @@
             rayint.push(line[0]);
             rayint.push(line[1]);
         }
-        ConsoleTool.timeStepEnd("f_fillArea_for");
+        ConsoleTool.timeStepEnd("polygons_fillArea_for");
 
 
-        ConsoleTool.timeStepEnd("f_fillArea");
+        ConsoleTool.timeStepEnd("polygons_fillArea");
         return rayint;
     }
 
@@ -947,7 +949,7 @@
      * @returns {Point[]}
      */
     function rayIntersect(start, slope, polygons, for_fill) {
-        ConsoleTool.timeStepStart("f_rayIntersect");
+        ConsoleTool.timeStepStart("polygons_rayIntersect");
 
         let i = 0,
             flat = [],
@@ -1075,12 +1077,12 @@
             }
         }
 
-        ConsoleTool.timeStepEnd("f_rayIntersect");
+        ConsoleTool.timeStepEnd("polygons_rayIntersect");
         return points;
     }
 
     function fingerprint(polys) {
-        ConsoleTool.timeStepStart("f_fingerprint");
+        ConsoleTool.timeStepStart("polygons_fingerprint");
 
         let finger = [];
         flatten(polys).sort((a,b) => {
@@ -1092,7 +1094,7 @@
                 b: p.bounds
             });
         });
-        ConsoleTool.timeStepEnd("f_fingerprint");
+        ConsoleTool.timeStepEnd("polygons_fingerprint");
         return finger;
     }
 

@@ -231,6 +231,7 @@ Napi::Value ClipperOffsetToPolyTree::OnOK(Napi::Env env) {
   // Console::timeStep("PolyTree");
 
   co.Clear();
+  resultPolyTree.Clear();
 
   return props;
 }

@@ -108,4 +108,14 @@
     }
     console.log("-----<<< END TIME STEP LOG >>>----")
   }
+
+  ConsoleTool.logAllTimeStepWithMin =function (min = 10){
+    console.log("----->>> START TIME STEP LOG <<<----")
+    for(const key in this.totalStep){
+      if(this.totalStep[key]> min){
+        console.log(`${key}: ${this.totalStep[key]} ms`);
+      }
+    }
+    console.log("-----<<< END TIME STEP LOG >>>----")
+  }
 })();

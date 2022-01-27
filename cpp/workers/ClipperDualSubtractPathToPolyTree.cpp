@@ -211,6 +211,8 @@ Napi::Value ClipperDualSubtractPathToPolyTree::OnOK(Napi::Env env) {
   // Console::timeStep("DualSubtract PolyTree");
 
   co.Clear();
+  resultPolyTreeA.Clear();
+  resultPolyTreeB.Clear();
 
   return props;
 }

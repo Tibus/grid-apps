@@ -63,6 +63,8 @@
             xray = options.xray,
             ox = 0,
             oy = 0;
+        
+        ConsoleTool.timeStepStart("slicer_slice_firstPart");
 
         // support moving parts below bed to "cut" them in Z
         // and/or flatten part bottoms belowa a given thresold
@@ -324,11 +326,13 @@
             bucketZ(i, zIndexes[i], zHeights[i], onFlat, onLine, zThick[i]);
             onupdate((i / zIndexes.length) * 0.1);
         }
-
+        ConsoleTool.timeStepEnd("slicer_slice_firstPart");
         // create slices from each bucketed region
-        ConsoleTool.timeStepStart("slicer_sliceBuckets");
+        ConsoleTool.timeStepStart("slicer_slice_sliceBuckets");
         sliceBuckets().then(slices => {
-            ConsoleTool.timeStepEnd("slicer_sliceBuckets");
+            ConsoleTool.timeStepEnd("slicer_slice_sliceBuckets");
+            ConsoleTool.timeStepStart("slicer_slice_afterSliceBuckets");
+
             slices = slices.sort((a,b) => a.index - b.index);
 
             // connect slices into linked list for island/bridge projections
@@ -338,6 +342,7 @@
             }
 
             slices.slice_time = time() - timeStart;
+            ConsoleTool.timeStepEnd("slicer_slice_afterSliceBuckets");
 
             // pass Slices array back to ondone function
             ondone(slices);

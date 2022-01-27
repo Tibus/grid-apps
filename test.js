@@ -19,16 +19,15 @@ engine.setListener((mess)=>{
   // console.log("mess", mess)
 });
 
-console.time("totalSlicing");
+console.time("test_totalSlicing");
 engine.parse(buf)
     .then(data => {
         // console.log({loaded: data});
     })
     .then(() => {
-        console.time("move");
+        console.time("test_move");
         engine.moveTo(1,1,1);
     })
-    //.then(() => engine.setCenter(110,110))
     .then(() => {
         return engine.setProcess({
             "antiBacklash":0,
@@ -108,8 +107,8 @@ engine.parse(buf)
             "outputFanSpeed":255});
     })
     .then(() => {
-        console.timeEnd("move");
-        console.time("setDevice");
+        console.timeEnd("test_move");
+        console.time("test_setDevice");
         return engine.setDevice({
             "noclone":false,
             "mode":"FDM",
@@ -176,32 +175,33 @@ engine.parse(buf)
         });
     })
     .then(eng => {
-        console.timeEnd("setDevice");
-        console.time("slice");
+        console.timeEnd("test_setDevice");
+        console.time("test_slice");
         return eng.slice();
        
     })
     .then(eng => {
-        console.timeEnd("slice");
-        console.time("prepare");
+        console.timeEnd("test_slice");
+        console.time("test_prepare");
         return eng.prepare()
     })
     .then(eng => {
-        console.timeEnd("prepare");
-        console.time("export");
+        console.timeEnd("test_prepare");
+        console.time("test_export");
         return eng.export();
         //console.timeEnd("export");
     })
     .then((gcode) => {
-        console.timeEnd("export");
+        console.timeEnd("test_export");
         fs.writeFileSync("standalone.gcode", gcode);
-        console.timeEnd("totalSlicing");
+        console.timeEnd("test_totalSlicing");
     })
     .catch(error => {
         console.log({error});
     }).then(() =>{
-        self.consoleTool.logCount();
-        self.consoleTool.logValue();
-        self.consoleTool.logAllTimeStep();
+        //self.consoleTool.logCount();
+        //self.consoleTool.logValue();
+        // self.consoleTool.logAllTimeStep();
+        self.consoleTool.logAllTimeStepWithMin(50);
         // self.Shape2D.logAll();
     });
