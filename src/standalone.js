@@ -13,18 +13,33 @@ if (electron && electron.remote){
 
 let THREE = global.THREE = require("@mango3d/three");
 
-let navigator = { userAgent: "" };
-let self = {
+let navigator = global.navigator = { userAgent: "" };
+let toSelf = {
     THREE: THREE,
     forceUsingJSInsteadOfCPP: false,
     kiri : { driver: {}, loader: [] },
     location : { hostname: 'local', port: 0, protocol: 'fake' },
 }
 
+let self;
+let inTestEnvironment = false;
+if(global.self === "selfToReplaceForTest"){
+    inTestEnvironment = true;
+    self = global.self = toSelf;
+}else{
+    self = toSelf;
+}
+
+self.Shape2D = require("bindings")("gridapp");
+
+
 let gapp = {
     register:(file)=>{
         //...
     }
+}
+if(inTestEnvironment){
+    global.gapp = gapp;
 }
 
 self.postMessage = (msg) => {
@@ -65,6 +80,10 @@ class Worker {
         // if we end up here, something went wrong
         console.trace('worker terminate');
     }
+}
+
+if(inTestEnvironment){
+    global.Worker = Worker;
 }
 
 // node is missing these functions so put them in scope during eval

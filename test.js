@@ -1,56 +1,21 @@
-let addon3D;
-
-try {
-  addon3D = require('./build/Debug/gridapp');
-} catch (error) {
-  addon3D = require('./build/Release/gridapp');
-}
-
-console.log("addon3D :", addon3D.test());
+//Do Not more/remove/modify this lines, it's for "in addon" running
+global.self = "selfToReplaceForTest";
 
 let fs = require('fs');
+const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/), "./src/kiri/engine.js"];
+files.map(f => f && require(f));
 
-/* ---------------------------- */
-/* only if THREE is not defined */
-/* ---------------------------- */
-exports = {};
-THREE = {}
-eval(fs.readFileSync("./node_modules/three/build/three.min.js").toString());
-Object.assign(THREE, exports);
-
-/* ---------------------------- */
-/* only if THREE is not defined */
-/* ---------------------------- */
-
-
-// eval(fs.readFileSync("./code/standalone.js").toString());
-let self = require("./code/test.js");
 let kiri = self.kiri;
-
 let engine = kiri.newEngine();
+
+// If you want to force using JS instead of CPP, uncommand this line :
 // self.forceUsingJSInsteadOfCPP = true;
 
-//let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
-//let buf = new Uint8Array(fs.readFileSync('/Users/tibus/Works/resinPrinter/MangoApp/bin/stl/poussin.stl')).buffer;
 let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
-// return;
 
-// let buf = fs.readFileSync('./web/obj/poussin.stl').buffer;
-let previousUpdateStatus = "";
 engine.setListener((mess)=>{
-  // if (mess.updateStatus) {
-  //   if (mess.updateStatus !== previousUpdateStatus) {
-  //     console.timeEnd(previousUpdateStatus);
-  //     console.time(mess.updateStatus);
-  //     previousUpdateStatus = mess.updateStatus;
-  //   }
-  // }
-  //
-  // if (mess && mess.export && mess.export.done) {
-  //   console.timeEnd(previousUpdateStatus);
-  // }
-
   // console.log("mess", mess)
 });
 
@@ -240,4 +205,3 @@ engine.parse(buf)
         self.consoleTool.logAllTimeStep();
         // self.Shape2D.logAll();
     });
-

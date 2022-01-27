@@ -1,0 +1,5 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Debug Node And C++" type="ChromiumRemoteDebugType" factoryName="Chromium Remote" port="9882" restartOnDisconnect="true">
+    <method v="2" />
+  </configuration>
+</component>

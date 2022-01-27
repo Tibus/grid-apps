@@ -1,3 +1,4 @@
+
 ./src/standalone.js
 ./src/consoleTool.js
 ./src/main/kiri.js
@@ -49,7 +50,5 @@
 ./src/kiri/codec.js
 ./src/kiri/worker.js
 ./src/load/stl.js
-
-./src/kiri/engine.js
 
 ./src/standalone_end.js

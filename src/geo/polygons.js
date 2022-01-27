@@ -1,16 +1,13 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
-const Shape2D = require("bindings")("gridapp");
-
 "use strict";
 
 (function() {
-
-    self.Shape2D = Shape2D;
 
     if (!self.base) self.base = {};
     if (self.base.polygons) return;
 
     const BASE = self.base,
+        Shape2D = self.Shape2D,
         UTIL = BASE.util,
         ConsoleTool = self.consoleTool,
         CONF = BASE.config,
