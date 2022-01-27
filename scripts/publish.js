@@ -10,7 +10,7 @@ function log(message, color = "\x1b[33m%s\x1b[0m") {
 }
 
 async function execute(...command) {
-  
+
   await new Promise((res) => {
     const { spawn } = require("child_process");
     command = command.join(" && ");
@@ -35,21 +35,16 @@ async function execute(...command) {
 
 (async () => {
   const VERSION = require('../package.json').version;
-  
+
   log("VERSION : "+VERSION, "\x1b[34m");
-  
+
   await execute("npm install");
   await execute("git add --all");
   await execute("git diff-index --quiet HEAD || git commit -m \"Bump " + VERSION + "\"");
-  await execute("git push");
-  await execute("git switch master");
-  await execute("git merge develop");
   await execute("git tag " + VERSION + "");
   await execute("git push");
   await execute("git push --tags");
   await execute("npm publish");
-  await execute("git switch develop");
-  await execute("git merge master");
-  
+
   log("UPDATE COMPLETED", "\x1b[34m");
 })()
