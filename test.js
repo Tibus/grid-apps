@@ -13,7 +13,8 @@ let engine = kiri.newEngine();
 
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
-let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/bigCube.stl')).buffer;
 
 engine.setListener((mess)=>{
   // console.log("mess", mess)
@@ -37,7 +38,7 @@ engine.parse(buf)
             "firstLayerPrintMult":1.15,
             "firstLayerYOffset":0,
             "firstLayerBrim":0,
-            "firstLayerBeltLead":3, 
+            "firstLayerBeltLead":3,
             "firstSliceHeight":0.25,
             "firstLayerFillRate":35,
             "firstLayerLineMult":1,
@@ -92,14 +93,14 @@ engine.parse(buf)
             "sliceSolidLayers":3,
             "sliceBottomLayers":3,
             "sliceTopLayers":3,
-        
-            
+
+
             "sliceFillRate":0,
             "sliceSupportEnable":false,
             "detectThinWalls":true,
             "zHopDistance":0,
-            
-        
+
+
             "arcTolerance":0,
             "gcodePause":"",
             "ranges":[],
@@ -178,7 +179,7 @@ engine.parse(buf)
         console.timeEnd("test_setDevice");
         console.time("test_slice");
         return eng.slice();
-       
+
     })
     .then(eng => {
         console.timeEnd("test_slice");

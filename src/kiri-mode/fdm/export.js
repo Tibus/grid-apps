@@ -41,6 +41,8 @@
             extrudeAbs = device.extrudeAbs || false,
             extrudeSet = false,
             time = 0,
+            numMove = 0,
+            numExtrude = 0,
             layer = 0,
             layerno = 0,
             pause = [],
@@ -198,7 +200,7 @@
             // consider alternate transfer schemes like indexeddb
             // since this transfers the burden to the main thread
             if (!line || output.length > 1000) {
-                online(output.join("\n"));
+                online(output.join("\n"), layerno/layers.length);
                 output = [];
             }
         };
@@ -371,6 +373,13 @@
                     pingRemain -= newpos.e;
                 }
             }
+
+            if(!newpos.e){
+                numMove++;
+            }else{
+                numExtrude++;
+            }
+
             let o = [!rate && !newpos.e ? 'G0' : 'G1'];
             let emit = { x: false, y: false, z: false };
             if (typeof newpos.x === 'number' && newpos.x !== pos.x) {
@@ -910,8 +919,11 @@
         print.segments = isPalette ? segments : undefined;
         print.distance = emitted;
         print.lines = lines;
+        print.layers = layerno;
         print.bytes = bytes + lines - 1;
         print.time = time;
+        print.numMove = numMove;
+        print.numExtrude = numExtrude;
 
         if (debug) {
             console.log('segments', segments);
