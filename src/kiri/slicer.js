@@ -38,9 +38,9 @@
      * @param {Function} onupdate callback on incremental updates
      */
     function sliceWidget(widget, options, ondone, onupdate) {
-        ConsoleTool.timeStepStart("slicer_sliceWidget");
+        // ConsoleTool.timeStepStart("slicer_sliceWidget");
         slice(widget.getPoints(), widget.getBoundingBox(), options, ondone, onupdate);
-        ConsoleTool.timeStepEnd("slicer_sliceWidget");
+        // ConsoleTool.timeStepEnd("slicer_sliceWidget");
     }
 
     /**
@@ -63,8 +63,8 @@
             xray = options.xray,
             ox = 0,
             oy = 0;
-        
-        ConsoleTool.timeStepStart("slicer_slice_firstPart");
+
+        // ConsoleTool.timeStepStart("slicer_slice_firstPart");
 
         // support moving parts below bed to "cut" them in Z
         // and/or flatten part bottoms belowa a given thresold
@@ -325,12 +325,12 @@
             bucketZ(i, zIndexes[i], zHeights[i], onFlat, onLine, zThick[i]);
             onupdate((i / zIndexes.length) * 0.1);
         }
-        ConsoleTool.timeStepEnd("slicer_slice_firstPart");
+        // ConsoleTool.timeStepEnd("slicer_slice_firstPart");
         // create slices from each bucketed region
-        ConsoleTool.timeStepStart("slicer_slice_sliceBuckets");
+        // ConsoleTool.timeStepStart("slicer_slice_sliceBuckets");
         sliceBuckets().then(slices => {
-            ConsoleTool.timeStepEnd("slicer_slice_sliceBuckets");
-            ConsoleTool.timeStepStart("slicer_slice_afterSliceBuckets");
+            // ConsoleTool.timeStepEnd("slicer_slice_sliceBuckets");
+            // ConsoleTool.timeStepStart("slicer_slice_afterSliceBuckets");
 
             slices = slices.sort((a,b) => a.index - b.index);
 
@@ -341,7 +341,7 @@
             }
 
             slices.slice_time = time() - timeStart;
-            ConsoleTool.timeStepEnd("slicer_slice_afterSliceBuckets");
+            // ConsoleTool.timeStepEnd("slicer_slice_afterSliceBuckets");
 
             // pass Slices array back to ondone function
             ondone(slices);
