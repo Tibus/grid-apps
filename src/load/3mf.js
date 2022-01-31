@@ -7,12 +7,15 @@
 let load = self.load = self.load || {};
 if (load.TMF) return;
 
+// dep: add.three
 // dep: ext.jszip
 gapp.register('load.3mf');
 
 load.TMF = {
     parseAsync
 };
+
+let { BufferAttribute, Matrix4 } = THREE;
 
 function query(node, path, fn) {
     let collect = false;
@@ -35,13 +38,10 @@ function query(node, path, fn) {
 
 function loadModel(doc) {
     let models = [];
-    function emitModel(model, faces) {
-        if (faces && faces.length) {
-            models.push({name: model, faces});
-        }
-    }
+    let byid = {};
 
     return new Promise((resolve, reject) => {
+        let id;
         let model;
         let faces;
         let units;
@@ -55,6 +55,16 @@ function loadModel(doc) {
             "centimeter": (1 / 10)
         };
 
+        function emitModel() {
+            if (!(faces && faces.length)) {
+                return;
+            }
+            models.push({name: model, faces});
+            if (id) {
+                byid[id] = models.peek();
+            }
+        }
+
         query(doc, ["+model","resources","+object","+mesh"], (type, node) => {
             switch (type) {
                 case "model":
@@ -64,9 +74,26 @@ function loadModel(doc) {
                     }
                     break;
                 case "object":
-                    emitModel(model, faces);
+                    // emit previous model
+                    emitModel();
                     faces = [];
+                    id = node.getAttribute("id") || undefined;
                     model = node.getAttribute("name") || undefined;
+                    query(node, ["components","+component"], (type, node) => {
+                        let objectid = node.getAttribute('objectid');
+                        let mat = node.getAttribute('transform').split(' ').map(v => parseFloat(v));
+                        mat = [
+                            ...mat.slice(0,3), 0,
+                            ...mat.slice(3,6), 0,
+                            ...mat.slice(6,9), 0,
+                            ...mat.slice(9,12), 1
+                        ];
+                        let ref = byid[objectid];
+                        if (!ref) return;
+                        let m4 = new Matrix4().fromArray(mat);
+                        let pos = new BufferAttribute(ref.faces.toFloat32(), 3).applyMatrix4(m4);
+                        faces.appendAll(pos.array);
+                    });
                     break;
                 case "mesh":
                     let vertices = [];
@@ -89,7 +116,7 @@ function loadModel(doc) {
             }
         });
 
-        emitModel(model, faces);
+        emitModel();
         resolve(models);
     });
 }

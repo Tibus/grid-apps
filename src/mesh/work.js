@@ -9,11 +9,21 @@ moto.client.start(`/code/mesh_pool?${gapp.version}`, moto.client.max() * 0);
 
 // dep: ext.three
 // dep: ext.three-bgu
+// dep: geo.base
+// dep: geo.line
+// dep: geo.point
+// dep: geo.polygon
+// dep: geo.polygons
+// dep: geo.bounds
+// dep: geo.slicer
+// dep: geo.csg
+// dep: ext.clip2
 gapp.finalize("mesh.work", [
     "moto.license", // dep: moto.license
     "moto.client",  // dep: moto.client
     "moto.worker",  // dep: moto.worker
     "mesh.tool",    // dep: mesh.tool
+    "mesh.util",    // dep: mesh.util
     "add.three",    // dep: add.three
 ]);
 
@@ -23,6 +33,7 @@ let { Matrix4, Vector3, BufferGeometry, BufferAttribute, computeFaceNormal } = T
 let core_matrix = new Matrix4().makeRotationX(Math.PI / 2);
 
 let { client, worker } = moto;
+let { util } = mesh;
 let cache = {};
 
 function log(msg) {
@@ -48,25 +59,23 @@ function translate_encode(id, matrix) {
 }
 
 function analyze(id, opt = {}) {
-    log(`${id} | indexing...`);
+    log(`${id} | analyzing...`);
     let geo = cache[id].geo;
     let tool = new mesh.tool({
         vertices: geo.attributes.position.array,
-        faces: geo.index ? geo.index.array : undefined,
         debug: false
     });
-    log(`${id} | analyzing...`);
-    tool.heal(opt);
+    log(`${id} | patching...`);
+    tool.patch(opt);
     dbug.log(tool);
     return tool;
 }
 
 let model = {
     load(data) {
-        let { vertices, indices, name, id } = data;
+        let { vertices, name, id } = data;
         let geo = new BufferGeometry();
         geo.setAttribute('position', new BufferAttribute(vertices, 3));
-        if (indices) geo.setIndex(new BufferAttribute(indices, 1));
         cacheUpdate(id, { name, geo, xmatrix: core_matrix.clone(), trans: undefined });
     },
 
@@ -108,6 +117,13 @@ let model = {
             p += arrays[i++].length;
         }
         return data;
+    },
+
+    union(recs) {
+        let arrays = recs.map(rec => translate_encode(rec.id, rec.matrix));
+        let solids = arrays.map(a => base.CSG.fromPositionArray(a));
+        let union = base.CSG.union(...solids);
+        return base.CSG.toPositionArray(union);
     },
 
     // used to generate a list for split snapping
@@ -233,8 +249,9 @@ let model = {
         let { id, opt } = data;
         let tool = analyze(id, opt);
         log(`${id} | unrolling...`);
+        let unrolled = tool.unrolled();
         return {
-            vertices: tool.unrolled().toFloat32(),
+            vertices: unrolled.toFloat32(),
         };
     },
 
@@ -281,6 +298,52 @@ let model = {
             faces.push(Math.min(a,b,c) / 3);
         }
         return { faces, edges, verts, point };
+    },
+
+    rebuild(data, send) {
+        let { id, matrix } = data;
+        log(`${id} | rebuilding...`);
+        let points = translate_encode(id, matrix);
+        log(`${id} | ${points.length} points`);
+        send.async();
+        let layers = [];
+        base.slice(points, {
+            autoDim: true,
+            flat: true,
+            both: true,
+            debug: true,
+            minstep: 0.25,
+        }).then(output => {
+            let { points, slices } = output;
+            log(`${id} | ${slices.length} slices Z`);
+            for (let slice of slices) {
+                for (let line of slice.lines) {
+                    layers.appendAll(util.extract(line.p1));
+                    layers.appendAll(util.extract(line.p2));
+                }
+            }
+            for (let p of points) p.swapXZ();
+            return base.slice(points, {
+                autoDim: true,
+                both: true,
+                debug: true,
+                minstep: 0.25,
+            }).then(output => {
+                let { points, slices } = output;
+                log(`${id} | ${slices.length} slices X`);
+                for (let slice of slices) {
+                    for (let line of slice.lines) {
+                        if (!line.p1.swapped) { line.p1.swapXZ().swapped = true }
+                        if (!line.p2.swapped) { line.p2.swapXZ().swapped = true }
+                        layers.appendAll(util.extract(line.p1));
+                        layers.appendAll(util.extract(line.p2));
+                    }
+                }
+            });
+        }).finally(() => {
+            log(`${id} | rebuild complete`);
+            send.done({ lines: layers });
+        });;
     }
 };
 

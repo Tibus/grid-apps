@@ -127,8 +127,6 @@
             gcodeLayer: valueOf(cmd.layer || code.layer, []),
             gcodePre: valueOf(code.pre, []),
             gcodePost: valueOf(code.post, []),
-            gcodeExt: valueOf(code.ext, []),
-            gcodeInt: valueOf(code.int, []),
             // post processor script of which only one exists
             // for XYZ.daVinci.Mini.w triggered in kiri.export
             // in the fdm driver to turn gcode into base64
@@ -287,8 +285,6 @@
                     maxHeight: 150,
                     gcodePre: [],
                     gcodePost: [],
-                    gcodeExt: [],
-                    gcodeInt: [],
                     gcodeProc: "",
                     gcodeFan: [],
                     gcodeTrack: [],
@@ -510,6 +506,7 @@
                     camDrillDown: 5,
                     camDrillDwell: 250,
                     camDrillLift: 2,
+                    camDrillMark: false,
                     camDrillingOn: false,
                     camRegisterSpeed: 1000,
                     camFlipAxis: "X",
@@ -682,6 +679,7 @@
                 zoomSpeed: 1.0,
                 lineType: "path",
                 autoSave: true,
+                antiAlias: true,
                 reverseZoom: true,
                 showOrigin: false,
                 showRulers: true,

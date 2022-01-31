@@ -113,7 +113,7 @@ let selection = {
             selection.remove(s);
         }
         for (let m of api.model.list()) {
-            m.clearSelections()
+            m.clearSelections();
         }
     },
 
@@ -133,7 +133,7 @@ let selection = {
         }
         // prevent selection of model and its group
         let mgsel = selected.filter(s => s instanceof mesh.model).map(m => m.group);
-        selected = selected.filter(sel => !mgsel.contains(sel));
+        selected = selected.filter(sel => !mgsel.contains(sel)).filter(v => v);
         // highlight selected
         for (let object of selected) {
             object.select(true);
@@ -312,6 +312,22 @@ let tool = {
         });
     },
 
+    union(models) {
+        models = fallback(models);
+        api.log.emit(`union ${models.length} model(s)`).pin();
+        worker.model_union(models.map(m => {
+            return { id: m.id, matrix: m.matrix }
+        }))
+        .then(data => {
+            let group = api.group.new([new mesh.model({
+                file: `unioned`,
+                mesh: data
+            })]).promote();
+            api.selection.set([group]);
+            api.log.emit('union complete').unpin();
+        });
+    },
+
     duplicate() {
         for (let m of selection.models()) {
             m.duplicate();
@@ -367,7 +383,7 @@ let tool = {
             mesh.api.group.new(models)
                 .centerModels()
                 .position(mid.x, mid.y, mid.z)
-                .select();
+                .setSelected();
         });
     },
 
@@ -375,7 +391,6 @@ let tool = {
         models = fallback(models);
         api.log.emit('analyzing mesh(es)...').pin();
         let promises = [];
-        let newmdl = [];
         let mcore = new Matrix4().makeRotationX(Math.PI / 2);
         for (let m of models) {
             // todo - translate vertices with source model's matrix
@@ -385,14 +400,13 @@ let tool = {
                     file: (area.length/3).toString(),
                     mesh: area.toFloat32()
                 })).map( nm => nm.applyMatrix4(mcore.clone().multiply(m.mesh.matrixWorld)) );
-                newmdl.appendAll(nm);
+                if (nm.length) {
+                    mesh.api.group.new(nm, undefined, "patch").setSelected();
+                }
             });
             promises.push(p);
         }
         Promise.all(promises).then(() => {
-            if (newmdl.length) {
-                mesh.api.group.new(newmdl, undefined, "patch").select();
-            }
             api.log.emit('analysis complete').unpin();
         });
     },
@@ -430,12 +444,16 @@ let tool = {
         });
     },
 
-    clean(models = selection.models()) {
+    clean(models) {
         models = fallback(models);
         tool.heal(models, { merge: false }).then(() => {
             api.log.emit('cleaning complete').unpin();
             api.selection.update();
         });
+    },
+
+    rebuild(models) {
+        Promise.all(fallback(models).map(m => m.rebuild()));
     }
 };
 

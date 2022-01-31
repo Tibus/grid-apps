@@ -3,44 +3,19 @@
 "use strict";
 
 /**
- * Slicing engine used by FDM, Laser, and SLA
+ * basic slice and line connection. In future, replace kiri's fdm and cam slicers
+ * with wrappers on this one.
  */
 (function() {
 
-    if (self.kiri.slicer) return;
+    let base = self.base;
+    if (base.slice) return;
 
-    self.kiri.slicer = {
-        slice,
-        sliceZ,
-        sliceWidget,
-        connectLines,
-        createSlice
-    };
+    let { config, util, polygons } = base
+    let { newOrderedLine, newPolygon, newPoint } = base;
 
-    let KIRI = self.kiri,
-        BASE = self.base,
-        ConsoleTool = self.consoleTool,
-        CONF = BASE.config,
-        UTIL = BASE.util,
-        POLY = BASE.polygons,
-        time = UTIL.time,
-        tracker = UTIL.pwait,
-        newSlice = KIRI.newSlice,
-        newOrderedLine = BASE.newOrderedLine,
-        beltfact = Math.cos(Math.PI/4);
-
-    /**
-     * Convenience method. Gets a Widget's points and calls slice()
-     *
-     * @param {Widget} widget
-     * @param {Object} options
-     * @param {Function} ondone callback when slicing complete
-     * @param {Function} onupdate callback on incremental updates
-     */
-    function sliceWidget(widget, options, ondone, onupdate) {
-        ConsoleTool.timeStepStart("slicer_sliceWidget");
-        slice(widget.getPoints(), widget.getBoundingBox(), options, ondone, onupdate);
-        ConsoleTool.timeStepEnd("slicer_sliceWidget");
+    function dval(v, dv) {
+        return v !== undefined ? v : dv;
     }
 
     /**
@@ -49,359 +24,188 @@
      * function. onupdate() will be called with two parameters (% completion
      * and an optional message) so that the UI can report progress to the user.
      *
-     * @param {Array} points vertex array
-     * @param {Bounds} bounds bounding box for points
+     * @param {Point[]} points vertex array
      * @param {Object} options slicing parameters
-     * @param {Function} ondone callback when slicing done
-     * @param {Function} onupdate callback to report slicing progress
      */
-    function slice(points, bounds, options, ondone, onupdate) {
-        let useFlats = options.flats,
-            isBelt = options.isBelt || false,
-            zPress = options.zPress || 0, // lower z values less than zPress (flaten bottoms)
-            zCut = options.zCut || 0, // cut bottom off model below bed/belt
-            xray = options.xray,
-            ox = 0,
-            oy = 0;
-        
-        ConsoleTool.timeStepStart("slicer_slice_firstPart");
-
-        // support moving parts below bed to "cut" them in Z
-        // and/or flatten part bottoms belowa a given thresold
-        if (zCut || zPress) {
-            for (let p of points) {
-                if (!p._z) {
-                    p._z = p.z;
-                    if (zPress) {
-                        if (isBelt) {
-                            let zb = (p.z - p.y) * beltfact;
-                            if (zb > 0 && zb <= zPress) {
-                                p.y += zb * beltfact;
-                                p.z -= zb * beltfact;
-                            }
-                        } else {
-                            if (p.z <= zPress) p.z = 0;
-                        }
-                    }
-                    if (zCut && !isBelt) {
-                        p.z -= zCut;
-                    }
-                }
-            }
-        }
-
-        let zMin = options.zmin || options.firstHeight || Math.floor(bounds.min.z),
-            zMax = options.zmax || Math.ceil(bounds.max.z),
-            zInc = options.height,
-            zIncMin = options.minHeight,
-            zIncFirst = options.firstHeight || zInc,
-            zOff = true ? zInc / 2 : 0,
-            zHeights = [],      // heights for zIndexes in adaptive mode
-            zIndexes = [],      // auto-detected z slicing offsets (laser/cam)
-            zOrdered = [],      // ordered list of Z indexes
-            zThick = [],        // ordered list of Z slice thickness (laser)
-            zList = {},         // map count of z index points for adaptive slicing
-            zFlat = {},         // map area of z index flat areas (cam)
-            zLines = {},        // map count of z index lines
+    async function slice(points, options = {}) {
+        let zMin = options.zmin || 0,
+            zMax = options.zmax || 0,
+            zInc = options.zinc || 0,
+            zIndexes = options.indices || [],
+            minStep = options.minstep || 0,
+            zFlat = {},         // map area of z index flat areas
+            zList = {},         // fast map of z indexes
             zScale,             // bucket span in z units
-            timeStart = time(),
-            zSum = 0.0,
-            buckets = [],
-            i, j = 0, k, p1, p2, p3, px,
-            CPRO = KIRI.driver.CAM.process,
-            useAssembly = options.useAssembly,
-            concurrent = options.concurrent ? KIRI.minions.concurrent : 0;
+            zSum = 0.0,         // sanity check that points enclose non-zere volume
+            buckets = [],       // banded/grouped faces to speed up slice/search
+            overlapMax = options.overlap || 0.75,
+            bucketMax = options.bucketmax || 100,
+            onupdate = options.onupdate || function() {},
+            sliceFn = dval(options.slicer, sliceZ),
+            { debug, flat, autoDim } = options,
+            i, j, p1, p2, p3;
 
-        if (options.add) {
-            zMax += zInc;
+        if (!(points && points.length)) {
+            throw "missing points array";
         }
 
-        function countZ(z) {
-            z = UTIL.round(z,5);
-            zList[z] = (zList[z] || 0) + 1;
+        // convert threejs position array into points array
+        if (flat) {
+            let array = [];
+            for (i=0, j=points.length; i<j; ) {
+                array.push(newPoint(
+                    points[i++].round(3),
+                    points[i++].round(3),
+                    points[i++].round(3)
+                ));
+            }
+            points = array;
+        } else {
+            // round points
+            for (i = 0; i < points.length; i++) {
+                points[i] = points[i].round(3);
+            }
+
         }
 
         // gather z-index stats
-        // these are used for auto-slicing in laser
-        // and to flats detection in CAM mode
         for (i = 0; i < points.length;) {
             p1 = points[i++];
             p2 = points[i++];
             p3 = points[i++];
-            // used to calculate buckets
+            // used to calculate buckets (rough sum of z span)
             zSum += (Math.abs(p1.z - p2.z) + Math.abs(p2.z - p3.z) + Math.abs(p3.z - p1.z));
-            // laser auto-detect z slice points
-            if (zInc === 0 || zIncMin) {
-                countZ(p1.z);
-                countZ(p2.z);
-                countZ(p3.z);
-            }
             // use co-flat and co-line detection to adjust slice Z
-            if (p1.z === p2.z && p2.z === p3.z && p1.z > bounds.min.z) {
-                // detect zFlat faces to avoid slicing directly on them
-                let zkey = p1.z.toFixed(5),
-                    area = Math.abs(UTIL.area2(p1,p2,p3)) / 2;
+            if (p1.z === p2.z && p2.z === p3.z && p1.z >= zMin) {
+                // detect faces co-planar with Z and sum the enclosed area
+                let zkey = p1.z,
+                    area = Math.abs(util.area2(p1,p2,p3)) / 2;
                 if (!zFlat[zkey]) {
                     zFlat[zkey] = area;
                 } else {
                     zFlat[zkey] += area;
                 }
-            } else if (true || options.trace) {
-                // detect zLines (curved region tops/bottoms)
-                // mark these layers for ball and v mill tracing
-                if (p1.z === p2.z && p1.z > bounds.min.z) {
-                    let zkey = p1.z.toFixed(5);
-                    let zval = zLines[zkey];
-                    zLines[zkey] = (zval || 0) + 1;
-                }
-                if (p2.z === p3.z && p2.z > bounds.min.z) {
-                    let zkey = p2.z.toFixed(5);
-                    let zval = zLines[zkey];
-                    zLines[zkey] = (zval || 0) + 1;
-                }
-                if (p3.z === p1.z && p3.z > bounds.min.z) {
-                    let zkey = p3.z.toFixed(5);
-                    let zval = zLines[zkey];
-                    zLines[zkey] = (zval || 0) + 1;
-                }
             }
+            if (autoDim) {
+                zMin = Math.min(zMin, p1.z, p2.z, p3.z);
+                zMax = Math.max(zMax, p1.z, p2.z, p3.z);
+            }
+            zList[p1.z] = p1.z;
+            zList[p2.z] = p2.z;
+            zList[p3.z] = p3.z;
         }
 
-        /** short-circuit for microscopic and invalid objects */
-        if (zMax == 0 || zSum == 0 || points.length == 0) {
-            return ondone([]);
+        if (zInc) {
+            for (i = zMin; i <= zMax; i += zInc) {
+                zIndexes.push(i);
+            }
+        } else {
+            zIndexes = Object.values(zList).sort((a,b) => a - b);
+            if (minStep > 0) {
+                let lastOut;
+                zIndexes = zIndexes.filter(v => {
+                    if (lastOut !== undefined && v - lastOut < minStep) {
+                        return false;
+                    } else {
+                        lastOut = v;
+                        return true;
+                    }
+                });
+            }
         }
 
         /**
          * bucket polygons into z-bounded groups (inside or crossing)
          * to reduce the search space in complex models
          */
-        let bucketCount = Math.max(1, Math.ceil(zMax / (zSum / points.length)) - 1);
+        let zSpan = zMax - zMin;
+        let zSpanAvg = zSum / points.length;
+        let bucketCount = options.bucket !== false ?
+            Math.min(bucketMax, Math.max(1, Math.floor(zSpan / zSpanAvg))) : 1;
 
-        if (concurrent > 1) {
-            if (bucketCount < concurrent) {
-                bucketCount = concurrent;
-            }
+        zScale = 1 / (zSpan / bucketCount);
+
+        if (debug) {
+            console.log({
+                zMin, zMax, zIndexes, zScale, zSum, zSpanAvg,
+                points, bucketCount,
+                options, buckets
+            });
         }
-        bucketCount = Math.min(bucketCount, 100);
 
-        zScale = 1 / (zMax / bucketCount);
+        /** short-circuit for microscopic and invalid objects */
+        if (zSpan == 0 || zSum == 0 || points.length == 0) {
+            return {};
+        }
+
+        // create empty buckets
+        for (i = 0; i < bucketCount; i++) {
+            buckets.push({ points: [], slices: [] });
+        }
 
         if (bucketCount > 1) {
-            // create empty buckets
-            for (i = 0; i < bucketCount + 1; i++) {
-                buckets.push({ points: [], slices: [] });
-            }
-
+            let failAt = (points.length * overlapMax) | 0, bucket;
             // copy triples into all matching z-buckets
-            for (i = 0; i < points.length;) {
+            outer: for (i = 0; i < points.length;) {
                 p1 = points[i++];
                 p2 = points[i++];
                 p3 = points[i++];
-                let zm = Math.min(p1.z, p2.z, p3.z),
-                    zM = Math.max(p1.z, p2.z, p3.z),
+                let zm = Math.min(p1.z, p2.z, p3.z) - zMin,
+                    zM = Math.max(p1.z, p2.z, p3.z) - zMin,
                     bm = Math.floor(zm * zScale),
-                    bM = Math.ceil(zM * zScale);
-                if (bm < 0) bm = 0;
+                    bM = Math.min(Math.ceil(zM * zScale), bucketCount);
+                // add point to all buckets in range
                 for (j = bm; j < bM; j++) {
-                    buckets[j].points.push(p1);
-                    buckets[j].points.push(p2);
-                    buckets[j].points.push(p3);
-                }
-            }
-        } else {
-            buckets.push({ points, slices: [] });
-        }
-
-        // we need Z ordered list for laser auto or adaptive fdm slicing
-        if (zInc === 0 || zIncMin) {
-            for (let key in zList) {
-                if (!zList.hasOwnProperty(key)) continue;
-                zOrdered.push(parseFloat(key));
-            }
-            zOrdered.sort(function(a,b) { return a - b});
-        }
-
-        if (options.indices) {
-            zIndexes = options.indices;
-            zHeights = zIndexes.map(v => options.height);
-        } else if (useFlats) {
-            zIndexes.appendAll(zOrdered);
-        } else if (options.single) {
-            // usually for laser single slice
-            zIndexes.push(zMin + zInc);
-        } else if (zInc === 0) {
-            // use Z indices in auto slice mode for laser
-            // find unique z-index offsets for slicing
-            let zl = zOrdered
-            // if zIncMin also present, then merge adjacent
-            // slices less than that value
-            if (zIncMin) {
-                let last = undefined;
-                zl = zl.filter(v => {
-                    if (last !== undefined && v - last < zIncMin) {
-                        return false;
+                    bucket = buckets[j].points;
+                    bucket.push(p1);
+                    bucket.push(p2);
+                    bucket.push(p3);
+                    // fail if single bucket exceeds threshold
+                    if (bucket.length > failAt) {
+                        if (debug) console.log({ bucketFail: bucket.length });
+                        bucketCount = 1;
+                        break outer;
                     }
-                    last = v;
-                    return true;
-                });
+                }
             }
-            for (i = 0; i < zl.length - 1; i++) {
-                zIndexes.push((zl[i] + zl[i+1]) / 2);
-                zThick.push(zl[i+1] - zl[i]);
-            }
-        } else if (zIncMin) {
-            // console.log('adaptive slicing', zIncMin, ':', zInc, 'from', zMin, 'to', zMax);
-            // FDM adaptive slicing
-            let zPos = zIncFirst,
-                zOI = 0,
-                zDelta,
-                zDivMin,
-                zDivMax,
-                zStep,
-                nextZ,
-                lzp = zPos;
+        }
 
-            // first slice is fixed
-            zHeights.push(zIncFirst);
-            zIndexes.push(zIncFirst / 2);
-            // console.log({zIncFirst, zOrdered})
-            while (zPos < zMax && zOI < zOrdered.length) {
-                nextZ = zOrdered[zOI++];
-                if (zPos >= nextZ) {
-                    // console.log('skip',{zPos},'>=',{nextZ});
-                    continue;
-                }
-                zDelta = nextZ - zPos;
-                if (zDelta < zIncMin) {
-                    // console.log('skip',{zDelta},'<',{zIncMin});
-                    continue;
-                }
-
-                zDivMin = Math.floor(zDelta / zIncMin);
-                zDivMax = Math.floor(zDelta / zInc);
-
-                if (zDivMax && zDivMax <= zDivMin) {
-                    if (zDelta % zInc > 0.01) zDivMax++;
-                    zStep = zDelta / zDivMax;
-                    // console.log(`--- zDivMax <= zDivMin ---`, zStep, zDelta % zInc)
-                } else {
-                    zStep = zDelta;
-                }
-                // console.log({nextZ, zPos, zDelta, zStep, zDivMin, zDivMax})
-                while (zPos < nextZ) {
-                    zHeights.push(zStep);
-                    zIndexes.push(zPos + zStep / 2);
-                    zPos += zStep;
-                    // console.log({D: zPos - lzp, zPos})
-                    // lzp = zPos;
-                }
-            }
-        } else {
-            // console.log('fixed slicing', zInc, 'from', zMin, 'to', zMax);
-            // FDM fixed slicing
-            if (options.firstHeight) {
-                zIndexes.push(options.firstHeight / 2);
-                zHeights.push(options.firstHeight);
-                zMin = options.firstHeight;
-            }
-            for (i = zMin + zOff; i < zMax; i += zInc) {
-                zIndexes.push(i);
-                zHeights.push(zInc);
-            }
+        // fallback if we can't partition point space
+        if (bucketCount === 1) {
+            buckets = [{ points, slices: [] }];
+            console.log({fallback:  buckets});
         }
 
         // create buckets data structure
-        for (let i = 0; i < zIndexes.length; i++) {
-            let ik = zIndexes[i].toFixed(5),
-                onFlat = false,
-                onLine = false;
-            // ensure no slice through horizontal lines or planes
-            if (zFlat[ik]) onFlat = true;
-            if (zLines[ik]) onLine = true;
-            if (!useFlats && (onFlat || onLine)) {
-                zIndexes[i] -= -0.001;
-            }
-            bucketZ(i, zIndexes[i], zHeights[i], onFlat, onLine, zThick[i]);
+        for (let z of zIndexes) {
+            let index = bucketCount <= 1 ? 0 :
+                Math.min( Math.floor((z - zMin) * zScale), bucketCount - 1 );
+            buckets[index].slices.push(z);
             onupdate((i / zIndexes.length) * 0.1);
-        }
-        ConsoleTool.timeStepEnd("slicer_slice_firstPart");
-        // create slices from each bucketed region
-        ConsoleTool.timeStepStart("slicer_slice_sliceBuckets");
-        sliceBuckets().then(slices => {
-            ConsoleTool.timeStepEnd("slicer_slice_sliceBuckets");
-            ConsoleTool.timeStepStart("slicer_slice_afterSliceBuckets");
-
-            slices = slices.sort((a,b) => a.index - b.index);
-
-            // connect slices into linked list for island/bridge projections
-            for (i=1; i<slices.length; i++) {
-                slices[i-1].up = slices[i];
-                slices[i].down = slices[i-1];
-            }
-
-            slices.slice_time = time() - timeStart;
-            ConsoleTool.timeStepEnd("slicer_slice_afterSliceBuckets");
-
-            // pass Slices array back to ondone function
-            ondone(slices);
-        });
-
-        function bucketZ(index, z, height, thick) {
-            buckets[Math.floor(z * zScale)].slices.push({
-                index, z, height, thick, total: zIndexes.length
-            });
         }
 
         async function sliceBuckets() {
             let output = [];
-            if (concurrent) {
-                let promises = buckets.map(
-                    bucket => KIRI.minions.sliceBucket(bucket, options, output)
-                );
-                await tracker(promises, (i,t,d) => {
-                    onupdate(0.1 + (i / t) * 0.9);
-                });
-            } else {
-                let count = 0;
-                for (let bucket of buckets) {
-                    for (let params of bucket.slices) {
-                        output.push(createSlice(
-                            params,
-                            sliceZ(params.z, bucket.points, options, params),
-                            options
-                        ));
-                        onupdate(0.1 + (count++ / zIndexes.length) * 0.9);
-                    }
+            let count = 0;
+            let opt = { ...options, zMin, zMax };
+
+            for (let bucket of buckets) {
+                let { points, slices } = bucket;
+                for (let z of slices) {
+                    output.push(await sliceFn(z, points, opt));
+                    onupdate(0.1 + (count++ / zIndexes.length) * 0.9);
                 }
             }
+
             return output;
         }
 
+        // create slices from each bucketed region
+        let slices = sliceFn ? await sliceBuckets() : [];
+        slices = slices.sort((a,b) => a.z - b.z);
+
+        return { slices, points, zMin, zMax, zIndexes, zFlat };
     }
-
-    function createSlice(params, data, options = {}) {
-        ConsoleTool.timeStepStart("slicer_createSlice");
-
-        let { index, z, height, thick } = params;
-        let { lines, groups, tops, clip } = data;
-        let slice = newSlice(z).addTops(tops);
-        slice.height = height;
-        slice.index = index;
-        slice.thick = thick;
-        slice.clips = clip || slice.topSimples();
-        // when debugging individual layers, attach lines and groups
-        if (options.xray) {
-            slice.lines = lines;
-            slice.groups = groups;
-            slice.xray = options.xray;
-        }
-        ConsoleTool.timeStepEnd("slicer_createSlice");
-
-        return slice;
-    }
-
-    /** ***** SLICING FUNCTIONS ***** */
 
     /**
      * given a point, append to the correct
@@ -412,18 +216,14 @@
      * @param {Obejct} where
      */
     function checkUnderOverOn(p, z, where) {
-        ConsoleTool.timeStepStart("slicer_checkUnderOverOn");
-
         let delta = p.z - z;
-        if (Math.abs(delta) < CONF.precision_slice_z) { // on
+        if (Math.abs(delta) < config.precision_slice_z) { // on
             where.on.push(p);
         } else if (delta < 0) { // under
             where.under.push(p);
         } else { // over
             where.over.push(p);
         }
-        ConsoleTool.timeStepEnd("slicer_checkUnderOverOn");
-
     }
 
     /**
@@ -436,16 +236,12 @@
      * @returns {Point} intersection point
      */
     function intersectPoints(over, under, z) {
-        ConsoleTool.timeStepStart("slicer_intersectPoints");
-
         let ip = [];
         for (let i = 0; i < over.length; i++) {
             for (let j = 0; j < under.length; j++) {
                 ip.push(over[i].intersectZ(under[j], z));
             }
         }
-        ConsoleTool.timeStepEnd("slicer_intersectPoints");
-
         return ip;
     }
 
@@ -475,15 +271,11 @@
      * @returns {Line}
      */
     function makeZLine(phash, p1, p2, coplanar, edge) {
-        ConsoleTool.timeStepStart("slicer_makeZLine");
-
         p1 = getCachedPoint(phash, p1);
         p2 = getCachedPoint(phash, p2);
         let line = newOrderedLine(p1,p2);
         line.coplanar = coplanar || false;
         line.edge = edge || false;
-        ConsoleTool.timeStepEnd("slicer_makeZLine");
-
         return line;
     }
 
@@ -492,12 +284,16 @@
      * add to slices array
      *
      * @param {number} z
-     * @param {number} [height] optional real height (fdm)
      */
-    function sliceZ(z, points, options = {}, params = {}) {
-        let phash = {},
+    async function sliceZ(z, points, options = {}) {
+        let { zMin, zMax, under, over, both } = options,
+            groupFn = dval(options.groupr, both ? null : sliceConnect),
+            phash = {},
             lines = [],
             p1, p2, p3;
+
+        // default to 'over' selection with 2 points on a line
+        if (!under && !both) over = true;
 
         // iterate over matching buckets for this z offset
         for (let i = 0; i < points.length; ) {
@@ -514,7 +310,10 @@
                 // one side of triangle is on the Z plane and 3rd is below
                 // drop lines with 3rd above because that leads to ambiguities
                 // with complex nested polygons on flat surface
-                if (where.under.length === 1) {
+                let add2 = both ||
+                    (over && (where.over.length === 1 || z === zMax)) ||
+                    (under && (where.under.length === 1 || z === zMin));
+                if (add2) {
                     lines.push(makeZLine(phash, where.on[0], where.on[1], false, true));
                 }
             } else if (where.on.length === 3) {
@@ -543,28 +342,11 @@
 
         // de-dup and group lines
         lines = removeDuplicateLines(lines);
-        let groups = connectLines(lines, z, {
-            debug: options.debug,
-            union: options.union
-        });
 
-        // simplistic healing of bad meshes
-        if (options.union) {
-            groups = POLY.flatten(POLY.union(POLY.nest(groups), 0.1, true), null, true);
-        }
+        let rval = { z, lines };
+        if (groupFn) rval.groups = groupFn(lines, z, options);
 
-        let tops = POLY.nest(groups);
-        let data = { lines, groups, tops };
-
-        // look for driver-specific slice post-processor
-        if (options.mode) {
-            let fn = KIRI.driver[options.mode].slicePost;
-            if (fn) {
-                fn(data, options, params);
-            }
-        }
-
-        return data;
+        return rval;
     }
 
     /**
@@ -577,23 +359,24 @@
      * @param {number} [index]
      * @returns {Array}
      */
-    function connectLines(input, z, opt = {}) {
-        let { debug, union } = opt;
-        ConsoleTool.timeStepStart("slicer_connectLines");
+    function sliceConnect(input, z, opt = {}) {
+        let { debug, both } = opt;
+
+        if (both) {
+            if (debug) console.log('unable to connect lines sliced with "both" option');
+            return [];
+        }
 
         // map points to all other points they're connected to
-        let CONF = BASE.config,
-            pmap = {},
+        let pmap = {},
             points = [],
             output = [],
             connect = [],
-            search = 1,
-            nextMod = 1,
             emitted = 0,
             forks = false,
             frays = false,
-            bridge = CONF.bridgeLineGapDistance,
-            bridgeMax = CONF.bridgeLineGapDistanceMax,
+            bridge = config.bridgeLineGapDistance,
+            bridgeMax = config.bridgeLineGapDistanceMax,
             p1, p2, gl;
 
         function cachedPoint(p) {
@@ -611,7 +394,7 @@
 
         function perimeter(array) {
             if (!array.perimeter) {
-                array.perimeter = BASE.newPolygon().addPoints(array).perimeter();
+                array.perimeter = newPolygon().addPoints(array).perimeter();
             }
             return array.perimeter;
         }
@@ -701,7 +484,7 @@
             let closed = path[0].group.indexOf(path.peek()) >= 0;
             if (closed && path.length > 2) {
                 if (debug) console.log({ closed: path.length, path });
-                emit(BASE.newPolygon().addPoints(path));
+                emit(newPolygon().addPoints(path));
             } else if (path.length > 1) {
                 let gap = path[0].distTo2D(path.peek()).round(4);
                 if (debug) console.log({ open: path.length, gap, path });
@@ -711,8 +494,8 @@
 
         // create point map, unique point list and point group arrays
         input.forEach(function(line) {
-            p1 = cachedPoint(line.p1.round(3));
-            p2 = cachedPoint(line.p2.round(3));
+            p1 = cachedPoint(line.p1);
+            p2 = cachedPoint(line.p2);
             addConnected(p1,p2);
             addConnected(p2,p1);
         });
@@ -777,7 +560,7 @@
 
             outer: for (let i=0; i<connect.length; i++) {
                 if (!bridge) {
-                    emit(BASE.newPolygon().addPoints(root).setOpen());
+                    emit(newPolygon().addPoints(root).setOpen());
                     continue;
                 }
 
@@ -868,26 +651,19 @@
         for (let array of connect) {
             if (array.delete) continue;
 
-            let first = array[0];
-            let last = array.peek();
-            let dist = first.distToSq2D(last);
-
-            if (debug) console.log({
-                dist: dist.round(4),
-                merged: array.merged || false,
-                array
-            });
-            if (dist <= bridge) {
-                // tail meets head (close)
-                emit(BASE.newPolygon().addPoints(array));
-            } else {
-                // tail meets head (far)
-                emit(BASE.newPolygon().addPoints(array)
-                    // .setOpen()
-                );
+            if (debug) {
+                let first = array[0];
+                let last = array.peek();
+                let dist = first.distToSq2D(last);
+                console.log({
+                    dist: dist.round(4),
+                    merged: array.merged || false,
+                    array
+                });
             }
+
+            emit(newPolygon().addPoints(array));
         }
-        ConsoleTool.timeStepEnd("slicer_connectLines");
 
         if (debug) console.log({ emitted });
         if (debug && emitted < points.length) console.log({ leftovers:points.length - emitted });
@@ -959,7 +735,7 @@
                 // find new endpoints that are not shared point
                 let p1 = l1.p1 != point ? l1.p1 : l1.p2,
                     p2 = l2.p1 != point ? l2.p1 : l2.p2,
-                    newline = BASE.newOrderedLine(p1,p2);
+                    newline = newOrderedLine(p1,p2);
                 // remove deleted lines from associated points
                 p1.group.remove(l1);
                 p1.group.remove(l2);
@@ -996,5 +772,8 @@
 
         return output;
     }
+
+    base.slice = slice;
+    base.sliceZ = sliceZ;
 
 })();

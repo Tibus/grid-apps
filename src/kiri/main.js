@@ -250,7 +250,7 @@
     const devel = {
         xray: (layers) => {
             let proc = API.conf.get().process;
-            let size = proc.sliceHeight || 1;
+            let size = proc.sliceHeight || proc.slaSlice || 1;
             layers = Array.isArray(layers) ? layers : [ layers ];
             proc.xray = layers.map(l => l * size + size / 2);
             API.function.slice();
@@ -1119,6 +1119,7 @@
 
         let process = settings.process,
             device = settings.device,
+            control = settings.controller,
             isBelt = device.bedBelt,
             mode = settings.mode,
             now = Date.now(),
@@ -1268,6 +1269,9 @@
                 if (scale === 1) {
                     updateStackLabelState();
                 }
+                if (!isBelt && control.lineType === 'line' && !process.xray) {
+                    $('render-ghost').onclick();
+                }
             });
             if (scale === 1) {
                 API.show.progress(0);
@@ -1323,6 +1327,7 @@
         }
 
         let now = Date.now(),
+            isBelt = settings.device.bedBelt,
             segNumber = 0,
             segtimes = {},
             startTime,
@@ -1373,7 +1378,7 @@
                     stack.add(layer);
                 });
                 // rotate stack for belt beds
-                if (settings.device.bedBelt && WIDGETS[0].rotinfo) {
+                if (isBelt && WIDGETS[0].rotinfo) {
                     let ri = WIDGETS[0].rotinfo;
                     ri.dz = 0;
                     ri.dy = settings.device.bedDepth / 2;
@@ -1399,6 +1404,11 @@
                 updateSpeeds();
             }
             updateStackLabelState();
+
+            let { controller, process } = settings;
+            if (!isBelt && controller.lineType === 'line' && !process.xray) {
+                $('render-ghost').onclick();
+            }
 
             // mark preview complete for export
             complete.preview = feature.pmode;
@@ -2874,20 +2884,16 @@
                     load_dec();
                 }
                 else if (issvg) {
-                    if (MODE === MODES.LASER) {
-                        loadCode(e.target.result, 'svg');
-                    } else {
-                        let name = e.target.file.name;
-                        let svg = LOAD.SVG.parse(e.target.result);
-                        let ind = 0;
-                        for (let v of svg) {
-                            let num = ind++;
-                            platform.add(
-                                newWidget(undefined, group)
-                                .loadVertices(svg[num].toFloat32())
-                                .saveToCatalog(num ? `${name}-${num}` : name)
-                            );
-                        }
+                    let name = e.target.file.name;
+                    let svg = LOAD.SVG.parse(e.target.result);
+                    let ind = 0;
+                    for (let v of svg) {
+                        let num = ind++;
+                        platform.add(
+                            newWidget(undefined, group)
+                            .loadVertices(svg[num].toFloat32())
+                            .saveToCatalog(num ? `${name}-${num}` : name)
+                        );
                     }
                     load_dec();
                 }

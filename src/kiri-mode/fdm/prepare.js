@@ -25,8 +25,6 @@
         // filter ignored widgets
         widgets = widgets.filter(w => !w.track.ignore && !w.meta.disabled);
 
-        console.log("prepare");
-
         let render = settings.render !== false,
             { device, process, controller, bounds, mode } = settings,
             { bedWidth, bedDepth } = device,
@@ -169,6 +167,8 @@
                     count: process.outputBrimCount,
                     z: firstLayerHeight / 2
                 });
+
+                print.setType('brim');
 
                 // output brim points
                 let brimStart = offset < nozzle * 2 ? newPoint(-bedWidth, -bedDepth, 0) : printPoint;
@@ -356,6 +356,7 @@
             let wipe = true;
             lastPurgeTool = tool;
             if (rec) {
+                print.setType('purge tower');
                 if (layer.last()) {
                     layer.last().retract = true;
                 }
@@ -524,9 +525,6 @@
                 layerout.slice = slice;
                 // mark layer as anchor if slice is belt and flag set
                 layerout.anchor = slice.belt && slice.belt.anchor;
-                if(!layerout.numMove) layerout.numMove=0;
-                if(!layerout.numLine) layerout.numLine=0;
-
                 // detect extruder change and print purge block
                 if (!lastOut || lastOut.extruder !== slice.extruder) {
                     if (slice.extruder >= 0)
@@ -536,6 +534,7 @@
                 let beltStart = slice.belt && slice.belt.touch;// && (widgets.length === 1);
                 // output seek to start point between mesh slices if previous data
                 // ConsoleTool.timeStepStart("prepare_walk_track.slicePrintPath");
+                print.setType('layer');
                 printPoint = print.slicePrintPath(
                     slice,
                     beltStart ? newPoint(-5000, 5000, 0) : printPoint.sub(offset),

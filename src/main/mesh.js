@@ -32,6 +32,7 @@ function init() {
     db.admin.get("uses").then(v => db.admin.put("uses", (v||0) + 1));
 
     // setup default workspace
+    space.setAntiAlias(true);
     space.useDefaultKeys(false);
     space.init($('container'), delta => { }, ortho);
     space.sky.set({
@@ -283,9 +284,12 @@ function space_init(data) {
                 case 'KeyM':
                     if (shiftKey) return api.tool.merge();
                     return api.tool.mirror();
+                case 'KeyU':
+                    return shiftKey && api.tool.union();
                 case 'KeyA':
-                    return api.tool.analyze();
+                    return shiftKey ? api.tool.analyze() : undefined;
                 case 'KeyR':
+                    if (shiftKey) return api.tool.rebuild();
                     return api.tool.repair();
                 case 'KeyE':
                     return api.tool.clean();

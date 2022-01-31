@@ -82,7 +82,7 @@
             let last = slices[slices.length-1];
             // remove empty slices
             slices = widget.slices = slices.filter(slice => slice.tops.length);
-            if (!process.slaOpenTop) {
+            if (!process.slaOpenTop && !process.xray) {
                 // re-add last empty slice for open top
                 slices.push(last);
             }
@@ -212,7 +212,11 @@
         SLICER.sliceWidget(widget, {
             height: height,
             add: !process.slaOpenTop,
-            concurrent: isConcurrent
+            union: controller.healMesh,
+            concurrent: isConcurrent,
+            indices: process.indices || process.xray,
+            debug: process.xray,
+            xray: process.xray
         }, function(slices) {
             onSliceDone(slices).then(ondone);
         }, function(update) {
@@ -222,31 +226,28 @@
 
     function doRender(widget) {
         widget.slices.forEach(slice => {
-            const render = slice.output();
+            const render = slice.output(), lopacity = 0.6, line = 0x010101;
 
             if (slice.unioned) {
-                // console.log('solid', slice.index)
                 slice.unioned.forEach(poly => {
                     poly = poly.clone(true);//.move(widget.track.pos);
                     render
-                        .setLayer("layers", { line: 0x010101, face: 0x0099cc, opacity: 0.2 })
+                        .setLayer("layers", { line, face: 0x0099cc, lopacity })
                         .addAreas([poly], { outline: true });
                 });
             } else if (slice.tops) {
-                // console.log('top', slice.index)
                 slice.tops.forEach(top => {
                     let poly = top.poly;//.clone(true).move(widget.track.pos);
                     render
-                        .setLayer("layers", { line: 0x010101, face: 0xfcba03, opacity: 0.2 })
+                        .setLayer("layers", { line, face: 0xfcba03, lopacity })
                         .addAreas([poly], { outline: true });
                 });
             }
 
             if (slice.supports) {
-                // console.log('support', slice.index)
                 slice.supports.forEach(poly => {
                     render
-                        .setLayer("support", { line: 0x010101, face: 0xfcba03, opacity: 0.2 })
+                        .setLayer("support", { line, face: 0xfcba03, lopacity })
                         .addAreas([poly], { outline: true });
                 });
             }

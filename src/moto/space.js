@@ -79,9 +79,7 @@
             factor: undefined,
             view: undefined
         },
-        psize = {
-
-        },
+        psize = {},
         timers = {},
         fontColor = '#333333',
         fontScale = 1.4, // computed relative to grid size
@@ -118,7 +116,9 @@
         hiddenKey,
         vizChange,
         docVisible = true,
+        antiAlias = window.devicePixelRatio <= 1,
         lastAction = Date.now(),
+        renderTime = 0,
         fps = 0;
 
     if (typeof DOC.hidden !== "undefined") {
@@ -241,6 +241,17 @@
         }
     }
 
+    function addLight(x,y,z,i) {
+        let l = new THREE.DirectionalLight(0xffffff, i, 0);
+        l.position.set(x,z,y);
+        // let b; l.add(b = new THREE.Mesh(
+        //     new THREE.BoxGeometry(1,1,1),
+        //     new THREE.MeshBasicMaterial( {color: 0xff0000} )
+        // )); b.scale.set(5,5,5);
+        SCENE.add(l);
+        return l;
+    }
+
     // 4 corners bottom, 4 axis centers top
     function updateLights(x, y, z) {
         // remove old
@@ -248,42 +259,20 @@
             SCENE.remove(l);
         }
         // override
-        x = y = z = 20000;
-        x *= 2; y *= 2; z *= 2;
+        x *= 4; y *= 4; z *= 4;
         // add new
         let x0 = -x/2, y0 = -y/2, z0 = 0;
         let x1 =  x/2, y1 =  y/2, z1 = z / 2, z2 = z;
         lights = [
-            // top
-            addLight( x0,  y0,  z1, lightIntensity * 2.5),
-            // addLight( x0,  y1,  z1, lightIntensity * 2.0),
-            addLight( x1,  y1,  z1, lightIntensity * 2.5),
-            // addLight( x1,  y0,  z1, lightIntensity * 2.0),
-            // middle
-            // addLight( x0,  y0,  z0, lightIntensity * 0.8),
-            // addLight( x0,  y1,  z0, lightIntensity * 1.2), // opt
-            // addLight( x1,  y1,  z0, lightIntensity * 0.8),
-            // addLight( x1,  y0,  z0, lightIntensity * 1.2), // opt
-            // bottom
-            // addLight( x0,  y0, -z1, lightIntensity * 0.5),
-            addLight( x0,  y1, -z1, lightIntensity * 0.5),
-            // addLight( x1,  y1, -z1, lightIntensity * 0.5),
-            addLight( x1,  y0, -z1, lightIntensity * 0.5),
-            // center top/bottom
+            // over
             addLight(  0,   0,  z2, lightIntensity * 1.2),
+            addLight( x0,  y0,  z1, lightIntensity * 2.5),
+            addLight( x1,  y1,  z1, lightIntensity * 2.5),
+            // under
+            addLight( x0,  y1, -z1, lightIntensity * 0.5),
+            addLight( x1,  y0, -z1, lightIntensity * 0.5),
             addLight(  0,   0, -z2, lightIntensity * 0.8),
         ];
-    }
-
-    function addLight(x,y,z,i) {
-        let l = new THREE.PointLight(0xffffff, i, 0);
-        l.position.set(x,z,y);
-        let b; l.add(b = new THREE.Mesh(
-            new THREE.BoxGeometry(1,1,1),
-            new THREE.MeshBasicMaterial( {color: 0xff0000} )
-        )); b.scale.set(5,5,5);
-        SCENE.add(l);
-        return l;
     }
 
     function updatePlatformPosition() {
@@ -683,6 +672,7 @@
 
         SCENE.remove(current);
         SCENE.add(platform);
+        THREE.dispose(current);
     }
 
     function refresh() {
@@ -1013,6 +1003,7 @@
         refresh: refresh,
         update: requestRefresh,
 
+        setAntiAlias(b) { antiAlias = b ? true : false },
         alignTracking: alignTracking,
         raycast: intersect,
 
@@ -1046,13 +1037,27 @@
             },
 
             remove: function (o) {
+                THREE.dispose(o);
                 return SCENE.remove(o);
             },
 
             active: updateLastAction
         },
 
-        world: WORLD,
+        world: {
+            add: function(o) {
+                return WORLD.add(o);
+            },
+
+            remove: function(o) {
+                THREE.dispose(o);
+                return WORLD.remove(o);
+            },
+
+            newGroup: function() {
+                return WORLD.newGroup();
+            }
+        },
 
         platform: {
             set:        setPlatform,
@@ -1114,14 +1119,15 @@
                     viewControl.setMouse(viewControl.mouseDefault);
                 }
             },
-            getFPS: () => { return fps },
-            getFocus: () => { return viewControl.getTarget() },
-            setFocus: (v) => { viewControl.setTarget(v); refresh() },
-            setHome: (r,u) => {
+            getFPS () { return fps },
+            getRMS() { return renderTime },
+            getFocus() { return viewControl.getTarget() },
+            setFocus(v) { viewControl.setTarget(v); refresh() },
+            setHome(r,u) {
                 home = r || 0;
                 up = u || PI4;
             },
-            spin: (then, count) => {
+            spin(then, count) {
                 Space.view.front(() => {
                 Space.view.right(() => {
                 Space.view.back(() => {
@@ -1155,15 +1161,16 @@
             setDelay:   (d) => { tweenDelay = d || 20 }
         },
 
-        useDefaultKeys: (b) => { defaultKeys = b  },
-        selectRecurse:  (b) => { selectRecurse = b },
-        objects:        () => { return WORLD.children },
+        useDefaultKeys  (b)    { defaultKeys = b  },
+        selectRecurse   (b)    { selectRecurse = b },
+        renderInfo      ()     { return renderer.info },
+        objects         ()     { return WORLD.children },
 
-        screenshot: (format, options) => {
+        screenshot(format, options) {
             return renderer.domElement.toDataURL(format || "image/png", options);
         },
 
-        screenshot2: (param = {}) => {
+        screenshot2(param = {}) {
             let oco = renderer.domElement;
             let oWidth = oco.offsetWidth;
             let oHeight = oco.offsetHeight;
@@ -1195,7 +1202,7 @@
             domelement.style.height = height();
 
             renderer = new THREE.WebGLRenderer({
-                antialias: true,
+                antialias: antiAlias,
                 preserveDrawingBuffer: true,
                 logarithmicDepthBuffer: true
             });
@@ -1278,6 +1285,9 @@
             let animates = 0;
             let rateStart = Date.now();
 
+            let renders = [];
+            let renderStart;
+
             function animate() {
                 animates++;
                 const now = Date.now();
@@ -1286,11 +1296,15 @@
                     fps = 1000 * animates / delta;
                     animates = 0;
                     rateStart = now;
+                    renderTime = Math.max(0, ...renders);
+                    renders.length = 0;
                 }
 
                 requestAnimationFrame(animate);
                 if (docVisible && !freeze && Date.now() - lastAction < 1500) {
+                    renderStart = Date.now();
                     renderer.render(SCENE, camera);
+                    renders.push(Date.now() - renderStart);
                 } else {
                     fps = 0;
                 }

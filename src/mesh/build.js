@@ -281,8 +281,8 @@ function ui_build() {
             h.button({ _: 'visible', onclick() { selection.visible({ toggle: true }) } }),
             h.button({ _: 'bounds', onclick() { selection.boundsBox({ toggle: true }) } }),
             h.button({ _: 'gridlines', onclick() { api.grid() } }),
-            h.button({ _: 'wireframe', onclick() { api.wireframe() } }),
             h.button({ _: 'normals', onclick() { api.normals() } }),
+            h.button({ _: 'wireframe', onclick() { api.wireframe() } }),
         ]),
         h.div([
             h.div({ _: "edit", class: "head" }),
@@ -291,14 +291,16 @@ function ui_build() {
             h.button({ _: 'regroup', onclick: tool.regroup }),
             h.button({ _: 'merge', onclick: tool.merge }),
             h.button({ _: 'mirror', onclick: tool.mirror }),
+            h.button({ _: 'union', onclick: tool.union }),
             h.button({ _: 'split', onclick: call.edit_split }),
-            h.button({ _: 'invert', onclick: tool.invert }),
         ]),
         h.div([
             h.div({ _: "fix", class: "head" }),
             // h.div({ class: "vsep" }),
+            h.button({ _: 'automatic', onclick: tool.repair }),
             h.button({ _: 'analyze', onclick: tool.analyze }),
-            h.button({ _: 'repair', onclick: tool.repair }),
+            // h.button({ _: 'rebuild', onclick: tool.rebuild }),
+            h.button({ _: 'invert', onclick: tool.invert }),
             h.button({ _: 'clean', onclick: tool.clean }),
         ]),
     ]);

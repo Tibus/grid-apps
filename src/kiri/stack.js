@@ -33,6 +33,7 @@
 
         destroy() {
             this._view.remove(this.view);
+            THREE.dispose(this.view);
             this.view = this.slices = this.meshes = null;
         }
 
@@ -150,9 +151,9 @@
             if (faces.length) {
                 const mat = [];
                 if (cface) {
-                    cface.forEach(c => { mat.push(newMat(c)) });
+                    cface.forEach(c => { mat.push(newMat(c, true)) });
                 } else {
-                    mat.push(newMat(color));
+                    mat.push(newMat(color, true));
                 }
                 mat.forEach(m => m.visible = defstate);
                 const geo = new THREE.BufferGeometry();
@@ -223,7 +224,7 @@
         newMat = createPhongMaterial;
 
     function createLineMaterial(color, array) {
-        const opacity = color.opacity || 1;
+        const opacity = color.lopacity || color.opacity || 1;
         const mat = new THREE.LineBasicMaterial({
             transparent: true,
             opacity: opacity,
@@ -235,7 +236,7 @@
         return mat;
     }
 
-    function createStandardMaterial(color) {
+    function createStandardMaterial(color, flat) {
         return new THREE.MeshStandardMaterial({
             emissive,
             roughness,
@@ -243,18 +244,18 @@
             transparent: color.opacity != 1,
             opacity: color.opacity || 1,
             color: color.face,
-            side: THREE.DoubleSide
+            side: flat ? THREE.DoubleSide : THREE.FrontSide
         });
     }
 
-    function createPhongMaterial(color) {
+    function createPhongMaterial(color, flat) {
         return new THREE.MeshPhongMaterial({
             shininess,
             specular,
             transparent: color.opacity != 1,
             opacity: color.opacity || 1,
             color: color.face,
-            side: THREE.DoubleSide
+            side: flat ? THREE.DoubleSide : THREE.FrontSide
         });
     }
 

@@ -54,7 +54,6 @@
         selectedTool = null,
         editTools = null,
         maxTool = 0,
-        fpsTimer = null,
         platformColor,
         contextInt;
 
@@ -162,6 +161,9 @@
         if (control.assembly != UI.assembly.checked) {
             KIRI.client.wasm(UI.assembly.checked);
         }
+        if (control.antiAlias != UI.antiAlias.checked) {
+            API.show.alert('Page Reload Required to Change Aliasing');
+        }
         control.decals = UI.decals.checked;
         control.danger = UI.danger.checked;
         control.showOrigin = UI.showOrigin.checked;
@@ -169,6 +171,7 @@
         control.autoLayout = UI.autoLayout.checked;
         control.freeLayout = UI.freeLayout.checked;
         control.autoSave = UI.autoSave.checked;
+        control.antiAlias = UI.antiAlias.checked;
         control.reverseZoom = UI.reverseZoom.checked;
         control.dark = UI.dark.checked;
         control.exportOcto = UI.exportOcto.checked;
@@ -190,7 +193,7 @@
             maxpass: control.decimate ? 10 : 0
         });
         UC.setHoverPop(false);
-        updateFPS();
+        updateStats();
         if (control.decals && !control.dark) {
             // disable decals in dark mode
             loadDeviceTexture(currentDevice, deviceTexture);
@@ -203,13 +206,25 @@
         }
     }
 
-    function updateFPS() {
-        clearTimeout(fpsTimer);
-        UI.fps.style.display = 'block';
+    function updateStats() {
+        if (self.debug !== true) {
+            return;
+        }
+        let { div, fps, rms, rnfo } = UI.stats;
+        div.style.display = 'flex';
         setInterval(() => {
-            const nv = SPACE.view.getFPS().toFixed(2);
-            if (nv !== UI.fps.innerText) {
-                UI.fps.innerText = nv;
+            const nfps = SPACE.view.getFPS().toFixed(2);
+            const nrms = SPACE.view.getRMS().toFixed(2);
+            const rend = SPACE.renderInfo();
+            const { memory, render } = rend;
+            if (nfps !== fps.innerText) {
+                fps.innerText = nfps;
+            }
+            if (nrms !== rms.innerText) {
+                rms.innerText = nrms;
+            }
+            if (rnfo.offsetParent !== null) {
+                rnfo.innerText = JSON.stringify({ ...memory, ...render }, null, 4);
             }
         }, 100);
     }
@@ -781,8 +796,6 @@
                 UI.deviceName,
                 UI.gcodePre,
                 UI.gcodePost,
-                UI.gcodeExt,
-                UI.gcodeInt,
                 UI.bedDepth,
                 UI.bedWidth,
                 UI.maxHeight,
@@ -1460,6 +1473,7 @@
 
         SPACE.sky.showGrid(false);
         SPACE.sky.setColor(controller.dark ? 0 : 0xffffff);
+        SPACE.setAntiAlias(controller.antiAlias);
         SPACE.init(container, function (delta) {
             let vars = API.var;
             if (vars.layer_max === 0 || !delta) return;
@@ -1521,7 +1535,13 @@
                 faces:          $('mesh-faces'),
             },
 
-            fps:                $('fps'),
+            stats: {
+                fps:            $('fps'),
+                rms:            $('rms'),
+                div:            $('stats'),
+                rnfo:           $('rnfo'),
+            },
+
             load:               $('load-file'),
             speeds:             $('speeds'),
             speedbar:           $('speedbar'),
@@ -1669,8 +1689,6 @@
                 (UI.gcodeLayer = UC.newGCode(LANG.dv_layr_s, {title:LANG.dv_layr_l, modes:FDM, area:gcode})).button,
                 (UI.gcodeTrack = UC.newGCode(LANG.dv_prog_s, {title:LANG.dv_prog_l, modes:FDM, area:gcode})).button,
                 (UI.gcodeFan = UC.newGCode(LANG.dv_fanp_s, {title:LANG.dv_fanp_l, modes:FDM, area:gcode})).button,
-                (UI.gcodeExt = UC.newGCode(LANG.dv_pext_s, {title:LANG.dv_pext_l, modes:FDM, area:gcode, show:isDanger})).button,
-                (UI.gcodeInt = UC.newGCode(LANG.dv_pint_s, {title:LANG.dv_pint_l, modes:FDM, area:gcode, show:isDanger})).button,
                 (UI.gcodeLaserOn = UC.newGCode(LANG.dv_lzon_s, {title:LANG.dv_lzon_l, modes:LASER, area:gcode})).button,
                 (UI.gcodeLaserOff = UC.newGCode(LANG.dv_lzof_s, {title:LANG.dv_lzof_l, modes:LASER, area:gcode})).button,
                 (UI.gcodeChange = UC.newGCode(LANG.dv_tool_s, {title:LANG.dv_tool_l, modes:CAM, area:gcode})).button,
@@ -1679,6 +1697,7 @@
             ], {class:"ext-buttons f-row gcode-macros"}),
 
             lprefs:           UC.newGroup(LANG.op_menu, $('prefs-gen1'), {inline: true}),
+            antiAlias:        UC.newBoolean(LANG.op_anta_s, booleanSave, {title:LANG.op_anta_l}),
             reverseZoom:      UC.newBoolean(LANG.op_invr_s, booleanSave, {title:LANG.op_invr_l}),
             ortho:            UC.newBoolean(LANG.op_orth_s, booleanSave, {title:LANG.op_orth_l}),
             dark:             UC.newBoolean(LANG.op_dark_s, booleanSave, {title:LANG.op_dark_l}),
@@ -2516,6 +2535,7 @@
             UI.showSpeeds.checked = control.showSpeeds;
             UI.freeLayout.checked = control.freeLayout;
             UI.autoLayout.checked = control.autoLayout;
+            UI.antiAlias.checked = control.antiAlias;
             UI.reverseZoom.checked = control.reverseZoom;
             UI.autoSave.checked = control.autoSave;
             UI.decimate.checked = control.decimate;
@@ -2526,7 +2546,7 @@
             UI.devel.checked = control.devel;
             lineTypeSave();
             detailSave();
-            updateFPS();
+            updateStats();
 
             // optional set-and-lock mode (hides mode menu)
             let SETMODE = SETUP.mode ? SETUP.mode[0] : null;
@@ -2643,7 +2663,7 @@
         $('rot_z_gt').onclick = () => { API.selection.rotate(0,0,-d) };
         // rendering options
         $('render-hide').onclick = () => { API.view.wireframe(false, 0, 0); };
-        $('render-ghost').onclick = () => { API.view.wireframe(false, 0, API.view.isArrange() ? 0.5 : 0.25); };
+        $('render-ghost').onclick = () => { API.view.wireframe(false, 0, API.view.isArrange() ? 0.4 : 0.25); };
         $('render-wire').onclick = () => { API.view.wireframe(true, 0, API.space.isDark() ? 0.25 : 0.5); };
         $('render-solid').onclick = () => { API.view.wireframe(false, 0, 1); };
         // mesh buttons

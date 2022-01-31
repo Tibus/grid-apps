@@ -53,7 +53,7 @@ function init(mod) {
             return cached;
         }
         if (seen.indexOf(path) >= 0) {
-            if (debug) {
+            if (debug > 1) {
                 console.log(`circular dependency at ${path}`, seen);
             }
             return [];
@@ -108,7 +108,7 @@ function init(mod) {
             }
             // if list is modified, substitute
             if (modd) {
-                if (debug) {
+                if (debug > 1) {
                     console.log({path, val, nval});
                 }
                 val = nval;
@@ -485,6 +485,7 @@ const script = {
         "&main/mesh"
     ],
     mesh_work : [
+        "ext/jscad",
         "&mesh/work"
     ],
     mesh_pool : [

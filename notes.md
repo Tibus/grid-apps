@@ -1,4 +1,6 @@
-# Kiri:Moto / Grid:Apps notes
+# Grid:Apps TODOs and Notes
+
+# Kiri:Moto
 
 ## `C` cosmetic, `F` functional, `P` performance, `B` bug fix
 
@@ -18,6 +20,7 @@
 * `F` complete and expose grouping feature
 * `F` add svgnest-like arrange algorithm
 * `F` warn if part hanging in negative Z space or off bed in general
+* `F` add instancing support for 3MF files on import
 
 # FDM
 
@@ -55,7 +58,8 @@
 * `B` auto bed resizing leaves the origin in the wrong place at first
 * `B` re-add progress calls for all work units
 
-* `F` test and enable arcs in belt moe
+* `F` promote forced layer retraction to a range parameter
+* `F` test and enable arcs in belt more
 * `F` refactor brims to be generated at slice time
 * `F` anchors should be generated anywhere needed in the print, not just head
 * `F` slightly angle supports to lean into the Z of the part
@@ -98,6 +102,7 @@
 * `F` gcode output option as zip for multiple or flip ops or tool change
 * `F` maintain several part orientations + op chains in a single profile
 
+* `P` decrease cutting speed when entire tool is engaged (start of roughing)
 * `P` port arc code from FDM export to CAM export
 * `P` common part pre-analyze to speed up 'slice' and improve shadow (overhangs)
 * `P` redo all path route / planning in prepare to account for terrain before camOut
@@ -108,3 +113,31 @@
 # Laser
 
 * `F` add PLT / HP-GL output format (https://en.wikipedia.org/wiki/HP-GL)
+
+# OctoPrint plugin
+
+* subfolder parameter for dropped files
+* auto-kick check box in preferences
+
+
+# Mesh:Tool
+
+* add section view. local clip. raycast skip points above plane
+* add isolate op = separate bodies
+* add decimate op = face reduction
+* add flatten/crush op: for z bottoms
+* face selection: find regions with < delta to normal
+* better z snap using just vertexes from face intersected
+* allow setting model/group origin for scale/rotate
+* fix mirror to work with groups (just models currently)
+* bounding box toggle should be global, not selection
+* add analyze results dialog
+
+* rename analyze > patch
+* remove repair function?
+
+# Other / Links
+
+* investigate libtess https://www.npmjs.com/package/libtess b/c earcut sometimes wrong
+* https://stackoverflow.com/questions/40927728/three-js-determine-if-points-are-co-planar-and-mapping-co-planar-points-onto-x
+* https://stackoverflow.com/questions/52818307/determine-whether-one-polygon-contains-another

@@ -153,10 +153,40 @@ mesh.model = class MeshModel extends mesh.object {
         });
     }
 
+    rebuild(opt = {}) {
+        if (this.lines) {
+            space.scene.remove(this.lines);
+            this.lines = undefined;
+        }
+        if (opt.clean) {
+            return;
+        }
+        worker.model_rebuild({
+            matrix: this.matrix,
+            id: this.id
+        }).then(data => {
+            let { lines } = data;
+            if (lines) {
+                let points = [];
+                for (let i=0; i<lines.length;) {
+                    points.push(new THREE.Vector3(lines[i++], lines[i++], lines[i++]));
+                }
+                let material = new THREE.LineBasicMaterial( { color: 0xdddddd } );
+                let geometry = new THREE.BufferGeometry().setFromPoints(points);
+                let segments = this.lines = new THREE.LineSegments(geometry, material);
+                space.scene.add(segments);
+            }
+        });
+    }
+
     load(vertices, indices, normals) {
         let geo = new BufferGeometry();
         geo.setAttribute('position', new BufferAttribute(vertices, 3));
-        if (indices) geo.setIndex(new BufferAttribute(indices, 1));
+        if (indices) {
+            // unroll indexed geometries
+            geo.setIndex(new BufferAttribute(indices, 1));
+            geo = geo.toNonIndexed();
+        }
         if (!normals) geo.computeVertexNormals();
         let meh = this.mesh = new Mesh(geo, [
             this.mats.normal,
@@ -173,24 +203,23 @@ mesh.model = class MeshModel extends mesh.object {
         // persist in db so it can be restored on page load
         mapp.db.space.put(this.id, { file: this.file, mesh: vertices });
         // sync data to worker
-        worker.model_load({id: this.id, name: this.file, vertices, indices});
+        worker.model_load({id: this.id, name: this.file, vertices});
     }
 
-    reload(vertices, indices, normals) {
+    reload(vertices) {
         let was = this.wireframe(false);
         let geo = this.mesh.geometry;
         geo.setAttribute('position', new BufferAttribute(vertices, 3));
         geo.setAttribute('normal', undefined);
         // signal util.box3expand that geometry changed
         geo._model_invalid = true;
-        if (indices) geo.setIndex(new BufferAttribute(indices, 1));
-        if (!normals) geo.computeVertexNormals();
+        geo.computeVertexNormals();
         // allows raycasting to work
         geo.computeBoundingSphere();
         // persist in db so it can be restored on page load
         mapp.db.space.put(this.id, { file: this.file, mesh: vertices });
         // sync data to worker
-        worker.model_load({id: this.id, name: this.name, vertices, indices});
+        worker.model_load({id: this.id, name: this.name, vertices});
         // restore wireframe state
         this.wireframe(was);
         // fixup normals
@@ -446,6 +475,7 @@ mesh.model = class MeshModel extends mesh.object {
         // clear face selections (since they've been deleted);
         this.sel.faces = [];
         this.updateSelections();
+        this.rebuild({ clean: true });
     }
 
     deleteSelections(mode) {
