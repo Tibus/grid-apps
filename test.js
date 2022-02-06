@@ -11,10 +11,10 @@ let engine = kiri.newEngine();
 // If you want to force using JS instead of CPP, uncommand this line :
 // self.forceUsingJSInsteadOfCPP = true;
 
-// let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
-let buf = new Uint8Array(fs.readFileSync('./web/obj/bigCube.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/bigCube.stl')).buffer;
 
 engine.setListener((mess)=>{
   // console.log("mess", mess)

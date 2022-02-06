@@ -79,18 +79,18 @@
 
     function fromClipperNode(tnode, z) {
         ConsoleTool.timeStepStart("polygons_fromClipperNode");
-        let poly = BASE.newPolygon();
+        let poly = base.newPolygon();
         if(tnode.m_polygonBuffer){
             let indices = new Int32Array(tnode.m_polygonBuffer.buffer, tnode.m_polygonBuffer.byteOffset);
             for (let i = 0; i<indices.length; i+=2) {
-                poly.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
+                poly.push(base.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
             tnode.m_polygonBuffer = null;
             indices = null;
 
         }else{
             for (let point of tnode.m_polygon) {
-                poly.push(BASE.pointFromClipper(point, z));
+                poly.push(base.pointFromClipper(point, z));
             }
         }
         poly.open = tnode.IsOpen;
@@ -106,10 +106,10 @@
             min = numOrDefault(minarea, 0.1);
 
         if(tnode.m_AllPolysBuffer){
-            polys.m_AllPolys = BASE.newPolygon();
+            polys.m_AllPolys = base.newPolygon();
             let indices = new Int32Array(tnode.m_AllPolysBuffer.buffer, tnode.m_AllPolysBuffer.byteOffset);
             for (let i = 0; i<indices.length; i+=2) {
-                polys.m_AllPolys.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
+                polys.m_AllPolys.push(base.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
             indices = null;
             tnode.m_AllPolysBuffer = null;
@@ -387,7 +387,7 @@
             let sp1 = ToInt32Array(setA),
                 sp2 = ToInt32Array(setB);
 
-            let {success, error, polytreeA, polytreeB} = Shape2D.clipperDualSubtractPathToPolyTree(sp1, sp2, CONF.clipperClean, !!outA, !!outB);
+            let {success, error, polytreeA, polytreeB} = Shape2D.clipperDualSubtractPathToPolyTree(sp1, sp2, config.clipperClean, !!outA, !!outB);
 
             if(success && polytreeA){
                 successCpp = true;
@@ -652,7 +652,7 @@
                 polysCpp.push(poly.toInt32Array());
             }
 
-            let {success, error, polytree} = Shape2D.clipperOffsetToPolyTree(polysCpp, join, type, clean, CONF.clipperClean, simple, fill, offs * CONF.clipper, 1);
+            let {success, error, polytree} = Shape2D.clipperOffsetToPolyTree(polysCpp, join, type, clean, config.clipperClean, simple, fill, offs * config.clipper, 1);
 
             if(!success){
                 console.log("success", success, error);
@@ -827,10 +827,10 @@
 
             let int32 = new Int32Array(steps * 4);
             for (i = 0; i < steps; i++) {
-                int32[i*4] = (start.x - raySlope.dx * 1000) * CONF.clipper;
-                int32[i*4 + 1] =  (start.y - raySlope.dy * 1000) * CONF.clipper;
-                int32[i*4 + 2] =  (start.x + raySlope.dx * 1000) * CONF.clipper;
-                int32[i*4 + 3] =  (start.y + raySlope.dy * 1000) * CONF.clipper;
+                int32[i*4] = (start.x - raySlope.dx * 1000) * config.clipper;
+                int32[i*4 + 1] =  (start.y - raySlope.dy * 1000) * config.clipper;
+                int32[i*4 + 2] =  (start.x + raySlope.dx * 1000) * config.clipper;
+                int32[i*4 + 3] =  (start.y + raySlope.dy * 1000) * config.clipper;
 
                 start.x += stepX;
                 start.y += stepY;
@@ -851,8 +851,8 @@
                         if (maxlen && plen > maxlen) continue;
                     }
 
-                    let p1 = poly.points[0];//BASE.pointFromClipper(poly.m_polygon[0], zpos);
-                    let p2 = poly.points[1];//BASE.pointFromClipper(poly.m_polygon[1], zpos);
+                    let p1 = poly.points[0];//base.pointFromClipper(poly.m_polygon[0], zpos);
+                    let p2 = poly.points[1];//base.pointFromClipper(poly.m_polygon[1], zpos);
                     let od = rayint.origin.distToLineNew(p1,p2) / spacing;
                     lines.push([p1, p2, od]);
 
