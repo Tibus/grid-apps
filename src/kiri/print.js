@@ -413,15 +413,28 @@
         return a !== undefined ? a : b;
     }
 
-    /**
-     * @constructor
-     */
-    function Output(point, emit, speed, tool, type) {
-        this.point = point; // point to emit
-        this.emit = emit; // emit (feed for printers, power for lasers, cut for cam)
-        this.speed = speed;
-        this.tool = tool;
-        this.type = type;
+    class Output {
+        constructor(point, emit, speed, tool, type) {
+            this.point = point; // point to emit
+            this.emit = emit; // emit (feed for printers, power for lasers, cut for cam)
+            this.speed = speed;
+            this.tool = tool;
+            this.type = type;
+        }
+
+        clone(z) {
+            let o = new Output(
+                this.point.clone(),
+                this.emit,
+                this.speed,
+                this.tool,
+                this.type
+            );
+            if (z !== undefined) {
+                o.point.setZ(z);
+            }
+            return o;
+        }
     }
 
     function setType(type) {
@@ -1266,46 +1279,6 @@
         }
 
         return startPoint;
-    }
-
-    /**
-     * flatten deeply nested polygons preserving inner arrays
-     *
-     * @param {Polygon | Polygon[]} poly or array to flatten
-     * @param {Polygon[]} to
-     * @returns {Polygon[]}
-     */
-    function flattenPolygons(poly, to) {
-        if (!poly) return;
-        if (!to) to = [];
-        if (Array.isArray(poly)) {
-            poly.forEach(function(p) {
-                flattenPolygons(p, to);
-            })
-        } else {
-            to.push(poly);
-            flattenPolygons(poly.inner, to);
-        }
-        return to;
-    }
-
-    function polygonFitsIn(inside, outside, tolerance) {
-        return inside.isInside(outside, tolerance);
-    }
-
-    function polygonWithinOffset(poly1, poly2, offset) {
-        return polygonMinOffset(poly1, poly2, offset) <= offset;
-    }
-
-    function polygonMinOffset(poly1, poly2, offset) {
-        let mindist = Infinity;
-        poly1.forEachPoint(function(p) {
-            const nextdist = p.distToPolySegments(poly2, offset);
-            mindist = Math.min(mindist, nextdist);
-            // returning true terminates forEachPoint()
-            if (mindist <= offset) return true;
-        });
-        return mindist;
     }
 
     /**

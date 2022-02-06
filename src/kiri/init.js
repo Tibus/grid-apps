@@ -1735,7 +1735,7 @@
 
             prefadd:          UC.checkpoint($('prefs-add')),
 
-            process:             UC.newGroup(LANG.sl_menu, $('settings'), {modes:FDM_LASER}),
+            process:             UC.newGroup(LANG.sl_menu, $('settings'), {modes:FDM_LASER, class:"xdown"}),
             sliceHeight:         UC.newInput(LANG.sl_lahi_s, {title:LANG.sl_lahi_l, convert:UC.toFloat, modes:FDM}),
             sliceMinHeight:      UC.newInput(LANG.ad_minl_s, {title:LANG.ad_minl_l, bound:UC.bound(0,3.0), convert:UC.toFloat, modes:FDM, show: () => UI.sliceAdaptive.checked}),
             fdmSep:              UC.newBlank({class:"pop-sep", modes:FDM}),
@@ -1755,7 +1755,7 @@
             laserSep:            UC.newBlank({class:"pop-sep", modes:LASER}),
             laserSliceSingle:    UC.newBoolean(LANG.ls_sngl_s, onBooleanClick, {title:LANG.ls_sngl_l, modes:LASER}),
 
-            firstLayer:          UC.newGroup(LANG.fl_menu, null, {modes:FDM}),
+            firstLayer:          UC.newGroup(LANG.fl_menu, null, {modes:FDM, class:"xdown"}),
             firstSliceHeight:    UC.newInput(LANG.fl_lahi_s, {title:LANG.fl_lahi_l, convert:UC.toFloat, modes:FDM, show:isNotBelt}),
             fdmSep:              UC.newBlank({class:"pop-sep", modes:FDM, show:isNotBelt}),
             firstLayerNozzleTemp:UC.newInput(LANG.fl_nozl_s, {title:LANG.fl_nozl_l, convert:UC.toInt, modes:FDM, show:isNotBelt}),
@@ -1782,8 +1782,9 @@
             outputBrimCount:     UC.newInput(LANG.fl_skrt_s, {title:LANG.fl_skrt_l, convert:UC.toInt, modes:FDM, show:isNotBelt}),
             outputBrimOffset:    UC.newInput(LANG.fl_skro_s, {title:LANG.fl_skro_l, convert:UC.toFloat, modes:FDM, show:isNotBelt}),
             fdmSep:              UC.newBlank({class:"pop-sep", modes:FDM, show:isNotBelt}),
+            outputDraftShield:   UC.newBoolean(LANG.fr_draf_s, onBooleanClick, {title:LANG.fr_draf_l, modes:FDM, trigger: true, show:() => !UI.outputRaft.checked && isNotBelt}),
             outputRaftSpacing:   UC.newInput(LANG.fr_spac_s, {title:LANG.fr_spac_l, convert:UC.toFloat, bound:UC.bound(0.0,3.0), modes:FDM, show: () => UI.outputRaft.checked && isNotBelt() }),
-            outputRaft:          UC.newBoolean(LANG.fr_nabl_s, onBooleanClick, {title:LANG.fr_nabl_l, modes:FDM, trigger: true, show:isNotBelt}),
+            outputRaft:          UC.newBoolean(LANG.fr_nabl_s, onBooleanClick, {title:LANG.fr_nabl_l, modes:FDM, trigger: true, show:() => !UI.outputDraftShield.checked && isNotBelt}),
 
             fdmInfill:           UC.newGroup(LANG.fi_menu, $('settings'), {modes:FDM}),
             sliceFillType:       UC.newSelect(LANG.fi_type, {modes:FDM, trigger:true}, "infill"),
@@ -1904,7 +1905,7 @@
             camExpertFast:       UC.newBoolean(LANG.cx_fast_s, onBooleanClick, {title:LANG.cx_fast_l, modes:CAM, show: () => !UI.camTrueShadow.checked }),
             camTrueShadow:       UC.newBoolean(LANG.cx_true_s, onBooleanClick, {title:LANG.cx_true_l, modes:CAM, show: () => !UI.camExpertFast.checked }),
 
-            advanced:            UC.newGroup(LANG.ad_menu, null, {modes:FDM}),
+            advanced:            UC.newGroup(LANG.ad_menu, null, {modes:FDM, class:"fdmadv"}),
             outputRetractDist:   UC.newInput(LANG.ad_rdst_s, {title:LANG.ad_rdst_l, convert:UC.toFloat, modes:FDM}),
             outputRetractSpeed:  UC.newInput(LANG.ad_rrat_s, {title:LANG.ad_rrat_l, convert:UC.toInt, modes:FDM}),
             outputRetractWipe:   UC.newInput(LANG.ad_wpln_s, {title:LANG.ad_wpln_l, bound:UC.bound(0.0,10), convert:UC.toFloat, modes:FDM}),

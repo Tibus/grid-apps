@@ -1,25 +1,29 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
+
 "use strict";
 
 (function() {
 
-    if (!self.base) self.base = {};
-    if (self.base.polygons) return;
+    const base = self.base;
+    if (base.polygons) return;
 
-    const BASE = self.base,
-        Shape2D = self.Shape2D,
-        UTIL = BASE.util,
-        ConsoleTool = self.consoleTool,
-        CONF = BASE.config,
-        DEG2RAD = Math.PI / 180,
-        ABS = Math.abs,
+    const { util, config, newPoint } = base;
+    const { sqr, numOrDefault } = util;
+
+    const DEG2RAD = Math.PI / 180,
         SQRT = Math.sqrt,
-        SQR = UTIL.sqr,
-        NOKEY = BASE.key.NONE,
-        newPoint = BASE.newPoint,
-        numOrDefault = UTIL.numOrDefault;
+        SQR = util.sqr,
+        Shape2D = self.Shape2D,
+        ConsoleTool = self.consoleTool,
+        ABS = Math.abs;
 
-    const POLYS = BASE.polygons = {
+    const clib = self.ClipperLib,
+        clip = clib.Clipper,
+        ctyp = clib.ClipType,
+        ptyp = clib.PolyType,
+        cfil = clib.PolyFillType;
+
+    const POLYS = base.polygons = {
         rayIntersect,
         alignWindings,
         setWinding,
@@ -47,10 +51,6 @@
         fingerprint
     };
 
-    /** ******************************************************************
-     * Polygon array utility functions
-     ******************************************************************* */
-
     function setZ(polys, z) {
         for (let poly of polys) {
             poly.setZ(z);
@@ -59,7 +59,6 @@
     }
 
     function toClipper(polys = []) {
-        ConsoleTool.timeStepStart("polygons_toClipper");
         let out = [];
         for (let poly of polys) {
             poly.toClipper(out);
@@ -80,40 +79,37 @@
 
     function fromClipperNode(tnode, z) {
         ConsoleTool.timeStepStart("polygons_fromClipperNode");
-        let poly = BASE.newPolygon();
+        let poly = base.newPolygon();
         if(tnode.m_polygonBuffer){
             let indices = new Int32Array(tnode.m_polygonBuffer.buffer, tnode.m_polygonBuffer.byteOffset);
             for (let i = 0; i<indices.length; i+=2) {
-                poly.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
+                poly.push(base.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
             tnode.m_polygonBuffer = null;
             indices = null;
 
         }else{
             for (let point of tnode.m_polygon) {
-                poly.push(BASE.pointFromClipper(point, z));
+                poly.push(base.pointFromClipper(point, z));
             }
         }
-
-        poly.open = tnode.IsOpen == 1;
+        poly.open = tnode.IsOpen;
         ConsoleTool.timeStepEnd("polygons_fromClipperNode");
         return poly;
     };
 
-    function fromClipperTree(tnode, z, tops, parent, minarea, log = false, key="key") {
+    function fromClipperTree(tnode, z, tops, parent, minarea) {
         ConsoleTool.timeStepStart("polygons_fromClipperTree");
+
         let poly,
             polys = tops || [],
             min = numOrDefault(minarea, 0.1);
-        // if(log){
-        //     ConsoleTool.logOnce(key, tnode.m_Childs);
-        // }
 
         if(tnode.m_AllPolysBuffer){
-            polys.m_AllPolys = BASE.newPolygon();
+            polys.m_AllPolys = base.newPolygon();
             let indices = new Int32Array(tnode.m_AllPolysBuffer.buffer, tnode.m_AllPolysBuffer.byteOffset);
             for (let i = 0; i<indices.length; i+=2) {
-                polys.m_AllPolys.push(BASE.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
+                polys.m_AllPolys.push(base.pointFromClipper({X: indices[i], Y: indices[i+1]}, z));
             }
             indices = null;
             tnode.m_AllPolysBuffer = null;
@@ -165,14 +161,13 @@
 
     function cleanClipperTree(tree) {
         ConsoleTool.timeStepStart("polygons_cleanClipperTree");
-        let clib = self.ClipperLib,
-            clip = clib.Clipper;
 
         if (tree.m_Childs)
-        for (let child of tree.m_Childs) {
-            child.m_polygon = clip.CleanPolygon(child.m_polygon, CONF.clipperClean);
-            cleanClipperTree(child.m_Childs);
-        }
+            for (let child of tree.m_Childs) {
+                child.m_polygon = clip.CleanPolygon(child.m_polygon, config.clipperClean);
+                cleanClipperTree(child.m_Childs);
+            }
+
         ConsoleTool.timeStepEnd("polygons_cleanClipperTree");
 
         return tree;
@@ -211,7 +206,6 @@
      * @returns {Polygon[]} top level parent polygons
      */
     function nest(polygons, deep, opentop) {
-        
         if (!polygons) {
             return polygons;
         }
@@ -327,8 +321,9 @@
     }
 
     function flatten(polys, to, crush) {
-         ConsoleTool.timeStepStart("polygons_flatten");
-        if (!to) to = [];
+        ConsoleTool.timeStepStart("polygons_flatten");
+
+        to = to || [];
         polys.forEach(function(poly) {
             poly.flattenTo(to);
             if (crush) poly.inner = null;
@@ -354,7 +349,7 @@
 
         let min = minArea || 0.1,
             out = [];
-       
+
         function filter(from, to = []) {
             from.forEach(function(poly) {
                 if (poly.area() >= min) {
@@ -364,6 +359,7 @@
             });
             return to;
         }
+
         if (opt.prof) {
             if (setA.length === 0 || setB.length === 0) {
                 console.log('sub_zero', {setA, setB});
@@ -384,16 +380,15 @@
                 outB.appendAll(filter(oB));
             }
         } else if(opt.cpp !== false && self.forceUsingJSInsteadOfCPP == false){
-            let successCpp = true;
-            successCpp = false;
+            let successCpp = false;
 
             // console.log("----- subtract ------");
 
             let sp1 = ToInt32Array(setA),
                 sp2 = ToInt32Array(setB);
 
-            let {success, error, polytreeA, polytreeB} = Shape2D.clipperDualSubtractPathToPolyTree(sp1, sp2, CONF.clipperClean, !!outA, !!outB);
-            
+            let {success, error, polytreeA, polytreeB} = Shape2D.clipperDualSubtractPathToPolyTree(sp1, sp2, config.clipperClean, !!outA, !!outB);
+
             if(success && polytreeA){
                 successCpp = true;
                 filter(fromClipperTree(polytreeA, z, null, null, min), outA);
@@ -411,11 +406,7 @@
                 return subtract(setA, setB, outA, outB, z, minArea, opt);
             }
         } else {
-            let clib = self.ClipperLib,
-                ctyp = clib.ClipType,
-                ptyp = clib.PolyType,
-                cfil = clib.PolyFillType,
-                clip = new clib.Clipper(),
+            let clip = new clib.Clipper(),
                 ctre = new clib.PolyTree(),
                 sp1 = toClipper(setA),
                 sp2 = toClipper(setB);
@@ -464,49 +455,49 @@
      * @param {Polygon[]} polys
      * @returns {Polygon[]}
      */
-     function union(polys, minarea, all, opt = {}) {
-         if (polys.length < 2) return polys;
+    function union(polys, minarea, all, opt = {}) {
+        if (polys.length < 2) return polys;
 
-         ConsoleTool.timeStepStart("polygons_union");
+        ConsoleTool.timeStepStart("polygons_union");
 
-         if (false && opt.wasm && geo.wasm) {
-             let min = minarea || 0.01;
-             // let deepLength = polys.map(p => p.deepLength).reduce((a,v) => a+v);
-             // if (deepLength < 15000)
-             try {
-                 return geo.wasm.js.union(polys, polys[0].getZ()).filter(p => p.area() > min);
-             } catch (e) {
-                 console.log({union_fail: polys, minarea, all});
-             }
-         }
+        if (false && opt.wasm && geo.wasm) {
+            let min = minarea || 0.01;
+            // let deepLength = polys.map(p => p.deepLength).reduce((a,v) => a+v);
+            // if (deepLength < 15000)
+            try {
+                return geo.wasm.js.union(polys, polys[0].getZ()).filter(p => p.area() > min);
+            } catch (e) {
+                console.log({union_fail: polys, minarea, all});
+            }
+        }
 
-         let out = polys.slice(), i, j, union, uset = [];
+        let out = polys.slice(), i, j, union, uset = [];
 
-         outer: for (i=0; i<out.length; i++) {
-             if (!out[i]) continue;
-             for (j=i+1; j<out.length; j++) {
-                 if (!out[j]) continue;
-                 union = out[i].union(out[j], minarea, all);
-                 if (union && union.length) {
-                     out[i] = null;
-                     out[j] = null;
-                     if (all) {
-                         out.appendAll(union);
-                     } else {
-                         out.push(union);
-                     }
-                     continue outer;
-                 }
-             }
-         }
+        outer: for (i=0; i<out.length; i++) {
+            if (!out[i]) continue;
+            for (j=i+1; j<out.length; j++) {
+                if (!out[j]) continue;
+                union = out[i].union(out[j], minarea, all);
+                if (union && union.length) {
+                    out[i] = null;
+                    out[j] = null;
+                    if (all) {
+                        out.appendAll(union);
+                    } else {
+                        out.push(union);
+                    }
+                    continue outer;
+                }
+            }
+        }
 
-         for (i=0; i<out.length; i++) {
-             if (out[i]) uset.push(out[i]);
-         }
+        for (i=0; i<out.length; i++) {
+            if (out[i]) uset.push(out[i]);
+        }
 
-         ConsoleTool.timeStepEnd("polygons_union");
-         return uset;
-     }
+        ConsoleTool.timeStepEnd("polygons_union");
+        return uset;
+    }
 
     /**
      * @param {Polygon} poly clipping mask
@@ -514,11 +505,8 @@
      */
     function diff(setA, setB, z) {
         ConsoleTool.timeStepStart("polygons_diff");
-        let clib = self.ClipperLib,
-            ctyp = clib.ClipType,
-            ptyp = clib.PolyType,
-            cfil = clib.PolyFillType,
-            clip = new clib.Clipper(),
+
+        let clip = new clib.Clipper(),
             ctre = new clib.PolyTree(),
             sp1 = toClipper(setA),
             sp2 = toClipper(setB);
@@ -527,8 +515,7 @@
         clip.AddPaths(sp2, ptyp.ptClip, true);
 
         if (clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
-            let res = fromClipperTree(ctre, z);
-
+            let res =  fromClipperTree(ctre, z);
             ConsoleTool.timeStepEnd("polygons_diff");
             return res;
         } else {
@@ -549,7 +536,7 @@
         if (setA === setB || setA === null || setB === null) return null;
 
         let out = [], tmp;
-        UTIL.doCombinations(setA, setB, {}, function(a, b) {
+        util.doCombinations(setA, setB, {}, function(a, b) {
             if (tmp = a.mask(b)) {
                 out.appendAll(tmp);
             }
@@ -573,8 +560,7 @@
      */
     function expand_lines(poly, distance, z) {
         ConsoleTool.timeStepStart("polygons_expand_lines");
-        let fact = CONF.clipper,
-            clib = self.ClipperLib,
+        let fact = config.clipper,
             cjnt = clib.JoinType,
             cety = clib.EndType,
             coff = new clib.ClipperOffset(),
@@ -601,10 +587,13 @@
      */
     function expand(polys, distance, z, out, count, distance2, collector, min) {
         ConsoleTool.timeStepStart("polygons_expand");
+
         let res = offset(polys, [distance, distance2 || distance], {
             z, outs: out, call: collector, minArea: min, count, flat: true
         });
         ConsoleTool.timeStepEnd("polygons_expand");
+
+        return res;
     }
 
     /**
@@ -637,21 +626,20 @@
             depth = numOrDefault(opts.depth, 0),
             clean = opts.clean !== false,
             simple = opts.simple !== false,
-            fill = numOrDefault(opts.fill, ClipperLib.PolyFillType.pftNonZero),
-            join = numOrDefault(opts.join, ClipperLib.JoinType.jtMiter),
-            type = numOrDefault(opts.type, ClipperLib.EndType.etClosedPolygon),
+            fill = numOrDefault(opts.fill, clib.PolyFillType.pftNonZero),
+            join = numOrDefault(opts.join, clib.JoinType.jtMiter),
+            type = numOrDefault(opts.type, clib.EndType.etClosedPolygon),
             // if dist is array with values, shift out next offset
             offs = Array.isArray(dist) ? (dist.length > 1 ? dist.shift() : dist[0]) : dist,
             mina = numOrDefault(opts.minArea, 0.1),
-            zed = opts.z || 0,
-            polysCpp = [];
+            zed = opts.z || 0;
 
         ConsoleTool.timeStepEnd("polygons_offset_value");
         ConsoleTool.timeStepStart("polygons_offset_clipper");
 
         if (opts.wasm && geo.wasm) {
             try {
-                polys = geo.wasm.js.offset(polys, offs, zed, clean ? CONF.clipperClean : 0, simple ? 1 : 0);
+                polys = geo.wasm.js.offset(polys, offs, zed, clean ? config.clipperClean : 0, simple ? 1 : 0);
             } catch (e) {
                 console.log('wasm error', e.message || e);
                 opts.wasm = false;
@@ -664,7 +652,7 @@
                 polysCpp.push(poly.toInt32Array());
             }
 
-            let {success, error, polytree} = Shape2D.clipperOffsetToPolyTree(polysCpp, join, type, clean, CONF.clipperClean, simple, fill, offs * CONF.clipper, 1);
+            let {success, error, polytree} = Shape2D.clipperOffsetToPolyTree(polysCpp, join, type, clean, config.clipperClean, simple, fill, offs * config.clipper, 1);
 
             if(!success){
                 console.log("success", success, error);
@@ -676,21 +664,20 @@
             ConsoleTool.timeStepStart("polygons_offset_fromClipperTree");
             polys = fromClipperTree(polytree, zed, null, null, mina);
             ConsoleTool.timeStepEnd("polygons_offset_fromClipperTree");
-        } else{
-
-            let coff = new ClipperLib.ClipperOffset(opts.miter, opts.arc),
-                ctre = new ClipperLib.PolyTree();
+        } else {
+            let coff = new clib.ClipperOffset(opts.miter, opts.arc),
+                ctre = new clib.PolyTree();
 
             // setup offset
             for (let poly of polys) {
                 // convert to clipper format
                 poly = poly.toClipper();
-                if (clean) poly = ClipperLib.Clipper.CleanPolygons(poly, CONF.clipperClean);
-                if (simple) poly = ClipperLib.Clipper.SimplifyPolygons(poly, fill);
+                if (clean) poly = clib.Clipper.CleanPolygons(poly, config.clipperClean);
+                if (simple) poly = clib.Clipper.SimplifyPolygons(poly, fill);
                 coff.AddPaths(poly, join, type);
             }
             // perform offset
-            coff.Execute(ctre, offs * CONF.clipper);
+            coff.Execute(ctre, offs * config.clipper);
             // convert back from clipper output format
             polys = fromClipperTree(ctre, zed, null, null, mina);
         }
@@ -788,9 +775,8 @@
      * @returns {Point[]} supplied output or new array
      */
     function fillArea(polys, angle, spacing, output, minLen, maxLen, opt={}) {
-
         if (polys.length === 0) return;
-            
+
         ConsoleTool.timeStepStart("polygons_fillArea");
 
         let i = 1,
@@ -805,7 +791,7 @@
         while (angle > 90) angle -= 180;
 
         // X,Y ray slope derived from angle
-        raySlope = BASE.newSlope(0,0,
+        raySlope = base.newSlope(0,0,
             Math.cos(angle * DEG2RAD) * spacing,
             Math.sin(angle * DEG2RAD) * spacing
         );
@@ -827,14 +813,10 @@
             step = SQRT(SQR(stepX) + SQR(stepY)),
             steps = Math.ceil(dist / step),
             start = angle < 0 ? { x:bounds.minx, y:bounds.miny, z:zpos } : { x:bounds.maxx, y:bounds.miny, z:zpos },
-            clib = self.ClipperLib,
-            ctyp = clib.ClipType,
-            ptyp = clib.PolyType,
-            cfil = clib.PolyFillType,
             clip = new clib.Clipper(),
             ctre = new clib.PolyTree(),
-            minlen = BASE.config.clipper * (minLen || 0),
-            maxlen = BASE.config.clipper * (maxLen || 0),
+            minlen = base.config.clipper * (minLen || 0),
+            maxlen = base.config.clipper * (maxLen || 0),
             lines = [];
 
         // store origin as start/affinity point for fill
@@ -845,10 +827,10 @@
 
             let int32 = new Int32Array(steps * 4);
             for (i = 0; i < steps; i++) {
-                int32[i*4] = (start.x - raySlope.dx * 1000) * CONF.clipper;
-                int32[i*4 + 1] =  (start.y - raySlope.dy * 1000) * CONF.clipper;
-                int32[i*4 + 2] =  (start.x + raySlope.dx * 1000) * CONF.clipper;
-                int32[i*4 + 3] =  (start.y + raySlope.dy * 1000) * CONF.clipper;
+                int32[i*4] = (start.x - raySlope.dx * 1000) * config.clipper;
+                int32[i*4 + 1] =  (start.y - raySlope.dy * 1000) * config.clipper;
+                int32[i*4 + 2] =  (start.x + raySlope.dx * 1000) * config.clipper;
+                int32[i*4 + 3] =  (start.y + raySlope.dy * 1000) * config.clipper;
 
                 start.x += stepX;
                 start.y += stepY;
@@ -869,8 +851,8 @@
                         if (maxlen && plen > maxlen) continue;
                     }
 
-                    let p1 = poly.points[0];//BASE.pointFromClipper(poly.m_polygon[0], zpos);
-                    let p2 = poly.points[1];//BASE.pointFromClipper(poly.m_polygon[1], zpos);
+                    let p1 = poly.points[0];//base.pointFromClipper(poly.m_polygon[0], zpos);
+                    let p2 = poly.points[1];//base.pointFromClipper(poly.m_polygon[1], zpos);
                     let od = rayint.origin.distToLineNew(p1,p2) / spacing;
                     lines.push([p1, p2, od]);
 
@@ -885,15 +867,16 @@
                 return fillArea(polys, angle, spacing, output, minLen, maxLen, opt)
             }
 
-        }else{
+        }else {
+
             for (i = 0; i < steps; i++) {
                 lines.push([
                     {
-                        X: (start.x - raySlope.dx * 1000) * CONF.clipper,
-                        Y: (start.y - raySlope.dy * 1000) * CONF.clipper
+                        X: (start.x - raySlope.dx * 1000) * config.clipper,
+                        Y: (start.y - raySlope.dy * 1000) * config.clipper
                     }, {
-                        X: (start.x + raySlope.dx * 1000) * CONF.clipper,
-                        Y: (start.y + raySlope.dy * 1000) * CONF.clipper
+                        X: (start.x + raySlope.dx * 1000) * config.clipper,
+                        Y: (start.y + raySlope.dy * 1000) * config.clipper
                     }
                 ]);
                 start.x += stepX;
@@ -912,8 +895,8 @@
                         if (minlen && plen < minlen) continue;
                         if (maxlen && plen > maxlen) continue;
                     }
-                    let p1 = BASE.pointFromClipper(poly.m_polygon[0], zpos);
-                    let p2 = BASE.pointFromClipper(poly.m_polygon[1], zpos);
+                    let p1 = base.pointFromClipper(poly.m_polygon[0], zpos);
+                    let p2 = base.pointFromClipper(poly.m_polygon[1], zpos);
                     let od = rayint.origin.distToLineNew(p1, p2) / spacing;
                     lines.push([p1, p2, od]);
                 }
@@ -958,7 +941,7 @@
         let i = 0,
             flat = [],
             points = [],
-            conf = BASE.config,
+            conf = base.config,
             merge_dist = for_fill ? conf.precision_fill_merge : conf.precision_merge;
         // todo use new flatten() function above
         polygons.forEach(function(p) {
@@ -971,7 +954,7 @@
                 pl = pp.length;;
             for (let j = 0; j < pl; j++) {
                 let j2 = (j + 1) % pl,
-                    ip = UTIL.intersectRayLine(start, slope, pp[j], pp[j2]);
+                    ip = util.intersectRayLine(start, slope, pp[j], pp[j2]);
                 if (ip) {
                     // add group object to point for cull detection
                     ip.group = polygon;
@@ -1011,13 +994,13 @@
                         p1.del = true;
                         p2.del = true;
                     } else
-                    /**
-                     * when a ray intersects two equal points, they are either inside or outside.
-                     * to determine which, we create a line from the two points connected to them
-                     * and test intersect the ray with that line. if it intersects, the points are
-                     * inside and we keep one of them. otherwise, they are outside and we drop both.
-                     */
-                    if (!UTIL.intersectRayLine(start, slope, line[0], line[1])) {
+                        /**
+                         * when a ray intersects two equal points, they are either inside or outside.
+                         * to determine which, we create a line from the two points connected to them
+                         * and test intersect the ray with that line. if it intersects, the points are
+                         * inside and we keep one of them. otherwise, they are outside and we drop both.
+                         */
+                    if (!util.intersectRayLine(start, slope, line[0], line[1])) {
                         del = true;
                         p1.del = true;
                         p2.del = true;
@@ -1102,7 +1085,7 @@
         return finger;
     }
 
-    // compare fingerprint arrays
+// compare fingerprint arrays
     function fingerprintCompare(a, b) {
         // true if array is the same object
         if (a === b) {
@@ -1135,8 +1118,8 @@
         return true;
     }
 
-    // plan a route through an array of polygon center points
-    // starting with the polygon center closest to "start"
+// plan a route through an array of polygon center points
+// starting with the polygon center closest to "start"
     function route(polys, start) {
         let centers = [];
         let first, minDist = Infinity;

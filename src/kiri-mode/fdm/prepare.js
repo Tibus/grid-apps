@@ -42,9 +42,11 @@
             firstLayerMult = process.firstLayerPrintMult,
             purgeTower = process.outputPurgeTower || 0,
             layerRetract = process.outputLayerRetract,
+            draftShield = process.outputDraftShield,
             layerno = 0,
             zoff = 0,
             zmin = 0,
+            shield,
             layerout = [],
             print = self.worker.print = KIRI.newPrint(settings, widgets),
             beltfact = Math.cos(Math.PI/4);
@@ -169,6 +171,7 @@
                 });
 
                 print.setType('brim');
+                shield = POLY.nest(polys.clone(), true).clone();
 
                 // output brim points
                 let brimStart = offset < nozzle * 2 ? newPoint(-bedWidth, -bedDepth, 0) : printPoint;
@@ -567,6 +570,7 @@
                 lastExt = lastOut.extruder;
                 lastPoly = slice.lastPoly;
                 lastLayer = layerout;
+
                 if (layerRetract && layerout.length) {
                     layerout.last().retract = true;
                 }
@@ -585,6 +589,25 @@
                 }
             }
             // ConsoleTool.timeStepEnd("prepare_walk_clear");
+
+            // draft shield
+            if (layerno > 0 && shield && draftShield) {
+                print.setType('shield');
+                shield = POLY.setZ(shield.clone(), printPoint.z);
+                let preout = [];
+                printPoint = print.poly2polyEmit(shield, printPoint, (poly, index, count, startPoint) => {
+                    return print.polyPrintPath(poly, startPoint, preout, {
+                        onfirst: function(point) {
+                            if (preout.length && point.distTo2D(startPoint) > 2) {
+                                // retract between part and shield
+                                preout.last().retract = true;
+                            }
+                        }
+                    });
+                });
+                preout.last().retract = true;
+                layerout.appendAll(preout);
+            }
 
             // if a declared extruder isn't used in a layer, use selected
             // extruder to fill the relevant purge blocks for later support

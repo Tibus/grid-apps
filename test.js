@@ -2,7 +2,11 @@
 global.self = null;
 
 let fs = require('fs');
+
+// Without contat :
 const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/), "./src/kiri/engine.js"];
+// With contact :
+// const files = ["./code/module.js", "./src/kiri/engine.js"];
 files.map(f => f && require(f));
 
 let kiri = self.kiri;
@@ -11,10 +15,10 @@ let engine = kiri.newEngine();
 // If you want to force using JS instead of CPP, uncommand this line :
 // self.forceUsingJSInsteadOfCPP = true;
 
-// let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
-let buf = new Uint8Array(fs.readFileSync('./web/obj/bigCube.stl')).buffer;
+// let buf = new Uint8Array(fs.readFileSync('./web/obj/bigCube.stl')).buffer;
 
 engine.setListener((mess)=>{
   // console.log("mess", mess)

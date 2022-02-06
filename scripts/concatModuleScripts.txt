@@ -19,8 +19,8 @@
 ./src/geo/slope.js
 ./src/geo/line.js
 ./src/geo/bounds.js
-./src/geo/polygon.js
 ./src/geo/polygons.js
+./src/geo/polygon.js
 ./src/geo/gyroid.js
 ./src/kiri/conf.js
 ./src/kiri/pack.js

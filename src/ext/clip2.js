@@ -86,8 +86,10 @@
 		if (typeof define === 'function' && define.amd) {
 			define(ClipperLib);
 		}
-		if (typeof (document) !== "undefined") window.ClipperLib = ClipperLib;
-		else self['ClipperLib'] = ClipperLib;
+		if (typeof (document) !== "undefined"){
+			window.ClipperLib = ClipperLib;
+		}
+		self['ClipperLib'] = ClipperLib;
 	}
 	var navigator_appName;
 	if (!isNode)

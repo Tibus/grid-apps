@@ -67,6 +67,7 @@
 
 # CAM
 
+* `B` tab cuts cause loss of direction, parenting, depth, and it's hard to fix
 * `B` tabs are not cut to exact height
 * `B` tabs do not properly track widget mirror events
 * `B` first rough step too far down in certain circumstances?
@@ -102,6 +103,7 @@
 * `F` gcode output option as zip for multiple or flip ops or tool change
 * `F` maintain several part orientations + op chains in a single profile
 
+* `P` clear void should cut inside-to-out when a part would be freed from stock
 * `P` decrease cutting speed when entire tool is engaged (start of roughing)
 * `P` port arc code from FDM export to CAM export
 * `P` common part pre-analyze to speed up 'slice' and improve shadow (overhangs)

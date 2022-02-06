@@ -25,6 +25,7 @@ let setupFn;
 let cacheDir;
 let startTime;
 let oversion;
+let dversion;
 let lastmod;
 let logger;
 let debug;
@@ -43,6 +44,7 @@ function init(mod) {
     dir = mod.dir;
     log = mod.log;
 
+    dversion = debug ? `_${version}` : version;
     cacheDir = mod.util.datadir("cache");
 
     let depcache = {};
@@ -304,20 +306,18 @@ const script = {
         "ext/clip2",
         "ext/tween",
         "ext/fsave",
-        "ext/earcut",
+        // "ext/earcut",
         "ext/base64",
         "add/array",
         "add/three",
         "geo/base",
-        // "geo/render",
         "geo/point",
         "geo/points",
         "geo/slope",
         "geo/line",
         "geo/bounds",
-        "geo/polygon",
         "geo/polygons",
-        // "geo/gyroid",
+        "geo/polygon",
         "geo/mesh",
         "data/local",
         "data/index",
@@ -383,8 +383,8 @@ const script = {
         "geo/slope",
         "geo/line",
         "geo/bounds",
-        "geo/polygon",
         "geo/polygons",
+        "geo/polygon",
         "geo/gyroid",
         "geo/mesh",
         // "moto/broker",
@@ -432,8 +432,8 @@ const script = {
         "geo/slope",
         "geo/line",
         "geo/bounds",
-        "geo/polygon",
         "geo/polygons",
+        "geo/polygon",
         "geo/gyroid",
         "kiri-mode/fdm/driver",
         "kiri-mode/fdm/slice",
@@ -448,12 +448,12 @@ const script = {
         "main/gapp",
         "moto/license",
         "main/kiri",
+        "ext/clip2",
         "data/local",
         "ext/three",
         "add/array",
         "add/three",
         "geo/base",
-        // "geo/render",
         "geo/point",
         "geo/points",
         "geo/slope",
@@ -529,7 +529,7 @@ function handleSetup(req, res, next) {
 }
 
 function handleVersion(req, res, next) {
-    let vstr = oversion || version;
+    let vstr = oversion || dversion || version;
     if (["/kiri/","/mesh/","/meta/"].indexOf(req.app.path) >= 0 && req.url.indexOf(vstr) < 0) {
         if (req.url.indexOf("?") > 0) {
             return http.redirect(res, `${req.url},ver:${vstr}`);
@@ -668,9 +668,12 @@ function concatCode(array) {
     // in debug mode, the script should load dependent
     // scripts instead of serving a complete bundle
     if (debug) {
-        const code = [ '(function() { let load = [ ' ];
+        const code = [
+            'self.debug=true;',
+            '(function() { let load = [ '
+        ];
         direct.forEach(file => {
-            const vers = cachever[file] || version;
+            const vers = cachever[file] || dversion || version;
             code.push(`"/${file.replace(/\\/g,'/')}?${vers}",`);
         });
         code.push([
@@ -683,8 +686,7 @@ function concatCode(array) {
             's.src = file;',
             's.onload = load_next;',
             'document.head.appendChild(s);',
-            '} load_next(); })();',
-            'self.debug=true;'
+            '} load_next(); })();'
         ].join('\n'));
         inject.forEach(key => {
             code.push(synth[key]);
@@ -868,7 +870,7 @@ function rewriteHtmlVersion(req, res, next) {
         let real_write = res.write;
         let real_end = res.end;
         let mlen = '{{version}}'.length;
-        let vstr = version;
+        let vstr = dversion || version;
         if (vstr.length < mlen) {
             vstr = vstr.padStart(mlen,0);
         } else if (vstr.length > mlen) {

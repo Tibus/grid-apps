@@ -76,6 +76,7 @@
     const feature = {
         seed: true, // seed profiles on first use
         meta: true, // show selected widget metadata
+        frame: true, // receive frame events
         alert_event: false, // emit alerts as events instead of display
         controls: true, // show or not side menus
         device_filter: undefined, // function to limit devices shown
@@ -501,6 +502,7 @@
 
     // frame message api
     WIN.addEventListener('message', msg => {
+        if (!feature.frame) return;
         let { origin, source, target, data } = msg;
         if (source.window === target.window) return;
         let send = source.window.postMessage;
@@ -1886,7 +1888,7 @@
             width = parseInt(dev.bedWidth),
             depth = parseInt(dev.bedDepth),
             height = parseFloat(dev.bedHeight),
-            parseFloat(dev.maxHeight)
+            parseFloat(dev.maxHeight || 100)
         );
         let proc = settings.process,
             ctrl = settings.controller,
@@ -2027,7 +2029,7 @@
         } else {
             forSelectedWidgets(w => {
                 w.setColor(color.selected);
-            });
+            }, true);
         }
     }
 
@@ -2712,7 +2714,6 @@
                 clearWorkspace();
                 settings = CONF.normalize(data.settings);
                 SDB.setItem('ws-settings', JSON.stringify(settings));
-                restoreSettings();
                 if (LOCAL) console.log('settings',Object.clone(settings));
                 if (isWork) {
                     API.platform.clear();
@@ -2723,6 +2724,7 @@
                         SPACE.view.load(data.view);
                     }
                 }
+                restoreSettings();
                 restoreWorkspace(() => {
                     UI.sync();
                 }, true);
@@ -2980,11 +2982,11 @@
                 if (wid && anno) {
                     wid.anno = anno;
                     console.log('transfer settings annotations to widget', id);
-                    delete newset.widget[id];
                     wid.saveState();
                 } else {
                     console.log('missing widget for annotations', id);
                 }
+                delete newset.widget[id];
             }
         }
         settings = CONF.normalize(newset);
