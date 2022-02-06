@@ -288,7 +288,7 @@
         width = psize.width || 300,
         depth = psize.depth || 300,
         height = psize.height || 2.5,
-        maxz = psize.maxz
+        maxz = psize.maxz || 100
     ) {
         psize = { width, depth, height, maxz };
         if (isRound) {
@@ -301,6 +301,7 @@
         updateLights(width, depth, maxz);
         if (volume) {
             SCENE.remove(volume);
+            THREE.dispose(volume);
             volume = null;
         }
         if (maxz) {
