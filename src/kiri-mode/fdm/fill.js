@@ -101,7 +101,7 @@
     }
 
     function fillGyroid(target) {
-        ConsoleTool.timeStepStart("fill_fillGyroid");
+        //ConsoleTool.timeStepStart("fill_fillGyroid");
         let bounds = target.bounds();
         let height = target.zHeight();
         let span_x = bounds.max.x - bounds.min.x;
@@ -137,11 +137,11 @@
                 target.emit(point.x, point.y);
             }
         }
-        ConsoleTool.timeStepEnd("fill_fillGyroid");
+        //ConsoleTool.timeStepEnd("fill_fillGyroid");
     }
 
     function connectOpenPolys(noff, dist = 0.1) {
-        ConsoleTool.timeStepStart("fill_connectOpenPolys");
+        //ConsoleTool.timeStepStart("fill_connectOpenPolys");
 
         if (noff.length <= 1) {
             return noff;
@@ -185,7 +185,7 @@
             // cull nulls
             noff = noff.filter(o => o);
         }
-        ConsoleTool.timeStepEnd("fill_connectOpenPolys");
+        //ConsoleTool.timeStepEnd("fill_connectOpenPolys");
 
         return noff;
     }

@@ -381,7 +381,7 @@
     }
 
     function createSlice(params, data, options = {}) {
-        ConsoleTool.timeStepStart("slicer_createSlice");
+        //ConsoleTool.timeStepStart("slicer_createSlice");
 
         let { index, z, height, thick } = params;
         let { lines, groups, tops, clip } = data;
@@ -396,7 +396,7 @@
             slice.groups = groups;
             slice.xray = options.xray;
         }
-        ConsoleTool.timeStepEnd("slicer_createSlice");
+        //ConsoleTool.timeStepEnd("slicer_createSlice");
 
         return slice;
     }
@@ -412,7 +412,7 @@
      * @param {Obejct} where
      */
     function checkUnderOverOn(p, z, where) {
-        ConsoleTool.timeStepStart("slicer_checkUnderOverOn");
+        //ConsoleTool.timeStepStart("slicer_checkUnderOverOn");
 
         let delta = p.z - z;
         if (Math.abs(delta) < CONF.precision_slice_z) { // on
@@ -422,7 +422,7 @@
         } else { // over
             where.over.push(p);
         }
-        ConsoleTool.timeStepEnd("slicer_checkUnderOverOn");
+        //ConsoleTool.timeStepEnd("slicer_checkUnderOverOn");
 
     }
 
@@ -436,7 +436,7 @@
      * @returns {Point} intersection point
      */
     function intersectPoints(over, under, z) {
-        ConsoleTool.timeStepStart("slicer_intersectPoints");
+        //ConsoleTool.timeStepStart("slicer_intersectPoints");
 
         let ip = [];
         for (let i = 0; i < over.length; i++) {
@@ -444,7 +444,7 @@
                 ip.push(over[i].intersectZ(under[j], z));
             }
         }
-        ConsoleTool.timeStepEnd("slicer_intersectPoints");
+        //ConsoleTool.timeStepEnd("slicer_intersectPoints");
 
         return ip;
     }
@@ -475,14 +475,14 @@
      * @returns {Line}
      */
     function makeZLine(phash, p1, p2, coplanar, edge) {
-        ConsoleTool.timeStepStart("slicer_makeZLine");
+        //ConsoleTool.timeStepStart("slicer_makeZLine");
 
         p1 = getCachedPoint(phash, p1);
         p2 = getCachedPoint(phash, p2);
         let line = newOrderedLine(p1,p2);
         line.coplanar = coplanar || false;
         line.edge = edge || false;
-        ConsoleTool.timeStepEnd("slicer_makeZLine");
+        //ConsoleTool.timeStepEnd("slicer_makeZLine");
 
         return line;
     }
@@ -579,7 +579,7 @@
      */
     function connectLines(input, z, opt = {}) {
         let { debug, union } = opt;
-        ConsoleTool.timeStepStart("slicer_connectLines");
+        //ConsoleTool.timeStepStart("slicer_connectLines");
 
         // map points to all other points they're connected to
         let CONF = BASE.config,
@@ -887,7 +887,7 @@
                 );
             }
         }
-        ConsoleTool.timeStepEnd("slicer_connectLines");
+        //ConsoleTool.timeStepEnd("slicer_connectLines");
 
         if (debug) console.log({ emitted });
         if (debug && emitted < points.length) console.log({ leftovers:points.length - emitted });
