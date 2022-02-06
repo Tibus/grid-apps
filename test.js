@@ -2,7 +2,11 @@
 global.self = null;
 
 let fs = require('fs');
+
+// Without contat :
 const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/), "./src/kiri/engine.js"];
+// With contact :
+// const files = ["./code/module.js", "./src/kiri/engine.js"];
 files.map(f => f && require(f));
 
 let kiri = self.kiri;
