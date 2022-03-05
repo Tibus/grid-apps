@@ -2,13 +2,38 @@
 
 "use strict";
 
-let BASE = self.base,
-    KIRI = self.kiri,
-    UTIL = BASE.util,
-    POLY = BASE.polygons,
-    time = UTIL.time,
-    qtpi = Math.cos(Math.PI/4),
-    debug = self.debug === true,
+// dep: geo.base
+// dep: geo.polygons
+// dep: geo.wasm
+// dep: kiri.codec
+// dep: kiri.slice
+// dep: moto.license
+// use: load.png
+// use: ext.jszip
+// use: kiri.render
+// use: kiri-mode.cam.animate
+// use: kiri-mode.cam.slice
+// use: kiri-mode.cam.prepare
+// use: kiri-mode.cam.export
+// use: kiri-mode.cam.tool
+// use: kiri-mode.fdm.slice
+// use: kiri-mode.fdm.prepare
+// use: kiri-mode.fdm.export
+// use: kiri-mode.sla.slice
+// use: kiri-mode.sla.export
+// use: kiri-mode.fdm.slice
+// use: kiri-mode.fdm.prepare
+// use: kiri-mode.fdm.export
+// use: kiri-mode.laser.driver
+gapp.register("kiri-run.worker", [], (root, exports) => {
+
+const { base, kiri } = root;
+const { util, polygons, wasm_ctrl } = base;
+const { codec } = kiri;
+const { time } = util;
+const POLY = polygons;
+
+let debug = self.debug === true,
     ccvalue = this.navigator ? navigator.hardwareConcurrency || 0 : 0,
     concurrent = self.Worker && ccvalue > 3 ? ccvalue - 1 : 0,
     current = self.worker = {
@@ -22,41 +47,51 @@ let BASE = self.base,
     minifns = {},
     miniseq = 0;
 
-KIRI.version = gapp.version;
+kiri.version = gapp.version;
 
 // catch clipper alerts and convert to console messages
 self.alert = function(o) {
     console.log(o);
 };
 
-// start concurrent workers (minions)
-if (concurrent) {
-    function minhandler(msg) {
-        let data = msg.data;
-        let seq = data.seq;
-        let fn = minifns[seq];
-        if (!fn) {
-            throw `missing dispatch ${seq}`;
-        }
-        delete minifns[seq];
-        fn(data);
+function minhandler(msg) {
+    let data = msg.data;
+    let seq = data.seq;
+    let fn = minifns[seq];
+    if (!fn) {
+        throw `missing dispatch ${seq}`;
     }
-
-    for (let i=0; i < concurrent; i++) {
-        let _ = debug ? '_' : '';
-        let minion = new Worker(`/code/kiri_pool.js?${_}${self.kiri.version}`);
-        minion.onmessage = minhandler;
-        minions.push(minion);
-    }
-    console.log(`kiri | init pool | ${gapp.version || "rogue"} | ${concurrent + 1}`);
+    delete minifns[seq];
+    fn(data);
 }
 
 // for concurrent operations
 const minwork =
-KIRI.minions = {
+kiri.minions = {
     concurrent,
 
-    union: function(polys, minarea) {
+    start() {
+        if (minions.length || !concurrent) {
+            return;
+        }
+        for (let i=0; i < concurrent; i++) {
+            let _ = debug ? '_' : '';
+            let minion = new Worker(`/code/kiri_pool.js?${_}${self.kiri.version}`);
+            minion.onmessage = minhandler;
+            minion.postMessage({ cmd: "label", name: `#${i}` });
+            minions.push(minion);
+        }
+        console.log(`kiri | init pool | ${gapp.version || "rogue"} | ${concurrent + 1}`);
+    },
+
+    stop() {
+        for (let minion of minions) {
+            minion.terminate();
+        }
+        minions.length = 0;
+    },
+
+    union(polys, minarea) {
         return new Promise((resolve, reject) => {
             if (concurrent < 2 || polys.length < concurrent * 2 || POLY.points(polys) < concurrent * 50) {
                 resolve(POLY.union(polys, minarea, true));
@@ -66,7 +101,7 @@ KIRI.minions = {
             let running = 0;
             let union = [];
             let receiver = function(data) {
-                let polys = KIRI.codec.decode(data.union);
+                let polys = codec.decode(data.union);
                 union.appendAll(polys);
                 if (--running === 0) {
                     resolve(POLY.union(union, minarea, true));
@@ -77,13 +112,13 @@ KIRI.minions = {
                 minwork.queue({
                     cmd: "union",
                     minarea,
-                    polys: KIRI.codec.encode(polys.slice(i, i + polyper))
+                    polys: codec.encode(polys.slice(i, i + polyper))
                 }, receiver);
             }
         });
     },
 
-    fill: function(polys, angle, spacing, output, minLen, maxLen) {
+    fill(polys, angle, spacing, output, minLen, maxLen) {
         return new Promise((resolve, reject) => {
             if (concurrent < 2) {
                 resolve(POLY.fillArea(polys, angle, spacing, [], minLen, maxLen));
@@ -91,13 +126,13 @@ KIRI.minions = {
             }
             minwork.queue({
                 cmd: "fill",
-                polys: KIRI.codec.encode(polys),
+                polys: codec.encode(polys),
                 angle, spacing, minLen, maxLen
             }, data => {
                 let arr = data.fill;
                 let fill = [];
                 for (let i=0; i<arr.length; ) {
-                    let pt = BASE.newPoint(arr[i++], arr[i++], arr[i++]);
+                    let pt = base.newPoint(arr[i++], arr[i++], arr[i++]);
                     pt.index = arr[i++];
                     fill.push(pt);
                 }
@@ -107,7 +142,7 @@ KIRI.minions = {
         });
     },
 
-    clip: function(slice, polys, lines) {
+    clip(slice, polys, lines) {
         return new Promise((resolve, reject) => {
             if (concurrent < 2) {
                 reject("concurrent clip unavaiable");
@@ -118,7 +153,7 @@ KIRI.minions = {
                 lines: lines.map(a => a.map(p => p.toClipper())),
                 z: slice.z
             }, data => {
-                let polys = KIRI.codec.decode(data.clips);
+                let polys = codec.decode(data.clips);
                 for (let top of slice.tops) {
                     for (let poly of polys) {
                         if (poly.isInside(top.poly)) {
@@ -131,12 +166,12 @@ KIRI.minions = {
         });
     },
 
-    sliceBucket: function(bucket, options, output) {
+    sliceZ(z, points, options) {
         return new Promise((resolve, reject) => {
             if (concurrent < 2) {
                 reject("concurrent slice unavaiable");
             }
-            let { points, slices } = bucket;
+            let { each } = options;
             let i = 0, floatP = new Float32Array(points.length * 3);
             for (let p of points) {
                 floatP[i++] = p.x;
@@ -144,27 +179,28 @@ KIRI.minions = {
                 floatP[i++] = p.z;
             }
             minwork.queue({
-                cmd: "sliceBucket",
+                cmd: "sliceZ",
+                z,
                 points: floatP,
-                slices,
-                options
+                options: codec.toCodable(options)
             }, data => {
-                let recs = KIRI.codec.decode(data.output);
-                for (let rec of recs) {
-                    let { params, data } = rec;
-                    output.push(KIRI.slicer.createSlice(params, data));
+                let recs = codec.decode(data.output);
+                if (each) {
+                    for (let rec of recs) {
+                        each(rec);
+                    }
                 }
                 resolve(recs);
             }, [ floatP.buffer ]);
         });
     },
 
-    queue: function(work, ondone, direct) {
+    queue(work, ondone, direct) {
         minionq.push({work, ondone, direct});
         minwork.kick();
     },
 
-    kick: function() {
+    kick() {
         if (minions.length && minionq.length) {
             let qrec = minionq.shift();
             let minion = minions.shift();
@@ -179,7 +215,7 @@ KIRI.minions = {
         }
     },
 
-    wasm: function(enable) {
+    wasm(enable) {
         for (let minion of minions) {
             minion.postMessage({
                 cmd: "wasm",
@@ -193,20 +229,30 @@ console.log(`kiri | init work | ${gapp.version || "rogue"}`);
 
 // code is running in the worker / server context
 const dispatch =
-KIRI.server =
-KIRI.worker = {
+kiri.server =
+kiri.worker = {
+    pool_start(data, send) {
+        minwork.start();
+        send.done({});
+    },
+
+    pool_stop(data, send) {
+        minwork.stop();
+        send.done({});
+    },
+
     group: wgroup,
 
     cache: wcache,
 
-    decimate: function(data, send) {
+    decimate(data, send) {
         let { vertices, options } = data;
         vertices = new Float32Array(vertices),
-        vertices = BASE.pointsToVertices(BASE.verticesToPoints(vertices, options));
+        vertices = base.pointsToVertices(base.verticesToPoints(vertices, options));
         send.done(vertices);
     },
 
-    heal: function(data, send) {
+    heal(data, send) {
         let { vertices, refresh } = data;
         let mesh = new base.Mesh({vertices}).heal();
         if (mesh.newFaces || refresh) {
@@ -217,12 +263,12 @@ KIRI.worker = {
         }
     },
 
-    snap: function(data, send) {
+    snap(data, send) {
         current.snap = data;
         send.done();
     },
 
-    png: function(data, send) {
+    png(data, send) {
         if (current.snap) {
             let sws = current.snap.url;
             let b64 = atob(sws.substring(sws.indexOf(',') + 1));
@@ -236,17 +282,17 @@ KIRI.worker = {
         }
     },
 
-    clear: function(data, send) {
+    clear(data, send) {
         // current.snap = null;
         current.print = null;
         dispatch.group = wgroup = {};
         dispatch.cache = wcache = {};
-        KIRI.Widget.Groups.clear();
+        kiri.Widget.Groups.clear();
         send.done({ clear: true });
     },
 
     // widget sync
-    sync: function(data, send) {
+    sync(data, send) {
         if (data.valid) {
             // remove widgets not present in valid list
             for (let key in wcache) {
@@ -269,7 +315,7 @@ KIRI.worker = {
             wgroup[data.group] = group;
         }
         let vertices = new Float32Array(data.vertices),
-            widget = KIRI.newWidget(data.id, group).loadVertices(vertices).setInWorker();
+            widget = kiri.newWidget(data.id, group).loadVertices(vertices).setInWorker();
 
         // do it here so cancel can work
         wcache[data.id] = widget;
@@ -282,7 +328,7 @@ KIRI.worker = {
         send.done(data.id);
     },
 
-    rotate: function(data, send) {
+    rotate(data, send) {
         let { settings } = data;
         if (!settings.device.bedBelt) {
             return send.done({});
@@ -318,8 +364,9 @@ KIRI.worker = {
             let xpos = track.pos.x;
             let ypos = settings.device.bedDepth / 2 + track.pos.y + miny;
             let rotation = (Math.PI / 180) * 45;
+            let proc = settings.process;
             // move to accomodate anchor
-            ypos += (settings.process.beltAnchor || 0);
+            ypos += (proc.beltAnchor || proc.firstLayerBeltLead || 0);
             for (let w of group) {
                 w.moveMesh(0, miny, 0);
             }
@@ -335,7 +382,7 @@ KIRI.worker = {
         send.done({});
     },
 
-    unrotate: function(data, send) {
+    unrotate(data, send) {
         let { settings } = data;
         if (!settings.device.bedBelt) {
             return send.done({});
@@ -345,8 +392,9 @@ KIRI.worker = {
             let widget = group[0];
             let { xpos, ypos } = widget.belt;
             let { dy, dz } = widget.belt;
+            let proc = settings.process;
             // move to accomodate anchor
-            dy -= (settings.process.beltAnchor || 0) ;
+            dy -= (proc.beltAnchor || proc.firstLayerBeltLead || 0) ;
             widget.rotinfo = { angle: 45, dy, dz, xpos, ypos };
             for (let others of group.slice(1)) {
                 others.rotinfo = widget.rotinfo;
@@ -356,7 +404,7 @@ KIRI.worker = {
         send.done({});
     },
 
-    slice: function(data, send) {
+    slice(data, send) {
         send.data({update:0.001, updateStatus:"slicing"});
 
         current.print = null;
@@ -380,7 +428,7 @@ KIRI.worker = {
                     stats: widget.stats,
                     slices: slices.length,
                 });
-                slices.forEach(function(slice,index) {
+                slices.forEach((slice,index) => {
                     const state = { zeros: [] };
                     send.data({index: index, slice: slice.encode(state)}, state.zeros);
                 })
@@ -396,11 +444,10 @@ KIRI.worker = {
         });
     },
 
-    sliceAll: function(data, send) {
-        const drivers = KIRI.driver;
-        const settings = data.settings;
-        const mode = settings.mode;
-        const driver = drivers[mode];
+    sliceAll(data, send) {
+        const { settings } = data;
+        const { mode } = settings;
+        const driver = kiri.driver[mode];
 
         if (driver.sliceAll) {
             driver.sliceAll(settings, send.data);
@@ -409,17 +456,16 @@ KIRI.worker = {
         send.done({done: true});
     },
 
-    prepare: function(data, send) {
+    prepare(data, send) {
         // create widget array from id:widget cache
         const widgets = Object.values(wcache);
 
         // let client know we've started
         send.data({update:0.05, updateStatus:"preview"});
 
-        const drivers = KIRI.driver;
-        const settings = data.settings;
-        const mode = settings.mode;
-        const driver = drivers[mode];
+        const { settings } = data;
+        const { mode } = settings;
+        const driver = kiri.driver[mode];
 
         if (!(driver && driver.prepare)) {
             return console.log({invalid_print_driver: mode, driver});
@@ -429,7 +475,7 @@ KIRI.worker = {
             const state = { zeros: [] };
             const emit = { progress, message };
             if (layer) {
-                emit.layer = KIRI.codec.encode(layer, state)
+                emit.layer = codec.encode(layer, state)
             }
             send.data(emit);
         });
@@ -444,15 +490,15 @@ KIRI.worker = {
 
         send.done({
             done: true,
-            // output: KIRI.codec.encode(layers, state),
+            // output: codec.encode(layers, state),
             minSpeed,
             maxSpeed
         }, state.zeros);
     },
 
-    export: function(data, send) {
+    export(data, send) {
         const mode = data.settings.mode;
-        const driver = KIRI.driver[mode];
+        const driver = kiri.driver[mode];
 
         if (!(driver && driver.export)) {
             console.log({missing_export_driver: mode});
@@ -482,16 +528,16 @@ KIRI.worker = {
         });
     },
 
-    colors: function(data, send) {
+    colors(data, send) {
         const { colors, max } = data;
         const colorMap = {};
         colors.forEach(color => {
-            colorMap[color] = KIRI.driver.FDM.rateToColor(color, max);
+            colorMap[color] = kiri.render.rate_to_color(color, max);
         });
         send.done(colorMap);
     },
 
-    parse: function(args, send) {
+    parse(args, send) {
         const { settings, code, type } = args;
         const origin = settings.origin;
         const offset = {
@@ -500,7 +546,7 @@ KIRI.worker = {
             z: origin.z
         };
         const device = settings.device;
-        const print = current.print = KIRI.newPrint(settings, Object.values(wcache));
+        const print = current.print = kiri.newPrint(settings, Object.values(wcache));
         const tools = device.extruders;
         const mode = settings.mode;
         const thin = settings.controller.lineType === 'line' || mode !== 'FDM';
@@ -510,35 +556,35 @@ KIRI.worker = {
         }, done => {
             const minSpeed = print.minSpeed;
             const maxSpeed = print.maxSpeed;
-            const layers = KIRI.driver.FDM.prepareRender(done.output, progress => {
+            const layers = kiri.render.path(done.output, progress => {
                 send.data({ progress: 0.25 + progress * 0.75 });
             }, { thin: thin || print.belt, flat, tools });
-            send.done({parsed: KIRI.codec.encode(layers), maxSpeed, minSpeed});
+            send.done({parsed: codec.encode(layers), maxSpeed, minSpeed});
         }, {
             fdm: mode === 'FDM',
             belt: device.bedBelt
         });
     },
 
-    parse_svg: function(parsed, send) {
+    parse_svg(parsed, send) {
         parsed.forEach(layer => {
             layer.forEach(out => {
                 const { x, y, z } = out.point;
-                out.point = BASE.newPoint(x,y,z || 0);
+                out.point = base.newPoint(x,y,z || 0);
             });
         });
-        const print = current.print = KIRI.newPrint(null, Object.values(wcache));
-        const layers = KIRI.driver.FDM.prepareRender(parsed, progress => {
+        const print = current.print = kiri.newPrint(null, Object.values(wcache));
+        const layers = kiri.render.path(parsed, progress => {
             send.data({ progress });
         }, { thin:  true });
-        send.done({parsed: KIRI.codec.encode(layers)});
+        send.done({parsed: codec.encode(layers)});
     },
 
-    config: function(data, send) {
+    config(data, send) {
         const update = {};
         if (data.base) {
             update.base = data.base;
-            Object.assign(BASE.config, data.base);
+            Object.assign(base.config, data.base);
         } else {
             console.log({invalid:data});
         }
@@ -551,230 +597,22 @@ KIRI.worker = {
         send.done({config: update});
     },
 
-    image2mesh: function(info, send) {
-        let img = new png.PNG();
-        img.parse(info.png, (err, output) => {
-            let { width, height, data } = output;
-            let { bedDepth, bedWidth } = info.settings.device;
-            let imageAspect = height / width;
-            let deviceAspect = bedDepth / bedWidth;
-            let div = 1;
-            if (imageAspect < deviceAspect) {
-                div = width / bedWidth;
-            } else {
-                div = height / bedDepth;
-            }
-            let points =
-                width * height + // grid
-                height * 2 + 0 + // left/right
-                width * 2 + 0;   // top/bottom
-            let flats =
-                ((height-1) * (width-1)) + // surface
-                ((height-1) * 2) +         // left/right
-                ((width-1) * 2) +          // top/bottom
-                1;                         // base
-            // convert png to grayscale
-            let gray = new Uint8Array(width * height);
-            let alpha = new Uint8Array(width * height);
-            let gi = 0;
-            let invi = info.inv_image ? true : false;
-            let inva = info.inv_alpha ? true : false;
-            let border = info.border || 0;
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    let di = (x + width * y) * 4;
-                    let r = data[di];
-                    let g = data[di+1];
-                    let b = data[di+2];
-                    let a = data[di+3];
-                    let v = ((r + g + b) / 3);
-                    if (inva) a = 255 - a;
-                    if (invi) v = 255 - v;
-                    if (border) {
-                        if (x < border || y < border || x > width-border-1 || y > height-border-1) {
-                            v = 255;
-                        }
-                    }
-                    alpha[gi] = a;
-                    gray[gi++] = v * (a / 255);
-                }
-            }
-            let blur = parseInt(info.blur || 0);
-            while (blur-- > 0) {
-                let blur = new Uint8Array(width * height);
-                for (let y = 0; y < height; y++) {
-                    for (let x = 0; x < width; x++) {
-                        let xl = Math.max(x-1,0);
-                        let xr = Math.min(x+1,width-1);
-                        let yu = Math.max(y-1,0);
-                        let yd = Math.min(y+1,height-1);
-                        let id = x + width * y;
-                        blur[id] = ((
-                            gray[xl + (width * yu)] +
-                            gray[x  + (width * yu)] +
-                            gray[xr + (width * yu)] +
-                            gray[xl + (width *  y)] +
-                            gray[x  + (width *  y)] * 8 + // self
-                            gray[xr + (width *  y)] +
-                            gray[xl + (width * yd)] +
-                            gray[x  + (width * yd)] +
-                            gray[xr + (width * yd)]
-                        ) / 16);
-                    }
-                }
-                gray = blur;
-            }
-            // create indexed mesh output
-            let base = parseInt(info.base || 0);
-            let verts = new Float32Array(points * 3);
-            let faces = new Uint32Array(flats * 6);
-            let w2 = width / 2;
-            let h2 = height / 2;
-            let vi = 0;
-            let ii = 0;
-            let VI = 0;
-            let VB = 0;
-            // create surface vertices & faces
-            for (let x = 0; x < width; x++) {
-                for (let y = 0; y < height; y++) {
-                    let id = x + width * y;
-                    let v = gray[id];
-                    // create vertex @ x,y
-                    verts[vi++] = (-w2 + x) / div;
-                    verts[vi++] = (h2 - y) / div;
-                    verts[vi++] = (v / 50) + (base * alpha[id] / 255);
-                    VI++;
-                    // create two surface faces on the rect between x-1,y-1 and x,y
-                    if (x > 0 && y > 0) {
-                        let p1 = (x - 1) * height + (y - 0);
-                        let p2 = (x - 0) * height + (y - 1);
-                        let p3 = (x - 0) * height + (y - 0);
-                        let p4 = (x - 1) * height + (y - 1);
-                        faces[ii++] = p1;
-                        faces[ii++] = p3;
-                        faces[ii++] = p2;
-                        faces[ii++] = p1;
-                        faces[ii++] = p2;
-                        faces[ii++] = p4;
-                    }
-                }
-                send.data({progress: x / width});
-            }
-            // create top vertices & faces
-            VB = VI;
-            let TL = VI;
-            for (let x = 0; x < width; x++) {
-                let y = 0;
-                verts[vi++] = (-w2 + x) / div;
-                verts[vi++] = (h2 - y) / div;
-                verts[vi++] = 0;
-                VI++;
-                // create two top faces on the rect x-1,0, x,z
-                if (x > 0) {
-                    let p1 = VB + (x - 1);
-                    let p2 = VB + (x - 0);
-                    let p3 = (x * height);
-                    let p4 = (x - 1) * height;
-                    faces[ii++] = p1;
-                    faces[ii++] = p3;
-                    faces[ii++] = p2;
-                    faces[ii++] = p1;
-                    faces[ii++] = p4;
-                    faces[ii++] = p3;
-                }
-            }
-            // create bottom vertices & faces
-            VB = VI;
-            let BL = VI;
-            for (let x = 0; x < width; x++) {
-                let y = height - 1;
-                verts[vi++] = (-w2 + x) / div;
-                verts[vi++] = (h2 - y) / div;
-                verts[vi++] = 0;
-                VI++;
-                // create two top faces on the rect x-1,0, x,z
-                if (x > 0) {
-                    let p1 = VB + (x - 1);
-                    let p2 = VB + (x - 0);
-                    let p3 = (x * height) + y;
-                    let p4 = (x - 1) * height + y;
-                    faces[ii++] = p1;
-                    faces[ii++] = p2;
-                    faces[ii++] = p3;
-                    faces[ii++] = p1;
-                    faces[ii++] = p3;
-                    faces[ii++] = p4;
-                }
-            }
-            // create left vertices & faces
-            VB = VI;
-            for (let y=0; y < height; y++) {
-                let x = 0;
-                verts[vi++] = (-w2 + x) / div;
-                verts[vi++] = (h2 - y) / div;
-                verts[vi++] = 0;
-                VI++;
-                // create two left faces on the rect y-1,0, y,z
-                if (y > 0) {
-                    let p1 = VB + (y + 0);
-                    let p2 = VB + (y - 1);
-                    let p3 = 0 + (y - 1);
-                    let p4 = 0 + (y - 0);
-                    faces[ii++] = p1;
-                    faces[ii++] = p3;
-                    faces[ii++] = p2;
-                    faces[ii++] = p1;
-                    faces[ii++] = p4;
-                    faces[ii++] = p3;
-                }
-            }
-            // create right vertices & faces
-            VB = VI;
-            let TR = VI;
-            for (let y=0; y < height; y++) {
-                let x = width - 1;
-                verts[vi++] = (-w2 + x) / div;
-                verts[vi++] = (h2 - y) / div;
-                verts[vi++] = 0;
-                VI++;
-                // create two right faces on the rect y-1,0, y,z
-                if (y > 0) {
-                    let p1 = VB + (y + 0);
-                    let p2 = VB + (y - 1);
-                    let p3 = (x * height) + (y - 1);
-                    let p4 = (x * height) + (y - 0);
-                    faces[ii++] = p1;
-                    faces[ii++] = p2;
-                    faces[ii++] = p3;
-                    faces[ii++] = p1;
-                    faces[ii++] = p3;
-                    faces[ii++] = p4;
-                }
-            }
-            let BR = VI-1;
-            // create base two faces
-            faces[ii++] = TL;
-            faces[ii++] = TR;
-            faces[ii++] = BR;
-            faces[ii++] = TL;
-            faces[ii++] = BR;
-            faces[ii++] = BL;
-            // flatten for now until we support indexed mesh
-            // throughout KM (widget, storage, decimation)
-            let bigv = new Float32Array(ii * 3);
-            let bgi = 0;
-            for (let i=0; i<ii; i++) {
-                let iv = faces[i] * 3;
-                bigv[bgi++] = verts[iv];
-                bigv[bgi++] = verts[iv+1];
-                bigv[bgi++] = verts[iv+2];
-            }
-            // send.done({done: {verts, faces, bigv, vi, ii}}, [ bigv.buffer ]);
-            send.done({done: {bigv}}, [ bigv.buffer ]);
+    image2mesh(info, send) {
+        let { device } = info.settings;
+        load.PNG.parse(info.png, {
+            outWidth: device.bedDepth,
+            outHeight: device.bedWidth,
+            inv_image: info.inv_image,
+            inv_alpha: info.inv_alpha,
+            border: info.border,
+            blur: info.blur,
+            base: info.base,
+            progress(progress) { send.data({ progress }) },
+            done(vertices) { send.done({ vertices }, [ vertices.buffer ])}
         });
     },
 
-    zip: function(data, send) {
+    zip(data, send) {
         let { files } = data;
         let zip = new JSZip();
         for (let file of files) {
@@ -792,11 +630,11 @@ KIRI.worker = {
         });
     },
 
-    wasm: function(data, send) {
+    wasm(data, send) {
         if (data.enable) {
-            geo.enable();
+            wasm_ctrl.enable();
         } else {
-            geo.disable();
+            wasm_ctrl.disable();
         }
         minwork.wasm(data.enable);
         send.done({ wasm: data });
@@ -870,7 +708,7 @@ dispatch.onmessage = self.onmessage = function(e) {
     }
 };
 
-// load kiri modules
-KIRI.loader.forEach(fn => {
-    fn(dispatch);
 });
+
+// load kiri modules
+// kiri.load_exec(dispatch);

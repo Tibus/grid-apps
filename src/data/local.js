@@ -2,12 +2,9 @@
 
 "use strict";
 
-(function() {
+gapp.register("data.local", [], (root, exports) => {
 
-gapp.register('data.local');
-
-let data = self.data = self.data || {};
-if (data.Local) return;
+const { data } = root;
 
 function Local() {
     this.__data__ = {};
@@ -34,16 +31,17 @@ LS.clear = function() {
 };
 
 try {
-    let local = data.Local = self.localStorage;
+    // deprecate 'Local' at some point
+    let local = data.local =self.localStorage;
     let testkey = '__test';
     local.setItem(testkey, 1);
     local.getItem(testkey);
     local.removeItem(testkey);
 } catch (e) {
-    data.Local = new Local();
-    let msg = "in private or restricted browsing mode. local storage blocked. application may not function properly.";
+    data.local = new Local();
+    let msg = "localStorage disabled: application may not function properly";
     console.log(msg);
-    alert(msg);
+    // alert(msg);
 }
 
-})();
+});

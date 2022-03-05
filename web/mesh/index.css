@@ -27,6 +27,12 @@ body, div {
     margin: 0;
 }
 
+input {
+    background-color: #eee;
+    border-radius: 3px;
+    border: 1px solid black;
+}
+
 #app {
     position: fixed;
     overflow: hidden;
@@ -170,10 +176,13 @@ button:hover {
     bottom: 0;
     right: 3px;
     top: 0;
-    gap: 5px;
+    gap: 8px;
 }
 
 #top-right > div {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     flex-direction: row;
     color: #888;
 }
@@ -188,12 +197,6 @@ button:hover {
 
 .dark #top-right > div:hover {
     color: white;
-}
-
-#top-settings, #top-help {
-    flex-direction: column;
-    justify-content: center;
-    align-items: center
 }
 
 .export {
@@ -233,7 +236,7 @@ button:hover {
 
 #modal_frame {
     border-radius: 4px !important;
-    background-color: rgba(255,255,255,0.9) !important;
+    background-color: #fff !important;
     flex-direction: column;
     padding: 0 !important; /* override common below */
     z-index: 51;
@@ -267,13 +270,50 @@ button:hover {
     color: black;
 }
 
+/** welcome dialog **/
+
+.welcome {
+    flex-direction: column;
+    align-items: center;
+    padding: 5px;
+    gap: 5px;
+    font-size: smaller;
+}
+
+.welcome a {
+    color: #038;
+    border-radius: 3px;
+    padding: 0 10px 0 10px;
+}
+
+.welcome a:hover {
+    background-color: #ddd;
+}
+
+.welcome .choice {
+    gap: 5px
+}
+
 /** settings dialog **/
 
 .settings {
+    gap: 5px;
+}
+
+.settings > div {
     display: grid;
     grid: min-content 1fr / min-content 1fr;
     white-space: nowrap;
     align-items: center;
+}
+
+.settings label {
+    padding: 0 5px 0 3px;
+}
+
+.settings input {
+    font-family: monospace;
+    text-align: center;
 }
 
 /** spinner animation **/

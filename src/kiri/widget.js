@@ -2,142 +2,36 @@
 
 "use strict";
 
-(function() {
+// dep: geo.base
+// dep: geo.mesh
+// dep: geo.point
+// dep: geo.points
+// dep: geo.polygons
+// dep: kiri.utils
+// use: kiri.codec
+gapp.register("kiri.widget", [], (root, exports) => {
 
-    if (self.kiri.Widget) return;
+const { base, kiri } = root;
+const { api, driver, utils } = kiri;
+const { config, util, polygons } = base;
+const { Mesh, newPoint, verticesToPoints } = base;
+const { inRange, time } = util;
+const { rgb, avgc } = utils;
 
-    const KIRI = self.kiri,
-        DRIVERS = KIRI.driver,
-        BASE = self.base,
-        CONF = BASE.config,
-        UTIL = BASE.util,
-        POLY = BASE.polygons,
-        MATH = Math,
-        PRO = Widget.prototype,
-        time = UTIL.time,
-        solid_opacity = 1.0;
+const POLY = polygons;
+const solid_opacity = 1.0;
+const groups = [];
 
-    let nextId = 0,
-        groups = [];
+let nextId = 0;
 
-    KIRI.Widget = Widget;
-    KIRI.newWidget = newWidget;
+function newWidget(id,group) { return new Widget(id,group) }
 
-    function newWidget(id,group) { return new Widget(id,group) }
+function catalog() { return kiri.catalog }
 
-    /** ******************************************************************
-     * Group helpers
-     ******************************************************************* */
+function index() { return catalog().index }
 
-    let Group = Widget.Groups = {
-
-        list: () => {
-            return groups.slice()
-        },
-
-        merge: (widgets) => {
-            let grps = widgets.map(w => w.group).uniq();
-            if (grps.length > 1) {
-                let root = grps.shift();
-                let rpos = root[0].track.pos;
-                for (let grp of grps) {
-                    for (let w of grp) {
-                        let wpos = w.track.pos;
-                        w.group = root;
-                        w.moveMesh(rpos.x - wpos.x, rpos.y - wpos.y, rpos.z - wpos.z);
-                        w._move(rpos.x, rpos.y, rpos.z, true);
-                        root.push(w);
-                    }
-                    groups.splice(groups.indexOf(grp),1);
-                }
-            }
-        },
-
-        split: (widgets) => {
-            for (let group of widgets.map(w => w.group).uniq()) {
-                groups.splice(groups.indexOf(group),1);
-                for (let widget of group) {
-                    let nugroup = Group.forid(widget.id);
-                    nugroup.push(widget);
-                    widget.group = nugroup;
-                }
-            }
-        },
-
-        forid: function(id) {
-            for (let i=0; i<groups.length; i++) {
-                if (groups[i].id === id) return groups[i];
-            }
-            let group = [];
-            group.id = id;
-            groups.push(group);
-            return group;
-        },
-
-        remove: function(widget) {
-            groups.slice().forEach(group => {
-                let pos = group.indexOf(widget);
-                if (pos >= 0) {
-                    group.splice(pos,1);
-                }
-                if (group.length === 0) {
-                    pos = groups.indexOf(group);
-                    groups.splice(pos,1);
-                }
-            });
-        },
-
-        blocks: function() {
-            return groups.map(group => {
-                return {
-                    w: group[0].track.box.w,
-                    h: group[0].track.box.h,
-                    move: (x,y,z,abs) => {
-                        group.forEach(widget => {
-                            widget.mesh.material.visible = true;
-                            widget._move(x, y, z, abs);
-                        });
-                    }
-                };
-            });
-        },
-
-        loadDone: function() {
-            groups.forEach(group => {
-                if (!group.centered) {
-                    group[0].center();
-                    group.centered = true;
-                }
-            });
-        },
-
-        bounds: function(group) {
-            let bounds = null;
-            group.forEach(widget => {
-                let wb = widget.mesh.getBoundingBox(true);
-                if (bounds) {
-                    bounds = bounds.union(wb);
-                } else {
-                    bounds = wb;
-                }
-            });
-            return bounds;
-        },
-
-        clear: function() {
-            groups.length = 0;
-        }
-    };
-
-    /** ******************************************************************
-     * Constructor
-     ******************************************************************* */
-
-    /**
-     * @params {String} [id]
-     * @constructor
-     */
-    function Widget(id, group) {
+class Widget {
+    constructor(id, group) {
         this.id = id || new Date().getTime().toString(36)+(nextId++);
         this.grouped = group ? true : false;
         this.group = group || [];
@@ -204,69 +98,24 @@
         this.support = false;
     }
 
-    /** ******************************************************************
-     * Widget Class Functions
-     ******************************************************************* */
-
-    Widget.loadFromCatalog = function(filename, ondone) {
-        KIRI.catalog.getFile(filename, function(data) {
-            let widget = newWidget().loadVertices(data);
-            widget.meta.file = filename;
-            ondone(widget);
-        });
-    };
-
-    Widget.loadFromState = function(id, ondone, move) {
-        KIRI.odb.get('ws-save-'+id, function(data) {
-            if (data) {
-                let vertices = data.geo || data,
-                    indices = data.ind || undefined,
-                    track = data.track || undefined,
-                    group = data.group || id,
-                    anno = data.anno || undefined,
-                    widget = newWidget(id, Group.forid(group)),
-                    meta = data.meta || widget.meta,
-                    ptr = widget.loadVertices({vertices, indices});
-                widget.meta = meta;
-                widget.anno = anno || widget.anno;
-                // restore widget position if specified
-                if (move && track && track.pos) {
-                    widget.track = track;
-                    widget.move(track.pos.x, track.pos.y, track.pos.z, true);
-                }
-                ondone(ptr);
-            } else {
-                ondone(null);
-            }
-        });
-    };
-
-    Widget.deleteFromState = function(id,ondone) {
-        KIRI.odb.remove('ws-save-'+id, ondone);
-    };
-
-    /** ******************************************************************
-     * Widget Prototype Functions
-     ******************************************************************* */
-
-    PRO.saveToCatalog = function(filename) {
+    saveToCatalog(filename) {
         if (this.grouped) {
             return this;
         }
-        let widget = this;
-        let time = UTIL.time();
+        const widget = this;
+        const mark = time();
         widget.meta.file = filename;
-        widget.meta.save = time;
-        KIRI.catalog.putFile(filename, this.getGeoVertices(true), function(vertices) {
+        widget.meta.save = mark;
+        catalog().putFile(filename, this.getGeoVertices(true), vertices => {
             if (vertices && vertices.length) {
-                console.log("saving decimated mesh ["+vertices.length+"] time ["+(UTIL.time()-time)+"]");
+                console.log("saving decimated mesh ["+vertices.length+"] time ["+(time()-mark)+"]");
                 widget.loadVertices(vertices);
             }
         });
         return this;
-    };
+    }
 
-    PRO.saveState = function(ondone) {
+    saveState(ondone) {
         if (!ondone) {
             clearTimeout(this._save_timer);
             this._save_timer = setTimeout(() => {
@@ -275,21 +124,21 @@
             }, 1500);
             return;
         }
-        let widget = this;
-        KIRI.odb.put('ws-save-'+this.id, {
+        const widget = this;
+        index().put('ws-save-'+this.id, {
             geo: widget.getGeoVertices(false),
             ind: widget.getGeoIndices(),
             track: widget.track,
             group: this.group.id,
             meta: this.meta,
             anno: this.annotations()
-        }, function(result) {
+        }, result => {
             widget.meta.saved = time();
             if (ondone) ondone();
         });
-    };
+    }
 
-    PRO.annotations = function() {
+    annotations() {
         let o = Object.clone(this.anno);
         if (o.support) {
             // clear out THREE.Box temps
@@ -298,14 +147,14 @@
             }
         }
         return o;
-    };
+    }
 
     /**
      *
      * @param {Float32Array} vertices
      * @returns {Widget}
      */
-    PRO.loadVertices = function(data, options = { index: false }) {
+    loadVertices(data, options = { index: false }) {
         let vertices,
             indices,
             autoscale = false;
@@ -340,7 +189,7 @@
             }
         }
         if (options.index && !indices) {
-            let mesh = new BASE.Mesh({vertices});
+            let mesh = new Mesh({vertices});
             vertices = mesh.vertices.toFloat32();
             indices = Uint32Array.from(mesh.faces.map(v => v/3));
         }
@@ -364,40 +213,42 @@
             this.points = null;
             return this.loadGeometry(geo);
         }
-    };
+    }
 
-    PRO.loadData = PRO.loadVertices;
+    loadData() {
+        return this.loadVertices(...arguments);
+    }
 
-    PRO.setModified = function() {
+    setModified() {
         this.modified = true;
         if (this.mesh && this.mesh.geometry) {
             // this fixes ray intersections after the mesh is modified
             this.mesh.geometry.boundingSphere = null;
         }
-    };
+    }
 
-    PRO.indexGeo = function() {
+    indexGeo() {
         let indices = this.getGeoIndices();
         if (!indices) {
-            let mesh = new BASE.Mesh({vertices: this.getGeoVertices()});
+            let mesh = new Mesh({vertices: this.getGeoVertices()});
             vertices = mesh.vertices.toFloat32();
             indices = Uint32Array.from(mesh.faces.map(v => v/3));
             this.loadData({vertices, indices});
         }
-    };
+    }
 
-    PRO.heal = function(debug, refresh) {
+    heal(debug, refresh) {
         if (debug) {
             let mesh = this.debugMesh().heal();
             let verts = mesh.vertices;
             let edges = mesh.edges;
             let split = mesh.edges.filter(l => l.split);
-            let layrz = new KIRI.Layers();
+            let layrz = new kiri.Layers();
             layrz.setLayer("edges", {line: 0});
             for (let line of edges) {
                 layrz.addLine(
-                    BASE.newPoint(verts[line.v1], verts[line.v1+1], verts[line.v1+2]),
-                    BASE.newPoint(verts[line.v2], verts[line.v2+1], verts[line.v2+2])
+                    newPoint(verts[line.v1], verts[line.v1+1], verts[line.v1+2]),
+                    newPoint(verts[line.v2], verts[line.v2+1], verts[line.v2+2])
                 );
             }
             for (let l=0; l<mesh.loops.length; l++) {
@@ -405,24 +256,24 @@
                 let zo = [0.15, 0.3, 0.45][l % 3];
                 for (let line of mesh.loops[l]) {
                     layrz.addLine(
-                        BASE.newPoint(verts[line.v1], verts[line.v1+1], verts[line.v1+2] - zo),
-                        BASE.newPoint(verts[line.v2], verts[line.v2+1], verts[line.v2+2] - zo)
+                        newPoint(verts[line.v1], verts[line.v1+1], verts[line.v1+2] - zo),
+                        newPoint(verts[line.v2], verts[line.v2+1], verts[line.v2+2] - zo)
                     );
                 }
             }
             layrz.setLayer("split", {line: 0xff00ff});
             for (let line of split) {
                 layrz.addLine(
-                    BASE.newPoint(verts[line.v1], verts[line.v1+1], verts[line.v1+2] - 0.6),
-                    BASE.newPoint(verts[line.v2], verts[line.v2+1], verts[line.v2+2] - 0.6)
+                    newPoint(verts[line.v1], verts[line.v1+1], verts[line.v1+2] - 0.6),
+                    newPoint(verts[line.v2], verts[line.v2+1], verts[line.v2+2] - 0.6)
                 );
             }
-            let stack = new KIRI.Stack(this.mesh);
+            let stack = new kiri.Stack(this.mesh);
             stack.addLayers(layrz);
             return { mesh, layrz, stack };
         }
         return new Promise((resolve, reject) => {
-            KIRI.client.heal(this.getVertices().array, data => {
+            kiri.client.heal(this.getVertices().array, data => {
                 if (data.vertices) {
                     this.loadVertices(data.vertices);
                     this.modified = true;
@@ -432,22 +283,22 @@
                 resolve(this.modified);
             }, refresh);
         });
-    };
+    }
 
-    PRO.debugMesh = function(precision) {
+    debugMesh(precision) {
         return new base.Mesh({precision, vertices: this.getVertices().array});
-    };
+    }
 
-    PRO.getVertices = function() {
+    getVertices() {
         return this.mesh.geometry.attributes.position;
-    };
+    }
 
     /**
      * @param {THREE.Geometry} geometry
      * @returns {Widget}
      */
-    PRO.loadGeometry = function(geometry) {
-        let mesh = new THREE.Mesh(
+    loadGeometry(geometry) {
+        const mesh = new THREE.Mesh(
             geometry,
             new THREE.MeshPhongMaterial({
                 color: 0xffff00,
@@ -469,25 +320,25 @@
         // invalidates points cache (like any scale/rotation)
         this.center(true);
         return this;
-    };
+    }
 
-    PRO.groupBounds = function() {
+    groupBounds() {
         return Group.bounds(this.group);
-    };
+    }
 
     /**
      * @param {Point[]} points
      * @returns {Widget}
      */
-    PRO.setPoints = function(points) {
+    setPoints(points) {
         this.points = points || null;
         return this;
-    };
+    }
 
     /**
      * remove slice data and their views
      */
-    PRO.clearSlices = function() {
+    clearSlices() {
         let slices = this.slices,
             mesh = this.mesh;
         if (slices && mesh && mesh.remove) {
@@ -496,25 +347,12 @@
             });
         }
         this.slices = null;
-    };
-
-    function rgb(c) {
-        return [ c >> 16, (c >> 8) & 0xff , c & 0xff ];
-    }
-
-    function avgc(c1, c2, w) {
-        let r1 = rgb(c1);
-        let r2 = rgb(c2);
-        let d = (w + 2);
-        return ((r1[0] * w + r2[0]) / d) << 16
-            | ((r1[1] * w + r2[1]) / d) << 8
-            | ((r1[2] * w + r2[2]) / d);
     }
 
     /**
      * @param {number} color
      */
-    PRO.setColor = function(color, settings, save = true) {
+    setColor(color, settings, save = true) {
         if (settings) {
             console.trace('legacy call with settings');
         }
@@ -526,32 +364,32 @@
         }
         let material = this.mesh.material;
         material.color.set(this.meta.disabled ? avgc(0x888888, color, 3) : color);
-    };
+    }
 
-    PRO.getColor = function() {
+    getColor() {
         return this.color;
-    };
+    }
 
     /**
      * @param {number} value
      */
-    PRO.setOpacity = function(value) {
-        let mesh = this.mesh;
+    setOpacity(value) {
+        const mesh = this.mesh;
         if (value <= 0.0) {
             mesh.material.transparent = solid_opacity < 1.0;
             mesh.material.opacity = solid_opacity;
             mesh.material.visible = false;
-        } else if (UTIL.inRange(value, 0.0, solid_opacity)) {
+        } else if (inRange(value, 0.0, solid_opacity)) {
             mesh.material.transparent = value < 1.0;
             mesh.material.opacity = value;
             mesh.material.visible = true;
         }
-    };
+    }
 
     /**
      * center geometry bottom (on platform) at 0,0,0
      */
-    PRO.center = function(init) {
+    center(init) {
         let bb = init ? this.mesh.getBoundingBox(true) : this.groupBounds(),
             bm = bb.min.clone(),
             bM = bb.max.clone(),
@@ -567,13 +405,13 @@
             });
         }
         return this;
-    };
+    }
 
     /**
      * called by center() and Group.center()
      * todo use new prototype.moveMesh()
      */
-    PRO.moveMesh = function(x, y, z) {
+    moveMesh(x, y, z) {
         let gap = this.mesh.geometry.attributes.position,
             pa = gap.array;
         // center point array on 0,0,0
@@ -594,14 +432,14 @@
         // invalidate cached points
         this.points = null;
         this.setModified();
-    };
+    }
 
     /**
      * moves top of widget to given Z
      *
      * @param {number} z position
      */
-    PRO.setTopZ = function(z) {
+    setTopZ(z) {
         let mesh = this.mesh,
             pos = this.track.pos,
             ltz = this.last_top_z || {},
@@ -621,20 +459,20 @@
         };
         this.modified |= (ltz.pz !== ntz.pz || ltz.mpz !== ntz.mpz);
         this.last_top_z = ntz;
-    };
+    }
 
-    PRO.cutZ = function(dist) {
+    cutZ(dist) {
         this.track.zcut = dist;
         this.setTopZ();
-    };
+    }
 
-    PRO.move = function(x, y, z, abs) {
+    move(x, y, z, abs) {
         this.group.forEach(w => {
             w._move(x, y, z, abs);
         });
-    };
+    }
 
-    PRO._move = function(x, y, z, abs) {
+    _move(x, y, z, abs) {
         let mesh = this.mesh,
             pos = this.track.pos,
             zcut = this.track.zcut || 0;
@@ -655,18 +493,18 @@
         }
         if (x || y || z) {
             this.setModified();
-            KIRI.api.event.emit('widget.move', {widget: this, pos});
+            api.event.emit('widget.move', {widget: this, pos});
         }
-    };
+    }
 
-    PRO.scale = function(x, y, z) {
+    scale(x, y, z) {
         this.group.forEach(w => {
             w._scale(x, y, z);
         });
         this.center();
-    };
+    }
 
-    PRO._scale = function(x, y, z) {
+    _scale(x, y, z) {
         let mesh = this.mesh,
             scale = this.track.scale;
         this.bounds = null;
@@ -677,22 +515,22 @@
         scale.y *= (y || 1.0);
         scale.z *= (z || 1.0);
         this.setModified();
-    };
+    }
 
-    PRO.rotate = function(x, y, z, temp) {
+    rotate(x, y, z, temp) {
         this.group.forEach(w => {
             w._rotate(x, y, z, temp);
         });
         this.center(false);
-    };
+    }
 
-    PRO.rotateRaw = function(x, y, z, temp) {
+    rotateRaw(x, y, z, temp) {
         this.group.forEach(w => {
             w._rotate(x, y, z, temp);
         });
-    };
+    }
 
-    PRO._rotate = function(x, y, z, temp) {
+    _rotate(x, y, z, temp) {
         if (!temp) {
             this.bounds = null;
             this.setWireframe(false);
@@ -714,25 +552,25 @@
             rot.z += (z || 0);
         }
         this.setModified();
-    };
+    }
 
-    PRO.unrotate = function() {
+    unrotate() {
         this.roto.reverse().forEach(m => {
             this.mesh.geometry.applyMatrix4(m.clone().invert());
         });
         this.roto = [];
         this.center();
         this.setModified();
-    };
+    }
 
-    PRO.mirror = function() {
+    mirror() {
         this.group.forEach(w => {
             w._mirror();
         });
         this.center();
-    };
+    }
 
-    PRO._mirror = function() {
+    _mirror() {
         this.clearSlices();
         this.setWireframe(false);
         let geo = this.mesh.geometry, ot = this.track;
@@ -743,7 +581,7 @@
         for (let i=0; i<count; i++) {
             arr[i*3] = -arr[i*3];
         }
-        // invert face vertices
+        // invert face vertex order
         for (let i=0; i<count; i+=3) {
             let x = arr[i*3+0];
             let y = arr[i*3+1];
@@ -761,9 +599,9 @@
         ot.mirror = !ot.mirror;
         this.setModified();
         this.points = null;
-    };
+    }
 
-    PRO.getGeoVertices = function(unroll) {
+    getGeoVertices(unroll) {
         let geo = this.mesh.geometry;
         let pos = geo.getAttribute('position').array;
         if (geo.index && unroll !== false) {
@@ -782,14 +620,14 @@
         } else {
             return pos;
         }
-    };
+    }
 
-    PRO.getGeoIndices = function() {
+    getGeoIndices() {
         let indices = this.mesh.geometry.index;
         return indices ? indices.array : undefined;
-    };
+    }
 
-    PRO.iterPoints = function() {
+    iterPoints() {
         let verts = this.getGeoVertices();
         let index = 0;
         let count = verts.length;
@@ -798,31 +636,31 @@
                 next: () => {
                     let done = index >= count;
                     return done ? { done } :
-                        { value: BASE.newPoint(verts[index++], verts[index++], verts[index++]) };
+                        { value: newPoint(verts[index++], verts[index++], verts[index++]) };
                 }
             } }
         };
-    };
+    }
 
-    PRO.getPoints = function() {
+    getPoints() {
         if (!this.points) {
             // convert and cache points from geometry vertices
-            this.points = BASE.verticesToPoints(this.getGeoVertices(), {
+            this.points = verticesToPoints(this.getGeoVertices(), {
                 maxpass: 0 // disable decimation
             });
         }
         return this.points;
-    };
+    }
 
-    PRO.getBoundingBox = function(refresh) {
+    getBoundingBox(refresh) {
         if (!this.bounds || refresh) {
             this.bounds = new THREE.Box3();
             this.bounds.setFromPoints(this.getPoints());
         }
         return this.bounds;
-    };
+    }
 
-    PRO.getPositionBox = function() {
+    getPositionBox() {
         let bounds = this.getBoundingBox().clone();
         let pos = this.track.pos;
         bounds.min.x += pos.x;
@@ -830,29 +668,24 @@
         bounds.min.y += pos.y;
         bounds.max.y += pos.y;
         return bounds;
-    };
+    }
 
-    PRO.isModified = function() {
+    isModified() {
         return this.modified;
-    };
+    }
 
-    PRO.getExtruder = function(settings) {
+    getExtruder(settings) {
         if (settings) {
             console.trace('legacy call with settings');
         }
         return this.anno.extruder || 0;
-        // if (settings && settings.widget) {
-        //     let rec = settings.widget[this.id];
-        //     return rec && rec.extruder >= 0 ? rec.extruder : 0;
-        // }
-        // return 0;
-    };
+    }
 
     // allow worker code to run in same memspace as client
-    PRO.setInWorker = function() {
+    setInWorker() {
         this.inWorker = true;
         return this;
-    };
+    }
 
     /**
      * processes points into facets, then into slices
@@ -867,20 +700,20 @@
      * @params {Function} [ondone]
      * @params {Function} [onupdate]
      */
-    PRO.slice = function(settings, ondone, onupdate) {
+    slice(settings, ondone, onupdate) {
         let widget = this;
-        let startTime = UTIL.time();
+        let startTime = time();
 
         widget.settings = settings;
         widget.clearSlices();
         onupdate(0.0001, "slicing");
 
-        if (KIRI.client && !widget.inWorker) {
+        if (kiri.client && !widget.inWorker) {
             // in case result of slice is nothing, do not preserve previous
             widget.slices = []
 
             // executed from kiri.js
-            KIRI.client.slice(settings, this, function(reply) {
+            kiri.client.slice(settings, this, function(reply) {
                 if (reply.update) {
                     onupdate(reply.update, reply.updateStatus);
                 }
@@ -894,7 +727,7 @@
                     widget.stats.load_time = widget.xfer.start - reply.send_end;
                 }
                 if (reply.slice) {
-                    widget.slices.push(KIRI.codec.decode(reply.slice, {mesh:widget.mesh}));
+                    widget.slices.push(kiri.codec.decode(reply.slice, {mesh:widget.mesh}));
                 }
                 if (reply.rotinfo) {
                     widget.rotinfo = reply.rotinfo;
@@ -908,7 +741,7 @@
             });
         }
 
-        if (KIRI.server) {
+        if (kiri.server) {
             // executed from kiri-worker.js
             let catchdone = function(error) {
                 if (error) {
@@ -917,7 +750,7 @@
 
                 onupdate(1.0, "transfer");
 
-                widget.stats.slice_time = UTIL.time() - startTime;
+                widget.stats.slice_time = time() - startTime;
 
                 ondone();
             };
@@ -926,10 +759,10 @@
                 onupdate(progress, message);
             };
 
-            let driver = DRIVERS[settings.mode.toUpperCase()];
+            let drv = driver[settings.mode.toUpperCase()];
 
-            if (driver) {
-                driver.slice(settings, widget, catchupdate, catchdone);
+            if (drv) {
+                drv.slice(settings, widget, catchupdate, catchdone);
             } else {
                 console.log('invalid mode: '+settings.mode);
                 ondone('invalid mode: '+settings.mode);
@@ -938,12 +771,12 @@
 
         // discard point cache
         widget.points = undefined;
-    };
+    }
 
     /**
      * render to provided stack
      */
-    PRO.render = function(stack) {
+    render(stack) {
         const mark = Date.now();
         this.slices.forEach(slice => {
             if (slice.layers) {
@@ -951,9 +784,13 @@
             }
         });
         return Date.now() - mark;
-    };
+    }
 
-    PRO.setWireframe = function(set, color, opacity) {
+    setWireframe(set, color, opacity) {
+        if (!(api && api.conf)) {
+            // missing api features in engine mode
+            return;
+        }
         let mesh = this.mesh,
             widget = this;
         if (this.wire) {
@@ -962,7 +799,7 @@
             this.wire = null;
         }
         if (set) {
-            let dark = KIRI.api.conf.get().controller.dark;
+            let dark = api.space.is_dark();
             let mat = new THREE.MeshBasicMaterial({
                 wireframe: true,
                 color: dark ? 0xaaaaaa : 0,
@@ -972,7 +809,7 @@
             let wire = widget.wire = new THREE.Mesh(mesh.geometry.shallowClone(), mat);
             mesh.add(wire);
         }
-        if (KIRI.api.view.get() === KIRI.conf.VIEWS.ARRANGE) {
+        if (api.view.is_arrange()) {
             this.setColor(this.color);
         } else {
             this.setColor(0x888888,undefined,false);
@@ -980,14 +817,155 @@
         if (opacity !== undefined) {
             widget.setOpacity(opacity);
         }
-    };
+    }
 
-    PRO.show = function() {
+    show() {
         this.mesh.visible = true;
-    };
+    }
 
-    PRO.hide = function() {
+    hide() {
         this.mesh.visible = false;
-    };
+    }
+}
 
-})();
+// Widget Grouping API
+const Group = Widget.Groups = {
+    list() {
+        return groups.slice()
+    },
+
+    merge(widgets) {
+        let grps = widgets.map(w => w.group).uniq();
+        if (grps.length > 1) {
+            let root = grps.shift();
+            let rpos = root[0].track.pos;
+            for (let grp of grps) {
+                for (let w of grp) {
+                    let wpos = w.track.pos;
+                    w.group = root;
+                    w.moveMesh(rpos.x - wpos.x, rpos.y - wpos.y, rpos.z - wpos.z);
+                    w._move(rpos.x, rpos.y, rpos.z, true);
+                    root.push(w);
+                }
+                groups.splice(groups.indexOf(grp),1);
+            }
+        }
+    },
+
+    split(widgets) {
+        for (let group of widgets.map(w => w.group).uniq()) {
+            groups.splice(groups.indexOf(group),1);
+            for (let widget of group) {
+                let nugroup = Group.forid(widget.id);
+                nugroup.push(widget);
+                widget.group = nugroup;
+            }
+        }
+    },
+
+    forid(id) {
+        for (let i=0; i<groups.length; i++) {
+            if (groups[i].id === id) return groups[i];
+        }
+        let group = [];
+        group.id = id;
+        groups.push(group);
+        return group;
+    },
+
+    remove(widget) {
+        groups.slice().forEach(group => {
+            let pos = group.indexOf(widget);
+            if (pos >= 0) {
+                group.splice(pos,1);
+            }
+            if (group.length === 0) {
+                pos = groups.indexOf(group);
+                groups.splice(pos,1);
+            }
+        });
+    },
+
+    blocks() {
+        return groups.map(group => {
+            return {
+                w: group[0].track.box.w,
+                h: group[0].track.box.h,
+                move: (x,y,z,abs) => {
+                    group.forEach(widget => {
+                        widget.mesh.material.visible = true;
+                        widget._move(x, y, z, abs);
+                    });
+                }
+            };
+        });
+    },
+
+    loadDone() {
+        groups.forEach(group => {
+            if (!group.centered) {
+                group[0].center();
+                group.centered = true;
+            }
+        });
+    },
+
+    bounds(group) {
+        let bounds = null;
+        group.forEach(widget => {
+            let wb = widget.mesh.getBoundingBox(true);
+            if (bounds) {
+                bounds = bounds.union(wb);
+            } else {
+                bounds = wb;
+            }
+        });
+        return bounds;
+    },
+
+    clear() {
+        groups.length = 0;
+    }
+};
+
+Widget.loadFromCatalog = function(filename, ondone) {
+    catalog().getFile(filename, function(data) {
+        let widget = newWidget().loadVertices(data);
+        widget.meta.file = filename;
+        ondone(widget);
+    });
+};
+
+Widget.loadFromState = function(id, ondone, move) {
+    index().get('ws-save-'+id, function(data) {
+        if (data) {
+            let vertices = data.geo || data,
+                indices = data.ind || undefined,
+                track = data.track || undefined,
+                group = data.group || id,
+                anno = data.anno || undefined,
+                widget = newWidget(id, Group.forid(group)),
+                meta = data.meta || widget.meta,
+                ptr = widget.loadVertices({vertices, indices});
+            widget.meta = meta;
+            widget.anno = anno || widget.anno;
+            // restore widget position if specified
+            if (move && track && track.pos) {
+                widget.track = track;
+                widget.move(track.pos.x, track.pos.y, track.pos.z, true);
+            }
+            ondone(ptr);
+        } else {
+            ondone(null);
+        }
+    });
+};
+
+Widget.deleteFromState = function(id,ondone) {
+    index().remove('ws-save-'+id, ondone);
+};
+
+kiri.Widget = Widget;
+kiri.newWidget = newWidget;
+
+});

@@ -1,7 +1,7 @@
 // English language map. Other localization maps will
 // defer to English map for any missing key/value pairs
-kiri.lang['en'] =
-kiri.lang['en-us'] = {
+self.kiri.lang['en'] =
+self.kiri.lang['en-us'] = {
     // common keys and menus
     animate:        "animate",      // CAM animate button
     arrange:        "arrange",      // layout workspace objects
@@ -252,7 +252,9 @@ kiri.lang['en-us'] = {
     op_free_s:      "free layout",
     op_free_l:      ["permit dragable layout","no effect in laser mode"],
     op_spcr_s:      "spacing",
-    op_spcr_l:      ["spacing between objects","during auto layout","in workspace units"],
+    op_spcr_l:      ["spacing between objects","during auto layout","in workspace units","in belt mode, use 0","to auto-space by height"],
+    op_spcx_s:      "random X",
+    op_spcx_l:      ["in belt mode, randomly","layout the part on X","to even belt wear"],
     op_orth_s:      "orthographic",
     op_orth_l:      ["orthographic display","requires page refresh"],
     op_anta_s:      "anti-alias",
@@ -316,7 +318,7 @@ kiri.lang['en-us'] = {
     sl_ordr_l:      ["output shell order","inside to outside","or outside to inside","affects surface quality"],
     sl_strt_s:      "layer start",
     sl_strt_l:      ["layer starting point","last = last layer end","center = part center","origin = device origin"],
-    ad_thin_s:      "thin walls",
+    ad_thin_s:      "thin wall",
     ad_thin_l:      ["detect and fill gaps","between shell walls"],
 
     // FDM FILL
@@ -326,10 +328,10 @@ kiri.lang['en-us'] = {
     fi_pcnt_l:      ["fill density values","0.0 - 1.0"],
     fi_rept_s:      "fill repeat",
     fi_rept_l:      ["number of times to repeat","unchanged fill layers"],
-    fi_angl_s:      "solid start",
+    fi_angl_s:      "solid angle",
     fi_angl_l:      ["starting angle in degrees","90 degrees added to ","each following layer","applies only to solid layers"],
-    fi_wdth_s:      "solid width",
-    fi_wdth_l:      ["line width for solid fill","as a fraction of nozzle width","values < 1 are more dense","good for surface finishes","0.0 - 1.0"],
+    fi_grow_s:      "solid expand",
+    fi_grow_l:      ["expand projected solids","can help with solid areas","over sparse infill areas","units in millimeters"],
     fi_over_s:      "shell overlap",
     fi_over_l:      ["overlap with shell and other fill","as fraction of nozzle diameter","0.0 - 2.0"],
     // fi_rate_s:      "print speed",
@@ -566,9 +568,9 @@ kiri.lang['en-us'] = {
     ou_bedd_s:      "bed temp",
     ou_bedd_l:      "degrees in celsius",
     ou_feed_s:      "print speed",
-    ou_feed_l:      ["max print speed","millimeters / second"],
+    ou_feed_l:      ["max printing speed","set to 0 to use default","millimeters / second"],
     ou_fini_s:      "finish speed",
-    ou_fini_l:      ["outermost shell speed","millimeters / second"],
+    ou_fini_l:      ["outermost shell speed","bridge/flat solid layers","set to 0 to use default","millimeters / second"],
     ou_move_s:      "move speed",
     ou_move_l:      ["non-print move speed","millimeters / second","0 = enable G0 moves"],
     ou_shml_s:      "shell factor",

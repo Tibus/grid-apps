@@ -2,16 +2,18 @@
 
 "use strict";
 
-(function() {
+// use: kiri.api
+gapp.register("kiri.client", [], (root, exports) => {
+
+const { kiri } = root;
 
 // this code runs in kiri's main loop
-let KIRI = self.kiri = self.kiri || {},
-    loc = self.location,
+let loc = self.location,
     host = loc.hostname,
     port = loc.port,
     proto = loc.protocol,
     debug = self.debug === true,
-    time = function() { return new Date().getTime() },
+    time = Date.now,
     seqid = 1,
     syncd = {},
     running = {},
@@ -21,7 +23,7 @@ let KIRI = self.kiri = self.kiri || {},
     ;
 
 /**
- * @param {Function} fn name of function in KIRI.worker
+ * @param {Function} fn name of function in kiri.worker
  * @param {Object} data to send to server
  * @param {Function} onreply function to call on reply messages
  * @param {Object[]} zerocopy array of objects to pass using zerocopy
@@ -49,12 +51,20 @@ function send(fn, data, onreply, zerocopy) {
 }
 
 // code is running in the browser / client context
-const CLIENT =
-KIRI.client =
-KIRI.work = {
+const client = exports({
     send: send,
 
-    newWorker: function() {
+    pool: {
+        start() {
+            send("pool_start", {}, noop);
+        },
+
+        stop() {
+            send("pool_stop", {}, noop);
+        }
+    },
+
+    newWorker() {
         if (self.createWorker) {
             return self.createWorker();
         } else {
@@ -63,7 +73,7 @@ KIRI.work = {
         }
     },
 
-    isBusy: function() {
+    isBusy() {
         let current = 0;
 
         for (let rec of Object.values(running)) {
@@ -72,7 +82,7 @@ KIRI.work = {
         return current > 0;
     },
 
-    restart: function() {
+    restart() {
         // prevent re-entry from cancel callback
         if (restarting) {
             return;
@@ -93,9 +103,9 @@ KIRI.work = {
 
         syncd = {};
         running = {};
-        worker = KIRI.work.newWorker();
+        worker = client.newWorker();
 
-        CLIENT.onmessage = worker.onmessage = function(e) {
+        client.onmessage = worker.onmessage = function(e) {
             let now = time(),
                 reply = e.data,
                 record = running[reply.seq],
@@ -119,42 +129,42 @@ KIRI.work = {
         restarting = false;
     },
 
-    decimate: function(vertices, options, callback) {
-        let alert = KIRI.api.show.alert('processing model', 1000);
+    decimate(vertices, options, callback) {
+        let alert = kiri.api.show.alert('processing model', 1000);
         vertices = vertices.buffer.slice(0);
-        send("decimate", {vertices, options}, function(output) {
-            KIRI.api.hide.alert(alert);
+        send("decimate", {vertices, options}, (output) => {
+            kiri.api.hide.alert(alert);
             callback(output);
         });
     },
 
-    heal: function(vertices, callback, refresh) {
-        send("heal", {vertices, refresh}, function(output) {
+    heal(vertices, callback, refresh) {
+        send("heal", {vertices, refresh}, (output) => {
             callback(output);
         });
     },
 
-    config: function(obj) {
-        send("config", obj, function(reply) { });
+    config(obj) {
+        send("config", obj, noop);
     },
 
-    clear: function() {
+    clear() {
         syncd = {};
-        send("clear", {}, function(reply) { });
+        send("clear", {}, noop);
     },
 
-    snap: function(data) {
-        send("snap", data, function(reply) { });
+    snap(data) {
+        send("snap", data, noop);
     },
 
-    png: function(data, ondone) {
+    png(data, ondone) {
         send("png", data, ondone);
     },
 
     // widget sync
-    sync: function(widgets) {
+    sync(widgets) {
         if (!widgets) {
-            widgets = KIRI.api.widgets.all();
+            widgets = kiri.api.widgets.all();
         }
         // send list of currently valid widgets
         send("sync", { valid: widgets.map(w => w.id) }, () =>  {});
@@ -163,9 +173,6 @@ KIRI.work = {
             if (widget.modified || !syncd[widget.id]) {
                 syncd[widget.id] = true;
                 let vertices = widget.getGeoVertices().buffer.slice(0);
-
-                // console.log("sync main widget", widget);
-
                 send("sync", {
                     id: widget.id,
                     meta: widget.meta,
@@ -180,10 +187,10 @@ KIRI.work = {
         });
     },
 
-    rotate: function(settings, callback) {
+    rotate(settings, callback) {
         send("rotate", { settings }, reply => {
             if (reply.group) {
-                for (let widget of KIRI.Widget.Groups.forid(reply.group)) {
+                for (let widget of kiri.Widget.Groups.forid(reply.group)) {
                     widget.belt = reply.belt;
                 }
             } else if (callback) {
@@ -192,10 +199,10 @@ KIRI.work = {
         });
     },
 
-    unrotate: function(settings, callback) {
+    unrotate(settings, callback) {
         send("unrotate", { settings }, reply => {
             if (reply.group) {
-                for (let widget of KIRI.Widget.Groups.forid(reply.group)) {
+                for (let widget of kiri.Widget.Groups.forid(reply.group)) {
                     widget.rotinfo = reply.rotinfo;
                 }
             } else if (callback) {
@@ -204,13 +211,12 @@ KIRI.work = {
         });
     },
 
-    slice: function(settings, widget, callback) {
-        // console.log("slice widget", settings, widget);
+    slice(settings, widget, callback) {
         send("slice", {
             id: widget.id,
             anno: widget.annotations(),
             settings: settings
-        }, function(reply) {
+        }, reply => {
             callback(reply);
             if (reply.done || reply.error) {
                 // in belt mode, slicing modifies a widget and requires re-sync
@@ -221,12 +227,12 @@ KIRI.work = {
         });
     },
 
-    sliceAll: function(settings, callback) {
+    sliceAll(settings, callback) {
         send("sliceAll", { settings }, callback);
     },
 
-    prepare: function(settings, update, done) {
-        send("prepare", { settings }, function(reply) {
+    prepare(settings, update, done) {
+        send("prepare", { settings }, reply => {
             if (reply.progress) {
                 update(reply.progress, reply.message, reply.layer);
             }
@@ -239,10 +245,9 @@ KIRI.work = {
         });
     },
 
-    export: function(settings, online, ondone) {
-        send("export", { settings }, function(reply) {
+    export(settings, online, ondone) {
+        send("export", { settings }, reply => {
             if (reply.line) {
-                // console.log("reply.line", reply.line);
                 online(reply.line);
             }
             if (reply.done) {
@@ -252,18 +257,18 @@ KIRI.work = {
                 ondone(null, reply.error);
             }
             if (reply.debug) {
-                KIRI.api.event.emit("export.debug", reply.debug);
+                kiri.api.event.emit("export.debug", reply.debug);
             }
         });
     },
 
-    colors: function(colors, max, done) {
-        send("colors", { colors, max }, function(reply) {
+    colors(colors, max, done) {
+        send("colors", { colors, max }, reply => {
             done(reply);
         });
     },
 
-    parse: function(args, progress, done) {
+    parse(args, progress, done) {
         // have to do this client side because DOMParser is not in workers
         if (args.type === 'svg') {
             const { settings, code, type } = args;
@@ -273,36 +278,36 @@ KIRI.work = {
                 y: -origin.y,
                 z: origin.z
             };
-            const output = KIRI.newPrint().parseSVG(code, offset);
-            send("parse_svg", output, function(reply) {
+            const output = kiri.newPrint().parseSVG(code, offset);
+            send("parse_svg", output, reply => {
                 if (reply.parsed) {
-                    done(KIRI.codec.decode(reply.parsed));
+                    done(kiri.codec.decode(reply.parsed));
                 }
             });
             return;
         }
-        send("parse", args, function(reply) {
+        send("parse", args, reply => {
             if (reply.progress) {
                 progress(reply.progress);
             }
             if (reply.parsed) {
-                done(KIRI.codec.decode(reply.parsed), reply.maxSpeed, reply.minSpeed);
+                done(kiri.codec.decode(reply.parsed), reply.maxSpeed, reply.minSpeed);
             }
         });
     },
 
-    image2mesh: function(data, progress, output) {
+    image2mesh(data, progress, output) {
         send("image2mesh", data, reply => {
             if (reply.progress) {
                 progress(reply.progress);
             }
-            if (reply.done) {
-                output(reply.done);
+            if (reply.vertices) {
+                output(reply.vertices);
             }
         }, [ data.png ]);
     },
 
-    zip: function(files, progress, output) {
+    zip(files, progress, output) {
         send("zip", {files}, reply => {
             if (reply.percent !== undefined) {
                 progress(reply);
@@ -312,14 +317,14 @@ KIRI.work = {
         });
     },
 
-    wasm: function(enable) {
+    wasm(enable) {
         send("wasm", {enable}, reply => {
             // console.log({wasm_worker_said: reply});
         });
     }
-};
+});
 
 // start worker
-KIRI.work.restart();
+client.restart();
 
-})();
+});

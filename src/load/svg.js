@@ -1,46 +1,36 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 
-'use strict';
+// use: add.three
+gapp.register("load.svg", (root, exports) => {
 
-(function() {
-
-let load = self.load = self.load || {};
-if (load.SVG) return;
-
-gapp.register('load.svg', [
-    'add.three',    // dep: add.three
-]);
+const { load } = root;
 
 load.SVG = {
     parse,
     parseAsync
 };
 
-/**
- * @param {String} text
- * @returns {Array} vertex face array
- */
-
-function parseAsync(text) {
+function parseAsync(text, opt) {
     return new Promise((resolve,reject) => {
-        resolve(parse(text));
+        resolve(parse(text, opt));
     });
 }
 
-function parse(text) {
-
-    let faces = [ ];
-    let objs = [ faces ];
-
+function parse(text, opt = {}) {
+    let objs = [];
     let data = new THREE.SVGLoader().parse(text);
     let paths = data.paths;
+    let xmlat = data.xml.attributes;
+    let depth = opt.depth || xmlat['data-km-extrude']
+        || xmlat['extrude']
+        || {value: 5};
 
     for (let i = 0; i < paths.length; i++) {
         let path = paths[i];
         let shapes = path.toShapes(true);
         let geom = new THREE.ExtrudeGeometry(shapes, {
             steps: 1,
-            depth: 5,
+            depth: parseFloat(depth.value),
             bevelEnabled: false
         });
         let array = geom.attributes.position.array;
@@ -48,11 +38,18 @@ function parse(text) {
         for (let i=0; i<array.length; i+=3) {
             array[i+1] = -array[i+1];
         }
-        // objs.push(geom.attributes.position.array);
-        faces.appendAll(array);
+        // invert vertex order to compensate for inverted y
+        for (let i=0; i<array.length; i+=9) {
+            let tmp = array.slice(i,i+3);
+            for (let j=0; j<3; j++) {
+                array[i+j] = array[i+j+3];
+                array[i+j+3] = tmp[j];
+            }
+        }
+        objs.push([ ...array ]);
     }
 
     return objs;
 }
 
-})();
+});

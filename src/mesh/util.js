@@ -2,31 +2,42 @@
 
 "use strict";
 
-(function() {
-
+// dep: moto.license
+// dep: add.array
 // dep: ext.three
 // dep: ext.three-bgu
-gapp.register("mesh.util", [
-    "moto.license", // dep: moto.license
-    "add.array",    // dep: add.array
-]);
+gapp.register("mesh.util", [], (root, exports) => {
 
-let mesh = self.mesh = self.mesh || {};
-if (mesh.util) return;
+const { Matrix4, Matrix3, Vector3, Box3 } = THREE;
+const { mesh } = root;
 
-let { Matrix4, Matrix3, Vector3, Box3 } = THREE;
-
-let deferFn = [];
-let boundsCache = {};
+const deferFn = [];
+const boundsCache = {};
 
 // util functions augmented in build (download)
-let util = mesh.util = {
+const util = exports({
+
     uuid(segs = 1) {
         let uid = [];
         while (segs-- > 0) {
             uid.push(Math.round(Math.random() * 0xffffffff).toString(36));
         }
         return uid.join('-');
+    },
+
+    toHexRGB(v) {
+        return [
+            ((v >> 16) & 0xff).toString(16).padStart(2,0),
+            ((v >>  8) & 0xff).toString(16).padStart(2,0),
+            ((v >>  0) & 0xff).toString(16).padStart(2,0)
+        ].join('');
+    },
+
+    fromHexRGB(v) {
+        return 0 +
+            parseInt(v.substring(0,2), 16) << 16 |
+            parseInt(v.substring(2,4), 16) <<  8 |
+            parseInt(v.substring(4,6), 16);
     },
 
     // add comma separator to 1000s
@@ -62,7 +73,7 @@ let util = mesh.util = {
     },
 
     // @param object {THREE.Object3D | THREE.Object3D[] | MeshObject | MeshObject[]}
-    // @returns bounds modified for moto.Space
+    // @returns bounds modified for moto.space
     bounds(object) {
         let box = new Box3();
         if (Array.isArray(object)) {
@@ -173,10 +184,13 @@ let util = mesh.util = {
         const _v1 = new THREE.Vector3();
         const _v2 = new THREE.Vector3();
         const _normalMatrix = new THREE.Matrix3();
-        const defcolor = mesh.api.prefs.map.space.dark ? 0x00ffff : 0xff0000;
+        const prefs = mesh.api.prefs.map;
+        const norms = prefs.normals;
+        const defcolor = prefs.space.dark ? norms.color_dark : norms.color_lite;
+        const normlen = norms.length || 1;
 
         class FaceNormalsHelper extends THREE.LineSegments {
-            constructor(object, size = opt.size || 1, color = opt.color || defcolor) {
+            constructor(object, size = opt.size || normlen, color = opt.color || defcolor) {
                 const objGeometry = object.geometry;
                 const nNormals = objGeometry.attributes.position.count / 3;
                 const geometry = new THREE.BufferGeometry();
@@ -258,6 +272,6 @@ let util = mesh.util = {
         return new VertexNormalsHelper(mesh);
     }
 
-};
+});
 
-})();
+});

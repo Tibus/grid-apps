@@ -2,16 +2,15 @@
 
 "use strict";
 
-(function() {
-    // dep: ext.tween
-    gapp.register('moto.space', [
-        'add.three',    // dep: add.three
-        'add.array',    // dep: add.array
-        'moto.orbit'    // dep: moto.orbit
-    ]);
+// dep: ext.tween
+// dep: add.three
+// dep: add.array
+// dep: moto.orbit
+gapp.register("moto.space", [], (root, exports) => {
 
-    let MOTO = self.moto = self.moto || {},
-        WIN = window,
+    const { moto } = root;
+
+    let WIN = window,
         DOC = document,
         SCENE = new THREE.Scene(),
         WORLD = new THREE.Group(),
@@ -786,7 +785,10 @@
     }
 
     function intersect(objects, recurse) {
-        return raycaster.intersectObjects(objects, recurse);
+        // console.log(({int: objects}));
+        let ints = raycaster.intersectObjects(objects, recurse);
+        // console.trace({ints});
+        return ints;
     }
 
     /** ******************************************************************
@@ -1000,7 +1002,7 @@
         }
     }
 
-    let Space = MOTO.Space = {
+    let Space = exports({
         refresh: refresh,
         update: requestRefresh,
 
@@ -1217,7 +1219,7 @@
 
             raycaster = new THREE.Raycaster();
 
-            viewControl = new MOTO.Orbit(camera, domelement, (position, moved) => {
+            viewControl = new moto.Orbit(camera, domelement, (position, moved) => {
                 if (platform) {
                     platform.visible = hidePlatformBelow ?
                         initialized && position.y >= 0 && showPlatform : showPlatform;
@@ -1326,13 +1328,15 @@
 
             initialized = true;
         }
-    };
+    });
+
     let cycle = [
         Space.view.front,
         Space.view.right,
         Space.view.back,
         Space.view.left,
     ];
+
     let cycleInd = 0;
 
-})();
+});

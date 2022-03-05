@@ -2,20 +2,16 @@
 
 "use strict";
 
-(function() {
+// dep: moto.broker
+// dep: mesh.util
+// dep: mesh.api
+gapp.register("mesh.build", [], (root, exports) => {
 
-gapp.register("mesh.build",[
-    "moto.broker",  // dep: moto.broker
-    "mesh.util",    // dep: mesh.util
-    "mesh.api",     // dep: mesh.api
-]);
+const { broker } = gapp;
+const { mesh } = root;
+const { api, util } = mesh;
 
-let mesh = self.mesh = self.mesh || {};
-if (mesh.build) return;
-
-let broker = gapp.broker;
 let call = broker.send;
-let { api, util } = mesh;
 let rad = 180 / Math.PI;
 let und = undefined;
 
@@ -33,7 +29,7 @@ util.download = (data, filename = "mesh-data") => {
 };
 
 // add modal dialog functions to api
-let modal = api.modal = {
+const modal = api.modal = {
     show(title, contents) {
         if (this.info.showing) {
             throw `modal conflict showing "${title}"`;
@@ -119,7 +115,7 @@ let modal = api.modal = {
 };
 
 // transient logging window bottom/left
-let log = api.log = {
+const log = api.log = {
     age: 10000, // age out lines more than 10 seconds old
 
     data: [],   // last n messages
@@ -180,15 +176,49 @@ let log = api.log = {
 // bind endpoint for worker to log in the ui
 gapp.broker.subscribe("mesh.log", log.emit);
 
+// welcome dialog
+api.welcome = function(version = "unknown") {
+    const { prefs } = api;
+    const { map } = prefs;
+    modal.show('About Mesh:Tool', h.div({ class:"welcome" }, [
+        h.a({
+            target: "docs",
+            _: "Guide & Documentation",
+            href: "https://docs.grid.space/projects/mesh-tool"
+        }),
+        h.a({
+            target: "docs",
+            _: "Grid.Space",
+            href: "https://grid.space/"
+        }),
+        h.div(`Version: ${version}`),
+        h.hr({ width: "100%" }),
+        h.div({ class: "choice" }, [
+            h.input({
+                type: "checkbox",
+                [ map.info.welcome !== false ? 'checked' : 'unchecked' ] : 1,
+                onchange: (ev) => {
+                    map.info.welcome = ev.target.checked;
+                    prefs.save();
+                }
+            }),
+            h.div("show at startup")
+        ]),
+    ]));
+};
+
 // bind settings endpoint to api
 api.settings = function() {
-    let { prefs } = api;
-    let { space } = prefs.map;
-    modal.show('settings', h.div({ class: "settings" }, [
+    const { util } = mesh;
+    const { prefs } = api;
+    const { normals, space } = prefs.map;
+    const { dark } = space;
+
+    const col1 = h.div([
         h.label('dark mode'),
         h.input({ type: "checkbox",
             onchange: ev => call.set_darkmode(ev.target.checked),
-            [ space.dark ? 'checked' : 'unchecked' ] : 1
+            [ dark ? 'checked' : 'unchecked' ] : 1
         }),
         h.label('auto floor'),
         h.input({ type: "checkbox",
@@ -200,7 +230,23 @@ api.settings = function() {
             onchange: ev => prefs.save( space.center = !space.center ),
             [ space.center !== false ? 'checked' : 'unchecked' ] : 1
         }),
-    ]));
+    ]);
+
+    const col2 = h.div([
+        h.label(''),
+        h.label('normals'),
+        h.label('length'),
+        h.input({ type: "text", size: 5, value: normals.length,
+            onchange: ev => call.set_normals_length(ev.target.value)
+        }),
+        h.label('color'),
+        h.input({ type: "text", size: 5,
+            value: util.toHexRGB(dark ? normals.color_dark : normals.color_lite),
+            onchange: ev => call.set_normals_color(util.fromHexRGB(ev.target.value))
+        }),
+    ]);
+
+    modal.show('settings', h.div({ class: "settings" }, [ col1, col2 ] ));
 }
 
 // create html elements
@@ -211,6 +257,9 @@ function ui_build() {
 
     // add a help button
     h.bind($('top-right'), [
+        h.div({ id: "top-version", onclick: api.version }, [
+            h.div({ class: "fas fa-hashtag" }),
+        ]),
         h.div({ id: "top-settings", onclick: api.settings }, [
             h.div({ class: "fas fa-sliders-h" }),
         ]),
@@ -602,4 +651,4 @@ function ui_build() {
     });
 }
 
-})();
+});

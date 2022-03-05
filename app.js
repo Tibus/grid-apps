@@ -1,5 +1,6 @@
 /** Copyright Stewart Allen <sa@grid.space> -- All Rights Reserved */
 
+// ensure each app gets a local version-specific copy, not shared
 function require_fresh(path) {
     const rpa = require.resolve(path);
     delete require.cache[rpa];
@@ -34,6 +35,16 @@ let util;
 let dir;
 let log;
 
+const EventEmitter = require('events');
+class AppEmitter extends EventEmitter {}
+const events = new AppEmitter();
+
+function addonce(array, v) {
+    if (array.indexOf(v) < 0) {
+        array.push(v);
+    }
+};
+
 function init(mod) {
     startTime = time();
     lastmod = mod.util.lastmod;
@@ -47,45 +58,126 @@ function init(mod) {
     dversion = debug ? `_${version}` : version;
     cacheDir = mod.util.datadir("cache");
 
-    let depcache = {};
+    const approot = "main/gapp";
+    const refcache = {};
+    const callstack = [];
+    let xxxx = false;
 
-    function find_deps(path, seen = []) {
-        let cached = depcache[path];
-        if (cached) {
-            return cached;
-        }
-        if (seen.indexOf(path) >= 0) {
-            if (debug > 1) {
-                console.log(`circular dependency at ${path}`, seen);
+    function find_refs(cache, path) {
+        let rec = refcache[path];
+        if (rec) {
+            let crec = cache[path];
+            if (!crec) {
+                cache[path] = rec;
+                for (let d of rec.deps) find_refs(cache, d);
+                for (let u of rec.uses) find_refs(cache, u);
             }
-            return [];
+            return;
         }
-        seen.push(path);
-        let deps = [ "main/gapp" ];
-        let lines = fs.readFileSync(`${dir}/src/${path}.js`)
+        callstack.push(path);
+        rec = cache[path] = refcache[path] = {
+            uses: [],
+            deps: [ approot ]
+        };
+        let full = `${dir}/src/${path}.js`;
+        try {
+            fs.lstatSync(full);
+        } catch (e) {
+            console.log({missing: full, callstack});
+            throw e;
+        }
+        let lines = fs.readFileSync(full)
             .toString()
             .split('\n');
         for (let line of lines) {
+            let arr, pos;
+            let upos = line.indexOf('// use:');
+            if (upos >= 0) {
+                arr = rec.uses;
+                pos = upos + 7;
+            }
             let dpos = line.indexOf('// dep:');
             if (dpos >= 0) {
-                let dep = line.substring(dpos+7).trim().replace('.','/');
-                if (deps.indexOf(dep) < 0) {
-                    deps.push(dep);
-                }
-                let deep = find_deps(dep, seen);
-                deps = deps.filter(p => deep.indexOf(p) < 0);
-                // deeper dependencies go first
-                deps = [...deep, ...deps];
+                arr = rec.deps;
+                pos = dpos + 7;
+            }
+            if (upos >= 0 && dpos >= 0) {
+                console.log(`invalid line: ${line}`);
+                process.exit();
+            }
+            if (arr && pos >= 0) {
+                let path = line.substring(pos).trim().replace(/\./g,'/').trim();
+                addonce(arr, path);
+                find_refs(cache, path);
             }
         }
-        depcache[path] = deps;
-        return deps;
+        // if (xxxx) console.log({path, ...rec});
+        if (false) {
+            let seek = 'mesh/api';
+            if (rec.uses.indexOf(seek) >= 0 || rec.deps.indexOf(seek) >= 0) {
+                console.log({PULLS:seek, path});
+            }
+        }
+        callstack.pop();
+    }
+
+    // return record position indicated by path
+    function pos(path, list) {
+        for (let i=0; i<list.length; i++) {
+            if (list[i].path === path) {
+                return i;
+            }
+        }
+        console.log(`not found: ${path}`);
+        process.exit();
+    }
+
+    function order_refs(cache) {
+        const recs = Object.entries(cache).map(entry => {
+            return { path: entry[0], deps: entry[1].deps }
+        }).sort((a,b) => {
+            return a.path === b.path ? 0 : a.path < b.path ? -1 : 1;
+        });
+        if (xxxx) console.log({ordering: recs});
+
+        // for each rec, ensure that dependencies are inserted before it
+        let lrec = recs.slice();
+        for (let rec of lrec) {
+            let { path, deps } = rec;
+            for (let dep of deps) {
+                let rpos = pos(path, recs);
+                let dpos = pos(dep, recs);
+                if (dpos > rpos) {
+                    let drec = recs[dpos];
+                    // remove old dep record
+                    recs.splice(dpos, 1);
+                    // insert dep before
+                    recs.splice(rpos, 0, drec);
+                    let nrpos = pos(path, recs);
+                    let ndpos = pos(dep, recs);
+                    let fail = nrpos != ndpos + 1;
+                    // if (xxxx) { console.log({move: dep, dpos, before: path, rpos}); }
+                    if (fail) {
+                        console.log({move: dep, dpos, before: path, rpos, ndpos, nrpos, recs: recs.slice(0,10)});
+                        process.exit();
+                    }
+                }
+            }
+        }
+        if (xxxx) console.log({recs});
+        return recs.map(rec => rec.path);
     }
 
     // process script dependencies, expand paths
-    for (let [key,val] of Object.entries(script)) {
-        let nval = val.map(p => p.charAt(0) === '&' ? p.substring(1) : p);
-        let modd = false;
+    for (let [ key, val ] of Object.entries(script)) {
+        if (val.indexOf(approot) < 0) {
+            val = [ approot, ...val ];
+        }
+        const list = val.map(p => p.charAt(0) === '&' ? p.substring(1) : p);
+        const cache = {};
+        const roots = [];
+        // xxxx = key === "kiri_work";
+        // for each path in the list, find deps and add to list
         for (let path of val) {
             let fc = path.charAt(0);
             if (fc === '@') {
@@ -93,30 +185,27 @@ function init(mod) {
             }
             if (fc === '&') {
                 path = path.substring(1);
-            } else {
-                continue;
+                addonce(roots, path);
             }
-            let deps = find_deps(path);
-            if (deps) {
-                // remove deps already in list
-                deps = deps.filter(p => nval.indexOf(p) < 0);
-                let ppos = nval.indexOf(path);
-                if (ppos < 0) {
-                    throw `missing ${path} in nval`;
-                }
-                // inject deps
-                nval.splice(ppos,0,...deps);
-                modd = true;
-            }
-            // if list is modified, substitute
-            if (modd) {
-                if (debug > 1) {
-                    console.log({path, val, nval});
-                }
-                val = nval;
-            }
+            find_refs(cache, path);
         }
+        if (xxxx) console.log({processing: key, val});
+        let refs = order_refs(cache).filter(p => roots.indexOf(p) < 0);
+        // remove paths that are in refs
+        let paths = list.filter(p => {
+            if (p.charAt(0) === '&') {
+                p = p.substring(1);
+            }
+            return refs.indexOf(p) < 0 && roots.indexOf(p) < 0;
+        });
+        // when dependency roots exist, re-write val array
+        if (roots.length) {
+            val = [...refs, ...paths, ...roots];
+        }
+        // val.splice(1, 0, ...roots);
+        if (xxxx) console.log({key, cache, refs, paths, roots, val});
         script[key] = val.map(p => p.charAt(0) !== '@' ? `src/${p}.js` : p);
+        // console.log({script: key, files: script[key]});
     }
 
     mod.on.test((req) => {
@@ -202,11 +291,13 @@ function loadModule(mod, dir) {
 function initModule(mod, file, dir) {
     logger.log({module: file});
     require_fresh(file)({
+        // express functions added here show up at "/api/" url root
         api: api,
         adm: {
             reload: prepareScripts,
             setver: (ver) => { oversion = ver }
         },
+        events,
         const: {
             args: {},
             meta: mod.meta,
@@ -236,17 +327,13 @@ function initModule(mod, file, dir) {
             getCookieValue: cookieValue,
             logger: log.new
         },
-        inject: (code, file, options) => {
-            if (!script[code]) {
+        inject: (code, file, opt = {}) => {
+            let codelist = script[code];
+            if (!codelist) {
                 return logger.log(`inject missing target "${code}"`);
             }
-            const opt = options || {};
             const path = `${dir}/${file}`;
-            if (opt.end) {
-                script[code].push(path);
-            } else {
-                script[code].splice(0, 0, path);
-            }
+            codelist.push(path);
             if (opt.cachever) {
                 cachever[path] = opt.cachever;
             }
@@ -280,6 +367,7 @@ function initModule(mod, file, dir) {
             addCORS: addCorsHeaders,
             redirect: http.redirect,
             reply404: http.reply404,
+            decodePost: http.decodePost,
             reply: quickReply
         },
         ws: {
@@ -296,189 +384,28 @@ function initModule(mod, file, dir) {
 
 const script = {
     kiri : [
-        "main/gapp",
-        "moto/license",
-        "main/kiri",
-        "ext/three",
-        "ext/three-bgu",
-        "ext/three-svg",
-        "ext/jszip",
-        "ext/clip2",
-        "ext/tween",
-        "ext/fsave",
-        // "ext/earcut",
-        "ext/base64",
-        "add/array",
-        "add/three",
-        "geo/base",
-        "geo/point",
-        "geo/points",
-        "geo/slope",
-        "geo/line",
-        "geo/bounds",
-        "geo/polygons",
-        "geo/polygon",
-        "geo/mesh",
-        "data/local",
-        "data/index",
-        "moto/ajax",
-        "moto/orbit",
-        "moto/space",
-        "load/3mf",
-        "load/obj",
-        "load/stl",
-        "load/svg",
-        "load/url",
-        "load/file",
-        "moto/broker",
-        "moto/webui",
-        "kiri/ui",
-        "kiri/do",
-        "kiri/pack",
-        "kiri/lang",
-        "kiri/lang-en",
-        "kiri/catalog",
-        "kiri/slice",
-        "kiri/layers",
-        "kiri/client",
-        "kiri-mode/fdm/fill",
-        "kiri-mode/fdm/driver",
-        "kiri-mode/fdm/client",
-        "kiri-mode/sla/driver",
-        "kiri-mode/sla/client",
-        "kiri-mode/cam/driver",
-        "kiri-mode/cam/client",
-        "kiri-mode/cam/tool",
-        "kiri-mode/cam/animate",
-        "kiri-mode/laser/driver",
-        "kiri/stack",
-        "kiri/stacks",
-        "kiri/widget",
-        "kiri/print",
-        "kiri/codec",
-        "kiri/conf",
-        "kiri/main",
-        "kiri/init",
-        "kiri/export",
-        "kiri/tools",
         "@devices",
-        "@icons"
+        "@icons",
+        "kiri/ui",
+        "&main/kiri",
+        "&kiri/lang-en"
     ],
     kiri_work : [
-        "main/gapp",
-        "moto/license",
-        "main/kiri",
-        "ext/three",
-        "ext/pngjs",
-        "ext/jszip",
-        "ext/clip2",
-        "ext/earcut",
-        "add/array",
-        "add/three",
-        "add/class",
-        "geo/base",
-        "geo/wasm",
-        "geo/point",
-        "geo/points",
-        "geo/slope",
-        "geo/line",
-        "geo/bounds",
-        "geo/polygons",
-        "geo/polygon",
-        "geo/gyroid",
-        "geo/mesh",
-        // "moto/broker",
-        "kiri/pack",
-        "kiri/slice",
-        "kiri/slicer",
-        "kiri/layers",
-        "kiri-mode/fdm/fill",
-        "kiri-mode/fdm/driver",
-        "kiri-mode/fdm/slice",
-        "kiri-mode/fdm/prepare",
-        "kiri-mode/fdm/export",
-        "kiri-mode/sla/driver",
-        "kiri-mode/sla/slice",
-        "kiri-mode/sla/export",
-        "kiri-mode/sla/x_cxdlp",
-        "kiri-mode/sla/x_photon",
-        "kiri-mode/cam/slicer",
-        "kiri-mode/cam/driver",
-        "kiri-mode/cam/ops",
-        "kiri-mode/cam/tool",
-        "kiri-mode/cam/topo",
-        "kiri-mode/cam/slice",
-        "kiri-mode/cam/prepare",
-        "kiri-mode/cam/export",
-        "kiri-mode/cam/animate",
-        "kiri-mode/laser/driver",
-        "kiri/widget",
-        "kiri/print",
-        "kiri/codec",
-        "kiri/worker"
+        "kiri-run/worker",
+        "&main/kiri",
     ],
     kiri_pool : [
-        "main/gapp",
-        "moto/license",
-        "main/kiri",
-        "ext/clip2",
-        "ext/earcut",
-        "add/array",
-        "add/class",
-        "geo/base",
-        "geo/wasm",
-        "geo/point",
-        "geo/points",
-        "geo/slope",
-        "geo/line",
-        "geo/bounds",
-        "geo/polygons",
-        "geo/polygon",
-        "geo/gyroid",
-        "kiri-mode/fdm/driver",
-        "kiri-mode/fdm/slice",
-        "kiri/slice",
-        "kiri/slicer",
-        "kiri/layers",
-        "kiri/widget",
-        "kiri/codec",
-        "kiri/minion"
+        "&kiri-run/minion",
+        "&main/kiri",
     ],
     engine : [
-        "main/gapp",
-        "moto/license",
-        "main/kiri",
-        "ext/clip2",
-        "data/local",
-        "ext/three",
-        "add/array",
-        "add/three",
-        "geo/base",
-        "geo/point",
-        "geo/points",
-        "geo/slope",
-        "geo/line",
-        "geo/bounds",
-        "geo/polygon",
-        "geo/polygons",
-        "moto/broker",
-        "load/obj",
-        "load/stl",
-        "kiri/conf",
-        "kiri/client",
-        "kiri/slice",
-        "kiri/layers",
-        "kiri/widget",
-        "kiri/codec",
-        "kiri/engine"
+        "&kiri-run/engine",
+        "&main/kiri",
     ],
     frame : [
-        "main/gapp",
-        "kiri/frame"
+        "kiri-run/frame"
     ],
     meta : [
-        "main/gapp",
-        "moto/license",
         "main/meta",
     ],
     mesh : [
@@ -665,6 +592,8 @@ function concatCode(array) {
     let direct = array.filter(f => f.charAt(0) !== '@');
     let inject = array.filter(f => f.charAt(0) === '@').map(f => f.substring(1));
 
+    synth.inject = "/* injection point */";
+
     // in debug mode, the script should load dependent
     // scripts instead of serving a complete bundle
     if (debug) {
@@ -761,9 +690,12 @@ function getCachedFile(file, fn) {
 function minify(path) {
     let code = fs.readFileSync(path);
     if (path.indexOf("ext/three.js") > 0) {
+        // console.log({skip_min: path});
         return code;
     }
-    let mini = uglify.minify(code.toString());
+    let mini = uglify.minify(code.toString(), {
+        compress: { unused: false }
+    });
     if (mini.error) {
         console.trace(mini.error);
         throw mini.error;
