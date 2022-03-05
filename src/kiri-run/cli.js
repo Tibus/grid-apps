@@ -4,7 +4,8 @@ let args = process.argv.slice(2);
 let opts = {
     dir: process.cwd(),
     output: "-",
-    model: "web/obj/cube.stl",
+    verbose: true,
+    model: "web/obj/box.stl",
     source: "src/cli/kiri-source.json",
     controller: "src/cli/kiri-controller.json",
     process: "src/cli/kiri-fdm-process.json",
@@ -176,7 +177,7 @@ async function run() {
 
     let engine = kiri.newEngine();
     let data = await fetch(model)
-    let buf = data.arrayBuffer().buffer;
+    let buf = new Uint8Array(data.arrayBuffer()).buffer;
 
     return engine.parse(buf)
         .then(data => { if (verbose) console.log({loaded: data}) })

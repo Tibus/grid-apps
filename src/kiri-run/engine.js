@@ -48,7 +48,7 @@ class Engine {
     parse(data) {
         return new Promise((accept, reject) => {
             try {
-                let vertices = new self.load.STL().parse(data);
+                let vertices = new load.STL().parse(data);
                 this.listener({parsed: data, vertices});
                 this.widget.loadVertices(vertices).center();
                 accept(this);

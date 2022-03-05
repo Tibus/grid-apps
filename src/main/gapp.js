@@ -53,8 +53,7 @@ let dbug = self.dbug = self.dbug || {
 self.noop = () => {};
 
 /** grid app container **/
-
-let gapp = self.gapp = self.gapp || {};
+let gapp = global.gapp = self.gapp = self.gapp || {};
 
 // modules to load
 let mods = [];
@@ -128,5 +127,4 @@ gapp.main = function() {
         post(root);
     }
 };
-
 })();
