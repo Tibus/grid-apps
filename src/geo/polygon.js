@@ -2,15 +2,17 @@
 
 "use strict";
 
+// dep: geo.base
 // dep: ext.clip2
+// dep: ext.earcut
+// dep: geo.point
 // dep: geo.bounds
 // dep: geo.polygons
-(function() {
+gapp.register("geo.polygon", [], (root, exports) => {
 
-const base = self.base;
-if (base.Polygon) return;
-
+const { base } = root;
 const { config, util, polygons, newBounds, newPoint } = base;
+
 const POLY = polygons,
     DEG2RAD = Math.PI / 180,
     clib = self.ClipperLib,
@@ -1135,7 +1137,7 @@ class Polygon {
 
         let mid, exit = false;
 
-        this.forEachSegment(function(prev, next) {
+        this.forEachSegment((prev, next) => {
             // check midpoint on long lines
             if (prev.distTo2D(next) > config.precision_midpoint_check_dist) {
                 mid = prev.midPointTo(next);
@@ -1165,7 +1167,7 @@ class Polygon {
             return mem[poly.id];
         }
 
-        this.forEachSegment(function(prev, next) {
+        this.forEachSegment((prev, next) => {
             // check midpoint on long lines
             if (prev.distToSq2D(next) > midcheck) {
                 if (prev.midPointTo(next).nearPolygon(poly, dist)) {
@@ -1202,7 +1204,7 @@ class Polygon {
             midcheck = config.precision_midpoint_check_dist,
             exit = true;
 
-        this.forEachSegment(function(prev, next) {
+        this.forEachSegment((prev, next) => {
             // check midpoint on long lines (TODO: should be distToSq2D()?)
             if (prev.distTo2D(next) > midcheck) {
                 mid = prev.midPointTo(next);
@@ -1271,7 +1273,7 @@ class Polygon {
 
     newUndeleted() {
         let poly = newPolygon();
-        this.forEachPoint(function(p) {
+        this.forEachPoint(p => {
             if (!p.del) poly.push(p);
         });
         return poly;
@@ -1299,7 +1301,7 @@ class Polygon {
 
         let len = 0.0;
 
-        this.forEachSegment(function(prev, next) {
+        this.forEachSegment((prev, next) => {
             len += Math.sqrt(prev.distToSq2D(next));
         }, this.open);
 
@@ -1308,7 +1310,7 @@ class Polygon {
 
     perimeterDeep() {
         let len = this.perimeter();
-        if (this.inner) this.inner.forEach(function(p) {
+        if (this.inner) this.inner.forEach(p => {
             len += p.perimeter()
         });
         return len;
@@ -1435,7 +1437,7 @@ class Polygon {
         // console.log("out", out);
 
         if (poly.inner) {
-            poly.inner.forEach(function(p) {
+            poly.inner.forEach(p => {
                 p.toClipper(out);
             });
         }
@@ -1518,9 +1520,9 @@ class Polygon {
                 dist,
                 min;
 
-            this.forEachPoint(function(i2p) {
+            this.forEachPoint(i2p => {
                 pointok = false;
-                poly.forEachSegment(function(i1p1, i1p2) {
+                poly.forEachSegment((i1p1, i1p2) => {
                     // if point is close to poly, terminate search, go to next point
                     if ((dist = i2p.distToLine(i1p1, i1p2)) < config.precision_poly_merge) {
                         return pointok = true;
@@ -1556,7 +1558,7 @@ class Polygon {
             closest,
             mindist = Infinity;
 
-        this.forEachPoint(function(point, pos) {
+        this.forEachPoint((point, pos) => {
             dist = Math.sqrt(point.distToSq2D(target));
             if (dist < mindist) {
                 index = pos;
@@ -1584,7 +1586,7 @@ class Polygon {
 
     shortestSegmentLength() {
         let len = Infinity;
-        this.forEachSegment(function(p1, p2) {
+        this.forEachSegment((p1, p2) => {
             len = Math.min(len, p1.distTo2D(p2));
         });
         return len;
@@ -1606,7 +1608,7 @@ class Polygon {
 
         if (clip.Execute(ctyp.ctDifference, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
             poly = POLY.fromClipperTree(ctre, poly.getZ());
-            poly.forEach(function(p) {
+            poly.forEach(p => {
                 p.fillang = fillang;
             })
             return poly;
@@ -1631,7 +1633,7 @@ class Polygon {
 
         if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
             poly = POLY.fromClipperTree(ctre, poly.getZ());
-            poly.forEach(function(p) {
+            poly.forEach(p => {
                 p.fillang = fillang;
             })
             if (nullOnEquiv && poly.length === 1 && poly[0].isEquivalent(this)) {
@@ -1828,11 +1830,13 @@ function newPolygon(points) {
     return new Polygon(points);
 }
 
-base.Polygon = Polygon;
-base.newPolygon = newPolygon;
-
 Polygon.fromArray = function(array) {
     return newPolygon().fromArray(array);
 };
 
-})();
+gapp.overlay(base, {
+    Polygon,
+    newPolygon
+});
+
+});

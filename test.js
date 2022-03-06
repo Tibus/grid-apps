@@ -3,12 +3,12 @@ global.self = null;
 
 let fs = require('fs');
 
-// Without contat :
-const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/), "./src/kiri/engine.js"];
-// With contact :
+// Without concat :
+const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/)];
+// With concat :
 // const files = ["./code/module.js", "./src/kiri/engine.js"];
-files.map(f => f && require(f));
 
+files.map(f => f && (/*console.log(f) || */require(f)));
 let kiri = self.kiri;
 let engine = kiri.newEngine();
 
@@ -32,7 +32,7 @@ engine.parse(buf)
     })
     .then(() => {
         console.time("test_move");
-        engine.moveTo(1, 1, 1);
+        // engine.moveTo(1, 1, 1);
     })
     .then(() => {
         return engine.setProcess({

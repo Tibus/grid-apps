@@ -3,15 +3,22 @@
 "use strict";
 
 // extend Array, String, Number, Math
-(function() {
-
-gapp.register('add.array');
+gapp.register("add.array", [], (root, exports) => {
 
 let AP = {};
 
 if (!AP.flat) {
     AP.flat = function() {
-        return [].concat.apply([], this);
+        try {
+            return [].concat.apply([], this);
+        } catch (e) {
+            // console.log({flat_error: e});
+            let out = [];
+            for (let e of this.slice()) {
+                out.push(...e);
+            }
+            return out;
+        }
     };
 }
 
@@ -234,4 +241,4 @@ Number.prototype.round = function(digits) {
     return Math.round(this.valueOf() * pow) / pow;
 };
 
-})();
+});

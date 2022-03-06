@@ -21,9 +21,9 @@ inTestEnvironment && (global.self = toSelf)
 
 self.Shape2D = require("bindings")("gridapp");
 
-
-let gapp = {register:(file)=>{}};
-inTestEnvironment && (global.gapp = gapp)
+// let gapp = {register:(file)=>{}};
+// inTestEnvironment && (global.gapp = gapp)
+// console.log("inTestEnvironment", inTestEnvironment);
 
 self.postMessage = (msg) => {
     self.kiri.client.onmessage({data:msg});

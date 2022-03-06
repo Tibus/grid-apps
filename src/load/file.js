@@ -7,16 +7,16 @@
 let load = self.load = self.load || {};
 if (load.File) return;
 
-gapp.register('load.file', [
-    'load.3mf', // dep: load.3mf
-    'load.obj', // dep: load.obj
-    'load.stl', // dep: load.stl
-    'load.svg', // dep: load.svg
-    'load.url', // dep: load.url
-]);
+// dep: load.3mf
+// dep: load.obj
+// dep: load.stl
+// dep: load.svg
+// dep: load.url
+// dep: load.png
+gapp.register('load.file', []);
 
 load.File = {
-    load_data, load_data,
+    load_data,
     load: load_file
 };
 
@@ -28,7 +28,7 @@ function nameOf(file, part, i) {
     return part ? part : `${file}_${i}`;
 }
 
-function load_data(data, file, ext) {
+function load_data(data, file, ext, opt = {}) {
     ext = ext || name.toLowerCase().split('.').pop();
     return new Promise((resolve, reject) => {
         let i = 1;
@@ -52,6 +52,14 @@ function load_data(data, file, ext) {
                 break;
             case "svg":
                 resolve(load.SVG.parse(data).map(m => { return {mesh: m.toFloat32(), file} }));
+                break;
+            case "png":
+                load.PNG.parse(data, {
+                    ...opt,
+                    done(data) {
+                        resolve({ mesh: data, file });
+                    }
+                });
                 break;
             default:
                 reject(`unknown file type: "${ext}" from ${file}`);
@@ -77,7 +85,7 @@ function load_file(file) {
                 .then(data => resolve(data))
                 .catch(e => reject(e));
         };
-        if (ext === 'stl') {
+        if (["stl","png","3mf"].indexOf(ext) >= 0) {
             reader.readAsArrayBuffer(reader.file);
         } else {
             reader.readAsBinaryString(reader.file);

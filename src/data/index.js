@@ -2,12 +2,9 @@
 
 "use strict";
 
-(function() {
+gapp.register("data.index", [], (root, exports) => {
 
-gapp.register('data.index');
-
-let data = self.data = self.data || {};
-if (data.Index) return;
+const { data } = root;
 
 data.Index = IDBStore;
 
@@ -23,7 +20,7 @@ try {
     IDB = self.indexedDB || self.mozIndexedDB || self.webkitIndexedDB || self.msIndexedDB;
     IRR = self.IDBKeyRange;
 } catch (e) {
-    console.log("in private or restricted browsing mode. database storage blocked. application may not function.");
+    console.log("IndexedDB disabled: application may not function properly");
 }
 
 /**
@@ -167,7 +164,7 @@ SP.init = function(options = {}) {
         request = null;
 
     function fallback() {
-        console.log("in private browsing mode or browser lacks support for IndexedDB. unable to setup storage for '" + name + "'.");
+        console.log(`IndexedDB disabled: unable to initialize '${name}'`);
         local = {};
         storage.runQueue();
     }
@@ -322,4 +319,4 @@ SP.clear = function(key, store = this.current) {
         .objectStore(store).clear();
 };
 
-})();
+});

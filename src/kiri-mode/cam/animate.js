@@ -2,47 +2,52 @@
 
 "use strict";
 
-self.kiri.loader.push(function() {
+// dep: kiri-mode.cam.driver
+gapp.register("kiri-mode.cam.animate", [], (root, exports) => {
 
-    let KIRI = self.kiri,
-        CAM = KIRI.driver.CAM,
-        API, WORLD, SPACE,
-        meshes = {},
-        unitScale = 1,
-        progress, toolPosX, toolPosY, toolPosZ,
-        speedValues = [ 25, 12, 6, 3 ],
-        speedNames = [ "1x", "2x", "4x", "8x" ],
-        speedMax = speedValues.length - 1,
-        speedIndex = 0,
-        speedLabel,
-        speed,
-        color = 0,
-        pauseButton,
-        playButton,
-        posOffset = { x:0, y:0, z:0 };
+const { kiri } = root;
+const { driver } = kiri;
+const { CAM } = driver;
 
-    // ---( CLIENT FUNCTIONS )---
+let meshes = {},
+    unitScale = 1,
+    progress, toolPosX, toolPosY, toolPosZ,
+    speedValues = [ 25, 12, 6, 3 ],
+    speedNames = [ "1x", "2x", "4x", "8x" ],
+    speedMax = speedValues.length - 1,
+    speedIndex = 0,
+    speedLabel,
+    speed,
+    color = 0,
+    pauseButton,
+    playButton,
+    posOffset = { x:0, y:0, z:0 };
 
-    if (KIRI.client)
-    CAM.animate_clear = function(api) {
-        KIRI.client.animate_cleanup();
-        SPACE = (API = api).const.SPACE;
-        WORLD = SPACE.world;
+// ---( CLIENT FUNCTIONS )---
+
+kiri.load(() => {
+    if (!kiri.client) {
+        return;
+    }
+
+    const { moto } = root;
+    const { space } = moto;
+    const { api } = kiri;
+
+    function animate_clear(api) {
+        kiri.client.animate_cleanup();
         $('layer-animate').innerHTML = '';
         $('layer-toolpos').innerHTML = '';
         Object.keys(meshes).forEach(id => deleteMesh(id));
     }
 
-    if (KIRI.client)
-    CAM.animate = function(api, delay) {
-        SPACE = (API = api).const.SPACE;
-        WORLD = SPACE.world;
-        KIRI.client.animate_setup(API.conf.get(), data => {
+    function animate(api, delay) {
+        kiri.client.animate_setup(api.conf.get(), data => {
             checkMeshCommands(data);
             if (!(data && data.mesh_add)) {
                 return;
             }
-            const UC = API.uc;
+            const UC = api.uc;
             const layer = $('layer-animate');
             layer.innerHTML = '';
             UC.setGroup(layer);
@@ -68,9 +73,109 @@ self.kiri.loader.push(function() {
             toolPosZ = UC.newInput('z', {disabled: true, size: 7});
             playButton.style.display = '';
             pauseButton.style.display = 'none';
-            API.event.emit('animate', 'CAM');
+            api.event.emit('animate', 'CAM');
         });
-    };
+    }
+
+    gapp.overlay(kiri.client, {
+        animate(data, ondone) {
+            kiri.client.send("animate", data, ondone);
+        },
+
+        animate_setup(settings, ondone) {
+            color = settings.controller.dark ? 0x888888 : 0;
+            unitScale = settings.controller.units === 'in' ? 1/25.4 : 1;
+            kiri.client.send("animate_setup", {settings}, ondone);
+        },
+
+        animate_cleanup(data, ondone) {
+            kiri.client.send("animate_cleanup", data, ondone);
+        }
+    });
+
+    gapp.overlay(CAM, {
+        animate,
+        animate_clear
+    });
+
+    function meshAdd(id, ind, pos) {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(ind), 1));
+        const mat = new THREE.LineBasicMaterial({
+            transparent: true,
+            opacity: 0.75,
+            color
+        });
+        const mesh = new THREE.LineSegments(geo, mat);
+        space.world.add(mesh);
+        meshes[id] = mesh;
+    }
+
+    function meshUpdates(id, updates) {
+        const mesh = meshes[id];
+        if (!mesh) {
+            return; // animate cancelled
+        }
+        const mpos = mesh.geometry.attributes.position;
+        for (let i=0, il=updates.length; i<il; ) {
+            const pos = updates[i++];
+            const val = updates[i++];
+            mpos.array[pos] = val;
+        }
+        mpos.needsUpdate = true;
+        space.update();
+    }
+
+    function deleteMesh(id) {
+        space.world.remove(meshes[id]);
+        delete meshes[id];
+    }
+
+    function step(opts) {
+        const { steps } = opts;
+        updateSpeed();
+        kiri.client.animate({speed, steps: 1}, handleGridUpdate);
+    }
+
+    function play(opts) {
+        const { steps } = opts;
+        updateSpeed();
+        if (steps !== 1) {
+            playButton.style.display = 'none';
+            pauseButton.style.display = '';
+        }
+        kiri.client.animate({speed, steps: steps || Infinity}, handleGridUpdate);
+    }
+
+    function fast(opts) {
+        const { steps } = opts;
+        updateSpeed(1);
+        playButton.style.display = 'none';
+        pauseButton.style.display = '';
+        kiri.client.animate({speed, steps: steps || Infinity}, handleGridUpdate);
+    }
+
+    function pause() {
+        playButton.style.display = '';
+        pauseButton.style.display = 'none';
+        kiri.client.animate({speed: 0}, handleGridUpdate);
+    }
+
+    function skip() {
+        api.show.alert('fast fowarding without animation');
+        playButton.style.display = 'none';
+        pauseButton.style.display = '';
+        updateSpeed(Infinity);
+        kiri.client.animate({speed, steps: Infinity, toend: true}, handleGridUpdate);
+    }
+
+    function handleGridUpdate(data) {
+        checkMeshCommands(data);
+        if (data && data.progress) {
+            progress.value = (data.progress * 100).toFixed(1)
+        }
+    }
 
     function updateSpeed(inc = 0) {
         if (inc === Infinity) {
@@ -83,9 +188,9 @@ self.kiri.loader.push(function() {
     }
 
     function replay() {
-        CAM.animate_clear(API);
+        CAM.animate_clear(api);
         setTimeout(() => {
-            CAM.animate(API, 50);
+            CAM.animate(api, 50);
         }, 250);
     }
 
@@ -110,7 +215,7 @@ self.kiri.loader.push(function() {
                 mesh.position.x = pos.x;
                 mesh.position.y = pos.y;
                 mesh.position.z = pos.z;
-                SPACE.update();
+                space.update();
                 if (id !== 0) {
                     toolPosX.value = ((pos.x + posOffset.x) * unitScale).toFixed(2);
                     toolPosY.value = ((pos.y + posOffset.y) * unitScale).toFixed(2);
@@ -123,112 +228,22 @@ self.kiri.loader.push(function() {
         }
     }
 
-    function meshAdd(id, ind, pos) {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-        geo.setIndex(new THREE.BufferAttribute(new Uint32Array(ind), 1));
-        const mat = new THREE.LineBasicMaterial({
-            transparent: true,
-            opacity: 0.75,
-            color
-        });
-        const mesh = new THREE.LineSegments(geo, mat);
-        WORLD.add(mesh);
-        meshes[id] = mesh;
+});
+
+// ---( WORKER FUNCTIONS )---
+
+kiri.load(() => {
+    if (!kiri.worker) {
+        return;
     }
-
-    function meshUpdates(id, updates) {
-        const mesh = meshes[id];
-        if (!mesh) {
-            return; // animate cancelled
-        }
-        const mpos = mesh.geometry.attributes.position;
-        for (let i=0, il=updates.length; i<il; ) {
-            const pos = updates[i++];
-            const val = updates[i++];
-            mpos.array[pos] = val;
-        }
-        mpos.needsUpdate = true;
-        SPACE.update();
-    }
-
-    function deleteMesh(id) {
-        WORLD.remove(meshes[id]);
-        delete meshes[id];
-    }
-
-    function step(opts) {
-        const { steps } = opts;
-        updateSpeed();
-        KIRI.client.animate({speed, steps: 1}, handleGridUpdate);
-    }
-
-    function play(opts) {
-        const { steps } = opts;
-        updateSpeed();
-        if (steps !== 1) {
-            playButton.style.display = 'none';
-            pauseButton.style.display = '';
-        }
-        KIRI.client.animate({speed, steps: steps || Infinity}, handleGridUpdate);
-    }
-
-    function fast(opts) {
-        const { steps } = opts;
-        updateSpeed(1);
-        playButton.style.display = 'none';
-        pauseButton.style.display = '';
-        KIRI.client.animate({speed, steps: steps || Infinity}, handleGridUpdate);
-    }
-
-    function pause() {
-        playButton.style.display = '';
-        pauseButton.style.display = 'none';
-        KIRI.client.animate({speed: 0}, handleGridUpdate);
-    }
-
-    function skip() {
-        API.show.alert('fast fowarding without animation');
-        playButton.style.display = 'none';
-        pauseButton.style.display = '';
-        updateSpeed(Infinity);
-        KIRI.client.animate({speed, steps: Infinity, toend: true}, handleGridUpdate);
-    }
-
-    function handleGridUpdate(data) {
-        checkMeshCommands(data);
-        if (data && data.progress) {
-            progress.value = (data.progress * 100).toFixed(1)
-        }
-    }
-
-    if (KIRI.client)
-    KIRI.client.animate_setup = function(settings, ondone) {
-        color = settings.controller.dark ? 0x888888 : 0;
-        unitScale = settings.controller.units === 'in' ? 1/25.4 : 1;
-        KIRI.client.send("animate_setup", {settings}, ondone);
-    };
-
-    if (KIRI.client)
-    KIRI.client.animate = function(data, ondone) {
-        KIRI.client.send("animate", data, ondone);
-    };
-
-    if (KIRI.client)
-    KIRI.client.animate_cleanup = function(data, ondone) {
-        KIRI.client.send("animate_cleanup", data, ondone);
-    };
-
-    // ---( WORKER FUNCTIONS )---
 
     let stock, center, grid, gridX, gridY, rez;
     let path, pathIndex, tool, tools, last, toolID = 1;
 
-    if (KIRI.worker)
-    KIRI.worker.animate_setup = function(data, send) {
+    kiri.worker.animate_setup = function(data, send) {
         const { settings } = data;
         const { process } = settings;
-        const print = current.print;
+        const print = worker.print;
         const density = parseInt(settings.controller.animesh) * 1000;
 
         pathIndex = 0;
@@ -265,6 +280,31 @@ self.kiri.loader.push(function() {
         send.done();
     };
 
+    kiri.worker.animate = function(data, send) {
+        if (data.speed >= 0) {
+            renderSpeed = data.speed;
+        }
+        if (data.steps > 0) {
+            stepsRemain = data.steps;
+        }
+        if (data.toend) {
+            skipMode = !skipMode;
+        } else {
+            skipMode = false;
+        }
+        checkStash(send);
+        if (animating) {
+            return send.done();
+        }
+        renderPath(send);
+    };
+
+    kiri.worker.animate_cleanup = function(data, send) {
+        if (animating) {
+            animateClear = true;
+        }
+    };
+
     function createGrid(stepsX, stepsY, size, step) {
         const gridPoints = stepsX * stepsY;
         const pos = new Float32Array(gridPoints * 3);
@@ -297,33 +337,6 @@ self.kiri.loader.push(function() {
 
         return { pos, ind };
     }
-
-    if (KIRI.worker)
-    KIRI.worker.animate = function(data, send) {
-        if (data.speed >= 0) {
-            renderSpeed = data.speed;
-        }
-        if (data.steps > 0) {
-            stepsRemain = data.steps;
-        }
-        if (data.toend) {
-            skipMode = !skipMode;
-        } else {
-            skipMode = false;
-        }
-        checkStash(send);
-        if (animating) {
-            return send.done();
-        }
-        renderPath(send);
-    };
-
-    if (KIRI.worker)
-    KIRI.worker.animate_cleanup = function(data, send) {
-        if (animating) {
-            animateClear = true;
-        }
-    };
 
     let animateClear = false;
     let animating = false;
@@ -508,7 +521,7 @@ self.kiri.loader.push(function() {
     }
 
     // load renderer code in worker context only
-    if (KIRI.worker && false)
+    if (kiri.worker && false)
     fetch('/wasm/kiri-ani.wasm')
         .then(response => response.arrayBuffer())
         .then(bytes => WebAssembly.instantiate(bytes, {
@@ -531,5 +544,7 @@ self.kiri.loader.push(function() {
             // heap[200] = 8;
             // let rv = self.wasm.updateMesh(0, 0, 100, 200);
         });
+
+});
 
 });

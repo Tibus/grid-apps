@@ -2,35 +2,9 @@
 
 "use strict";
 
-(function() {
-
-gapp.register('moto.webui', [
-    "moto.license", // dep: moto.license
-    "add.array",    // dep: add.array
-]);
-
-let moto = self.moto = self.moto || {};
-if (moto.webui) return;
-
-// window ui helpers
-Object.assign(self, {
-    $: (id) => {
-        return document.getElementById(id);
-    },
-
-    $d: (id, v) => {
-        $(id).style.display = v;
-    },
-
-    $h: (id, h) => {
-        $(id).innerHTML = h;
-    },
-
-    estop: (evt) => {
-        evt.stopPropagation();
-        evt.preventDefault();
-    }
-});
+// dep: moto.license
+// dep: add.array
+gapp.register("moto.webui", [], (root, exports) => {
 
 let nextid = 1;
 
@@ -92,7 +66,7 @@ function build(data, context) {
 }
 
 // core html builder funtions
-let h = self.h = moto.webui = {
+let h = exports({
     bind: (el, data, opt = {}) => {
         let ctx = [];
         let html = build(data, ctx).join('');
@@ -120,13 +94,35 @@ let h = self.h = moto.webui = {
         }
         return { type, attr, innr };
     }
-};
+});
+
+// window ui helpers
+gapp.overlay(root, {
+    $: (id) => {
+        return document.getElementById(id);
+    },
+
+    $d: (id, v) => {
+        $(id).style.display = v;
+    },
+
+    $h: (id, h) => {
+        $(id).innerHTML = h;
+    },
+
+    h,
+
+    estop: (evt) => {
+        evt.stopPropagation();
+        evt.preventDefault();
+    }
+});
 
 // add common element types
-["a", "i", "div", "span", "label", "input", "button", "svg"].forEach(type => {
+["a", "i", "hr", "div", "span", "label", "input", "button", "svg"].forEach(type => {
     h[type] = (attr, innr) => {
         return h.el(type, attr, innr);
     }
 });
 
-})();
+});
