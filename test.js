@@ -6,7 +6,7 @@ let fs = require('fs');
 // Without concat :
 const files = [...fs.readFileSync("./scripts/concatModuleScripts.txt").toString().split(/\r?\n/)];
 // With concat :
-// const files = ["./code/module.js", "./src/kiri/engine.js"];
+// const files = ["./code/module.js"];
 
 files.map(f => f && (/*console.log(f) || */require(f)));
 let kiri = self.kiri;
