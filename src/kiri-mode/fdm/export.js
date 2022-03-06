@@ -196,7 +196,7 @@ FDM.export = function(print, online, ondone, ondebug) {
         // consider alternate transfer schemes like indexeddb
         // since this transfers the burden to the main thread
         if (!line || output.length > 1000) {
-            online(output.join("\n"), layerno/layers.length);
+            online(output.join("\n"), { progress: layerno / layers.length });
             output = [];
         }
     };
