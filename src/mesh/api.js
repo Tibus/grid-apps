@@ -378,7 +378,7 @@ const tool = {
 
     analyze(models, opt = { compound: true }) {
         models = fallback(models);
-        api.log.emit('analyzing mesh(es)...').pin();
+        api.log.emit('analyzing mesh(es)').pin();
         let promises = [];
         let mcore = new Matrix4().makeRotationX(Math.PI / 2);
         for (let m of models) {
@@ -397,6 +397,41 @@ const tool = {
         }
         Promise.all(promises).then(() => {
             api.log.emit('analysis complete').unpin();
+        });
+    },
+
+    isolate(models) {
+        models = fallback(models);
+        api.log.emit('isolating bodies').pin();
+        let promises = [];
+        let mcore = new Matrix4().makeRotationX(Math.PI / 2);
+        for (let m of models) {
+            let p = worker.model_isolate({ id: m.id }).then(bodies => {
+                bodies = bodies.map(vert => new mesh.model({
+                    file: m.file,
+                    mesh: vert.toFloat32()
+                })).map( nm => nm.applyMatrix4(mcore.clone().multiply(m.mesh.matrixWorld)) );
+                mesh.api.group.new(bodies, undefined, "isolate").setSelected();
+            });
+            promises.push(p);
+        }
+        Promise.all(promises).then(() => {
+            api.log.emit('isolation complete').unpin();
+        });
+    },
+
+    mapFaces(models) {
+        models = fallback(models);
+        api.log.emit('mapping faces').pin();
+        let promises = [];
+        for (let m of models) {
+            let p = worker.model_mapFaces({ id: m.id }).then(data => {
+                // console.log({map_info: data});
+            });
+            promises.push(p);
+        }
+        Promise.all(promises).then(() => {
+            api.log.emit('mapping complete').unpin();
         });
     },
 
@@ -426,7 +461,7 @@ const tool = {
 
     repair(models) {
         models = fallback(models);
-        api.log.emit('repairing mesh(es)...').pin();
+        api.log.emit('repairing mesh(es)').pin();
         tool.heal(models, { merge: true }).then(() => {
             api.log.emit('repair commplete').unpin();
             api.selection.update();
@@ -446,7 +481,13 @@ const tool = {
     }
 };
 
-const modes = { object: "object", face: "face", line: "line", vertex: "vertex" };
+const modes = {
+    object: "object",
+    face: "face",
+    line: "line",
+    vertex: "vertex",
+    surface: "surface"
+};
 
 // edit mode
 const mode = {
@@ -456,10 +497,17 @@ const mode = {
             $(`mode-${key}`).classList.remove('selected');
         }
         $(`mode-${mode}`).classList.add('selected');
+        api.mode.check();
     },
 
     get() {
         return prefs.map.mode;
+    },
+
+    check() {
+        if (prefs.map.mode === modes.surface) {
+            tool.mapFaces();
+        }
     },
 
     object() {
@@ -477,6 +525,10 @@ const mode = {
     vertex() {
         mode.set(modes.vertex);
     },
+
+    surface() {
+        mode.set(modes.surface);
+    }
 };
 
 // cache pref signature so we know when it changes
@@ -508,6 +560,10 @@ const prefs = {
             length: 0.5,
             color_lite: 0xff0000,
             color_dark: 0x00ffff
+        },
+        surface: {
+            radians: 0.1,
+            radius: 0.2
         }
     },
 
@@ -631,7 +687,9 @@ const api = exports({
     objects() {
         // return model objects suitable for finding ray intersections
         return group.list().map(o => o.models).flat().map(o => o.mesh);
-    }
+    },
+
+    isDebug: self.debug === true
 });
 
 const { broker } = gapp;

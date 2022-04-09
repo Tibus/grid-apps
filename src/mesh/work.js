@@ -28,6 +28,9 @@ const { client, worker } = moto;
 const { util } = mesh;
 const cache = {};
 
+// add scoped access to cache
+mesh.work = { cache };
+
 // compensation for space/world/platform rotation
 const core_matrix = new Matrix4().makeRotationX(Math.PI / 2);
 
@@ -57,15 +60,38 @@ function translate_encode(id, matrix) {
 }
 
 function analyze(id, opt = {}) {
-    log(`${id} | analyzing...`);
-    let geo = cache[id].geo;
-    let tool = new mesh.tool({
-        vertices: geo.attributes.position.array,
-        debug: false
-    });
-    log(`${id} | patching...`);
-    tool.patch(opt);
-    dbug.log(tool);
+    let rec = cache[id];
+    let { geo, tool } = rec;
+    if (!tool) {
+        tool = rec.tool = new mesh.tool();
+    }
+    if (tool.faces) {
+        log(`${id} | analysis cached`);
+    } else {
+        log(`${id} | analyzing...`);
+        tool.generateFaces(geo.attributes.position.array);
+        log(`${id} | patching...`);
+        tool.patch(opt);
+    }
+    return tool;
+}
+
+function isolateBodies(id) {
+    let tool = mapFaces(id);
+    log(`${id} | isolating bodies`);
+    return tool.isolateBodies();
+}
+
+function mapFaces(id) {
+    let rec = cache[id];
+    let { geo, tool } = rec;
+    if (!tool) {
+        tool = rec.tool = new mesh.tool();
+    }
+    if (!tool.normals) {
+        log(`${id} | generating face map`);
+        tool.generateFaceMap(geo.attributes.position.array);
+    }
     return tool;
 }
 
@@ -74,7 +100,7 @@ let model = {
         let { vertices, name, id } = data;
         let geo = new BufferGeometry();
         geo.setAttribute('position', new BufferAttribute(vertices, 3));
-        cacheUpdate(id, { name, geo, xmatrix: core_matrix.clone(), trans: undefined });
+        cacheUpdate(id, { name, geo, xmatrix: core_matrix.clone(), trans: undefined, tool: undefined });
     },
 
     // return new vertices in world coordinates
@@ -238,7 +264,7 @@ let model = {
         let tool = analyze(id, { mapped: true, ...opt });
         let { stats, mapped } = tool;
         let { cull, dups, faces } = stats;
-        log(`${id} | face count=${faces} bad=${cull} dup=${dups}`);
+        log(`${id} | face count=${faces} cull=${cull} dup=${dups}`);
         log(`${id} | open loops=${tool.loops.length} edges=${tool.edges.length}`);
         return { stats, mapped };
     },
@@ -253,21 +279,35 @@ let model = {
         };
     },
 
+    mapFaces(data) {
+        let { id } = data;
+        let tool = mapFaces(id);
+        return { mapped: true };
+    },
+
+    isolate(data) {
+        let { id } = data;
+        return isolateBodies(id);
+    },
+
     // given model and point, locate matching vertices, lines, and faces
     select(data) {
-        let { id, x, y, z, a, b, c, matrix } = data;
+        let { id, x, y, z, a, b, c, matrix, surface } = data;
+        let { radians, radius, filterZ } = surface;
         // translate point into mesh matrix space
         let v3 = new Vector3(x,y,z).applyMatrix4(
             core_matrix.clone().multiply(new Matrix4().fromArray(matrix)).invert()
         );
         x = v3.x; y = v3.y; z = v3.z;
-        let arr = cache[id].geo.attributes.position.array;
+        const rec = cache[id];
+        const arr = rec.geo.attributes.position.array;
         // distance tolerance for click to vertex (rough distance)
-        let eps = 0.25;
-        let faces = [];
-        let verts = [];
-        let edges = [];
+        const eps = radius || 0.2;
+        const faces = [];
+        const verts = [];
+        const edges = [];
         let point;
+        if (!radians)
         for (let i=0, l=arr.length; i<l; ) {
             // matches here are within radius of a vertex
             // select all faces that share a matched vertex
@@ -294,6 +334,12 @@ let model = {
         // if no lines match, select the provided face (from min vertex index)
         if (faces.length === 0) {
             faces.push(Math.min(a,b,c) / 3);
+        }
+        // if the geometry has indexed faces and radians are set, find surface
+        const tool = rec.tool;
+        if (tool && tool.sides && radians) {
+            const match = tool.findConnectedSurface(faces, radians, filterZ);
+            return { faces: match, edges, verts, point };
         }
         return { faces, edges, verts, point };
     },

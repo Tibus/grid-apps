@@ -114,6 +114,7 @@ const modal = api.modal = {
     }
 };
 
+let pinner;
 // transient logging window bottom/left
 const log = api.log = {
     age: 10000, // age out lines more than 10 seconds old
@@ -131,6 +132,9 @@ const log = api.log = {
             text: `${dbug.since()} | ${msg}`,
             time: now
         });
+        if (api.isDebug) {
+            console.log(data.peek().text);
+        }
         while (!log.pinned && data.length && (data.length > lines || now - data[0].time > age)) {
             data.shift();
         }
@@ -142,17 +146,25 @@ const log = api.log = {
         return log;
     },
 
-    toggle() {
-        return log.pinned ? log.unpin() && log.hide() : log.pin();
+    toggle(opt) {
+        return log.pinned ? log.unpin() && log.hide() : log.pin(opt);
     },
 
-    pin() {
+    pin(opt = { spinner: 100 }) {
         log.pinned = true;
+        if (opt.spinner > 0) {
+            clearTimeout(pinner);
+            pinner = setTimeout(() => {
+                $('pinner').style.display = 'inline-block';
+            }, opt.spinner);
+        }
         return log.show();
     },
 
     unpin() {
         log.pinned = false;
+        clearTimeout(pinner);
+        $('pinner').style.display = 'none';
         return log.show();
     },
 
@@ -211,7 +223,7 @@ api.welcome = function(version = "unknown") {
 api.settings = function() {
     const { util } = mesh;
     const { prefs } = api;
-    const { normals, space } = prefs.map;
+    const { surface, normals, space } = prefs.map;
     const { dark } = space;
 
     const col1 = h.div([
@@ -236,7 +248,7 @@ api.settings = function() {
         h.label(''),
         h.label('normals'),
         h.label('length'),
-        h.input({ type: "text", size: 5, value: normals.length,
+        h.input({ type: "text", size: 5, value: parseFloat(normals.length),
             onchange: ev => call.set_normals_length(ev.target.value)
         }),
         h.label('color'),
@@ -246,7 +258,20 @@ api.settings = function() {
         }),
     ]);
 
-    modal.show('settings', h.div({ class: "settings" }, [ col1, col2 ] ));
+    const col3 = h.div([
+        h.label(''),
+        h.label('surface'),
+        h.label('radians'),
+        h.input({ type: "text", size: 5, value: parseFloat(surface.radians),
+            onchange: ev => call.set_surface_radians(ev.target.value)
+        }),
+        h.label('radius'),
+        h.input({ type: "text", size: 5, value: parseFloat(surface.radius || 0.2),
+            onchange: ev => call.set_surface_radius(ev.target.value)
+        }),
+    ]);
+
+    modal.show('settings', h.div({ class: "settings" }, [ col1, col2, col3 ] ));
 }
 
 // create html elements
@@ -308,6 +333,7 @@ function ui_build() {
         h.button({ _: 'face', id: "mode-face", onclick() { mode.face() } }),
         h.button({ _: 'line', id: "mode-line", onclick() { mode.line() } }),
         h.button({ _: 'vertex', id: "mode-vertex", onclick() { mode.vertex() } }),
+        h.button({ _: 'surface', id: "mode-surface", onclick() { mode.surface() } }),
     ]);
 
     // create hotkey/action menu (top/left)
@@ -334,7 +360,7 @@ function ui_build() {
             h.button({ _: 'wireframe', onclick() { api.wireframe() } }),
         ]),
         h.div([
-            h.div({ _: "edit", class: "head" }),
+            h.div({ _: "models", class: "head" }),
             // h.div({ class: "vsep" }),
             h.button({ _: 'duplicate', onclick: tool.duplicate }),
             h.button({ _: 'regroup', onclick: tool.regroup }),
@@ -344,12 +370,16 @@ function ui_build() {
             h.button({ _: 'split', onclick: call.edit_split }),
         ]),
         h.div([
-            h.div({ _: "fix", class: "head" }),
-            // h.div({ class: "vsep" }),
-            h.button({ _: 'automatic', onclick: tool.repair }),
-            h.button({ _: 'analyze', onclick: tool.analyze }),
-            // h.button({ _: 'rebuild', onclick: tool.rebuild }),
+            h.div({ _: "normal", class: "head" }),
             h.button({ _: 'invert', onclick: tool.invert }),
+        ]),
+        h.div([
+            h.div({ _: "repair", class: "head" }),
+            // h.div({ class: "vsep" }),
+            h.button({ _: 'analyze', onclick: tool.analyze }),
+            h.button({ _: 'isolate', onclick: tool.isolate }),
+            h.button({ _: 'patch', onclick: tool.repair }),
+            // h.button({ _: 'rebuild', onclick: tool.rebuild }),
             h.button({ _: 'clean', onclick: tool.clean }),
         ]),
     ]);

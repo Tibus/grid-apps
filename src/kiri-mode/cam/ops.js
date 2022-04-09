@@ -917,6 +917,121 @@ class OpTrace extends CamOp {
     }
 }
 
+class OpPocket extends CamOp {
+    constructor(state, op) {
+        super(state, op);
+    }
+
+    slice(progress) {
+        let { op, state } = this;
+        let { tool, rate, down, plunge, expand } = op;
+        let { settings, widget, sliceAll, zMax, zTop, zThru, tabs } = state;
+        let { updateToolDiams, cutTabs, cutPolys, healPolys } = state;
+        let { process, stock } = settings;
+        // generate tracing offsets from chosen features
+        let sliceOut = this.sliceOut = [];
+        let toolDiam = new CAM.Tool(settings, tool).fluteDiameter();
+        let toolOver = toolDiam * op.step;
+        let cutdir = process.camConventional;
+        updateToolDiams(toolDiam);
+        if (tabs) {
+            tabs.forEach(tab => {
+                tab.off = POLY.expand([tab.poly], toolDiam / 2).flat();
+            });
+        }
+        function newSliceOut(z) {
+            let slice = newSlice(z);
+            sliceAll.push(slice);
+            sliceOut.push(slice);
+            return slice;
+        }
+        let shadows = {};
+        function genShadows(zs) {
+            for (let z of zs) {
+                if (shadows[z]) continue;
+                // find closest shadow above and use
+                let minzkey;
+                let zover = Object.keys(shadows).map(v => parseFloat(v)).filter(v => v > z);
+                for (let zkey of zover) {
+                    if (minzkey && zkey < minzkey) {
+                        minzkey = zkey;
+                    } else {
+                        minzkey = zkey;
+                    }
+                }
+                let shadow = CAM.shadowAt(widget, z + 0.001, minzkey);
+                if (minzkey) {
+                    shadow = POLY.union([...shadow, ...shadows[minzkey]], undefined, true);
+                }
+                shadows[z] = POLY.setZ(shadow, z);
+            }
+        }
+        function clearZ(polys, z, down) {
+            let zs = down ? base.util.lerp(zTop, z, down) : [ z ];
+            if (expand) polys = POLY.offset(polys, expand);
+            for (let poly of polys) {
+                genShadows(zs);
+                for (let z of zs) {
+                    let shadow = shadows[z];
+                    let clip = [];
+                    POLY.subtract([ poly ], shadow, clip);
+                    let slice = newSliceOut(z);
+                    slice.camTrace = { tool, rate, plunge };
+                    POLY.offset(clip, -toolOver, {
+                        count:999, outs: slice.camLines = [], flat:true, z
+                    });
+                    if (tabs) {
+                        slice.camLines = cutTabs(tabs, POLY.flatten(slice.camLines, null, true), z);
+                    } else {
+                        slice.camLines = POLY.flatten(slice.camLines, null, true);
+                    }
+                    POLY.setWinding(slice.camLines, cutdir, false);
+                    slice.output()
+                        .setLayer("pocket", {line: 0xaa00aa}, false)
+                        .addPolys(slice.camLines)
+                    if (false) slice.output()
+                        .setLayer("pocket shadow", {line: 0xff8811}, false)
+                        .addPolys(shadow)
+                }
+            }
+        }
+        let polys = [];
+        let vert = widget.getVertices().array.map(v => v.round(4));
+        for (let surface of op.surfaces[widget.id] || []) {
+            let outline = [];
+            let faces = CAM.surface_find(widget, [surface]);
+            let zmin = Infinity;
+            for (let face of faces) {
+                let i = face * 9;
+                outline.push(newPolygon()
+                    .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
+                    .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
+                    .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
+                );
+            }
+            outline = POLY.union(outline, 0.0001, true);
+            outline = POLY.setWinding(outline, cutdir, false);
+            outline = healPolys(outline);
+            if (false) newSliceOut(zmin).output()
+                .setLayer("pocket area", {line: 0x1188ff}, false)
+                .addPolys(outline)
+            clearZ(outline, zmin, down);
+        }
+    }
+
+    prepare(ops, progress) {
+        let { op, state } = this;
+        let { settings } = state;
+        let { setTool, setSpindle } = ops;
+
+        setTool(op.tool, op.rate);
+        setSpindle(op.spindle);
+        for (let slice of this.sliceOut) {
+            ops.emitTrace(slice);
+        }
+    }
+}
+
 class OpDrill extends CamOp {
     constructor(state, op) {
         super(state, op);
@@ -1273,6 +1388,11 @@ CAM.shadowAt = function(widget, z, ztop) {
     let found = [];
     let { position } = geo.attributes;
     let { itemSize, count, array } = position;
+    if (widget._shadow_array) {
+        array = widget._shadow_array;
+    } else {
+        array = widget._shadow_array = [...array].map(v => v.round(3));
+    }
     for (let i = 0; i<count; i += 3) {
         let ip = i * itemSize;
         let a = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
@@ -1341,6 +1461,7 @@ CAM.OPS = CamOp.MAP = {
     "rough":    OpRough,
     "outline":  OpOutline,
     "contour":  OpContour,
+    "pocket":   OpPocket,
     "trace":    OpTrace,
     "drill":    OpDrill,
     "register": OpRegister,

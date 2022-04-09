@@ -729,9 +729,14 @@ gapp.register("kiri.init", [], (root, exports) => {
 
     // only for local filters
     function cloneDevice() {
-        let name = `${getSelectedDevice().replace(/\./g,' ')} Copy`;
+        let name = `${getSelectedDevice().replace(/\./g,' ')}`;
         let code = api.clone(settings().device);
         code.mode = api.mode.get();
+        if (name.toLowerCase().indexOf('my ') >= 0) {
+            name = `${name} copy`;
+        } else {
+            name = `My ${name}`;
+        }
         putLocalDevice(name, code);
         setDeviceCode(code, name);
     }
@@ -990,10 +995,15 @@ gapp.register("kiri.init", [], (root, exports) => {
         if (newname !== selected) {
             devs[newname] = devs[selected];
             delete devs[selected];
-            ui.deviceSave.onclick();
             selectDevice(newname);
             updateDeviceList();
         }
+    }
+
+    function updateDeviceSize() {
+        api.conf.update();
+        platform.update_size();
+        platform.update_origin();
     }
 
     function renderDevices(devices) {
@@ -1658,9 +1668,9 @@ gapp.register("kiri.init", [], (root, exports) => {
 
             device:           uc.newGroup(LANG.dv_gr_dev, $('device1'), {group:"ddev", inline:true, class:"noshow"}),
             deviceName:       uc.newInput(LANG.dv_name_s, {title:LANG.dv_name_l, size:"65%", text:true, action:updateDeviceName}),
-            bedWidth:         uc.newInput(LANG.dv_bedw_s, {title:LANG.dv_bedw_l, convert:uc.toFloat, size:6, units:true, round:2}),
-            bedDepth:         uc.newInput(LANG.dv_bedd_s, {title:LANG.dv_bedd_l, convert:uc.toFloat, size:6, units:true, round:2}),
-            maxHeight:        uc.newInput(LANG.dv_bedh_s, {title:LANG.dv_bedh_l, convert:uc.toFloat, size:6, modes:FDM_SLA}),
+            bedWidth:         uc.newInput(LANG.dv_bedw_s, {title:LANG.dv_bedw_l, convert:uc.toFloat, size:6, units:true, round:2, action:updateDeviceSize}),
+            bedDepth:         uc.newInput(LANG.dv_bedd_s, {title:LANG.dv_bedd_l, convert:uc.toFloat, size:6, units:true, round:2, action:updateDeviceSize}),
+            maxHeight:        uc.newInput(LANG.dv_bedh_s, {title:LANG.dv_bedh_l, convert:uc.toFloat, size:6, modes:FDM_SLA, action:updateDeviceSize}),
             resolutionX:      uc.newInput(LANG.dv_rezx_s, {title:LANG.dv_rezx_l, convert:uc.toInt, size:6, modes:SLA}),
             resolutionY:      uc.newInput(LANG.dv_rezy_s, {title:LANG.dv_rezy_l, convert:uc.toInt, size:6, modes:SLA}),
             spindleMax:       uc.newInput(LANG.dv_spmx_s, {title:LANG.dv_spmx_l, convert:uc.toInt, size: 6, modes:CAM}),
@@ -2413,13 +2423,19 @@ gapp.register("kiri.init", [], (root, exports) => {
             }
         });
 
-        space.mouse.downSelect((int,event) => {
-            if (api.feature.hover) {
+        space.mouse.downSelect((int, event) => {
+            if (api.feature.on_mouse_down) {
                 if (int) {
-                    api.event.emit('mouse.hover.down', {int, point: int.point});
+                    api.feature.on_mouse_down(int, event);
                     return;
                 }
-                return;
+            }
+            if (api.feature.hover) {
+                if (int) {
+                    return api.event.emit('mouse.hover.down', {int, point: int.point});
+                } else {
+                    return api.selection.meshes();
+                }
             }
             // lay flat with meta or ctrl clicking a selected face
             if (int && (event.ctrlKey || event.metaKey || api.feature.on_face_select)) {
@@ -2437,7 +2453,14 @@ gapp.register("kiri.init", [], (root, exports) => {
             }
         });
 
-        space.mouse.upSelect(function(object, event) {
+        space.mouse.upSelect((object, event) => {
+            if (api.feature.on_mouse_up) {
+                if (event && object) {
+                    return api.feature.on_mouse_up(object, event);
+                } else {
+                    return api.widgets.meshes();
+                }
+            }
             if (event && api.feature.hover) {
                 api.event.emit('mouse.hover.up', { object, event });
                 return;
