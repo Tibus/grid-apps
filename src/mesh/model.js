@@ -221,6 +221,8 @@ mesh.model = class MeshModel extends mesh.object {
         this.wireframe(was);
         // fixup normals
         this.normals({refresh: true});
+        // re-gen face index in surface mode
+        mesh.api.mode.check();
     }
 
     rename(file) {
@@ -385,6 +387,7 @@ mesh.model = class MeshModel extends mesh.object {
                     swap(i);
                 }
                 break;
+            case modes.surface:
             case modes.face:
                 for (let face of this.sel.faces) {
                     swap(face * 9);
@@ -516,28 +519,7 @@ mesh.model = class MeshModel extends mesh.object {
     }
 
     updateSelections() {
-        let faces = this.sel.faces;
-        let groups = [];
-        if (faces && faces.length) {
-            faces = faces.sort((a,b) => a - b).slice();
-            let first = faces.shift();
-            if (first > 0) {
-                groups.push({ start: 0, count: first, mat: 0 });
-            }
-            let range = { start: first, count: 1, mat: 1 };
-            groups.push(range);
-            for (let face of faces) {
-                if (face === range.start + range.count) {
-                    range.count++;
-                } else {
-                    groups.push(range = { start: range.start + range.count, count: face - range.start - range.count });
-                    groups.push(range = { start: face, count: 1, mat: 1 });
-                }
-            }
-            groups.push({ start: range.start + range.count, count: Infinity });
-        } else {
-            groups.push({ start: 0, count: Infinity });
-        }
+        let groups = mesh.util.facesToGroups(this.sel.faces);
         let geo = this.mesh.geometry;
         geo.clearGroups();
         for (let group of groups) {
@@ -586,18 +568,29 @@ mesh.model = class MeshModel extends mesh.object {
     }
 
     // find adjacent faces to clicked point/line on a face
-    find(int, action) {
+    find(int, action, surface) {
         let { point, face } = int;
         let { x, y, z } = point;
         let { a, b, c } = face;
+        let timer = setTimeout(() => {
+            timer = undefined;
+            mesh.api.log.emit("matching surface").pin();
+        }, 150);
         worker.model_select({
-            id: this.id, x, y:-z, z:y, a, b, c, matrix: this.matrix
+            id: this.id, x, y:-z, z:y, a, b, c, matrix: this.matrix, surface
         }).then(data => {
+            if (timer) {
+                clearTimeout(timer);
+            }
             let { faces, edges, verts, point } = data;
             // console.log({data});
             // this.toggleSelectedVertices(verts);
             this.selectFaces(faces, action);
             this.updateSelections();
+            if (!timer) {
+                mesh.api.log.emit("surface match complete").unpin();
+                moto.space.refresh();
+            }
         });
     }
 

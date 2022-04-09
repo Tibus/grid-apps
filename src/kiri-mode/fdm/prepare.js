@@ -47,8 +47,10 @@ FDM.prepare = function(widgets, settings, update) {
         isFlat = lineType === "flat",
         isDanger = danger || false,
         isPalette = filamentSource === 'palette3',
+        useRaft = process.outputRaft || false,
         firstLayerHeight = isBelt ? sliceHeight : firstSliceHeight || sliceHeight,
         layerno = 0,
+        zneg = 0,
         zoff = 0,
         zmin = 0,
         shield,
@@ -72,9 +74,9 @@ FDM.prepare = function(widgets, settings, update) {
 
     // TODO pick a widget with a slice on the first layer and use that nozzle
     // create brim, skirt, raft if specificed in FDM mode (code shared by laser)
-    if (!isBelt && (process.outputBrimCount || process.outputRaft)) {
+    if (!isBelt && (process.outputBrimCount || useRaft)) {
         let brims = [],
-            offset = process.outputBrimOffset || (process.outputRaft ? 4 : 0);
+            offset = process.outputBrimOffset || (useRaft ? 4 : 0);
 
         // compute first brim
         widgets.filter(w => w.slices.length).forEach(function(widget) {
@@ -122,29 +124,26 @@ FDM.prepare = function(widgets, settings, update) {
         }
 
         // if raft is specified
-        if (process.outputRaft) {
+        if (useRaft) {
             let offset = newPoint(0,0,0),
                 height = nozzle,
+                angle = process.sliceFillAngle,
+                rate1 = firstLayerRate / 3,
+                rate2 = process.outputFeedrate,
                 rafts = process.outputBrimCount ?
                     POLY.expand(brims, nozzle * 4, 0, null, 1) : brims;
 
-
-            // cause first point of raft to be used
-            printPoint = null;
-
-            let raft = function(height, angle, spacing, speed, extrude) {
+            function raft(height, angle, spacing, speed, extrude, outline) {
                 let slice = kiri.newSlice(zoff + height / 2);
-                rafts.forEach(function(brim) {
+                for (let brim of rafts) {
                     // use first point of first brim as start point
                     if (printPoint === null) printPoint = brim.first();
                     let t = slice.addTop(brim);
-                    t.traces = [ brim ];
-                    t.inner = POLY.expand(t.traces, -nozzle * 0.5, 0, null, 1);
-                    // tweak bounds for fill to induce an offset
-                    t.inner[0].bounds.minx -= nozzle/2;
-                    t.inner[0].bounds.maxx += nozzle/2;
+                    if (outline) t.traces = [ brim ];
+                    t.inner = POLY.expand([ brim ], nozzle * -0.8, 0, null, 1);
                     t.fill_lines = POLY.fillArea(t.inner, angle, spacing, []);
-                })
+                    t.isRaft = true;
+                }
                 offset.z = slice.z;
                 printPoint = slicePrintPath(print, slice, printPoint, offset, layerout, {
                     speed,
@@ -156,13 +155,17 @@ FDM.prepare = function(widgets, settings, update) {
 
                 layerout = [];
                 zoff += height;
+                zneg = height / 2;
             };
 
-            raft(nozzle/1, process.sliceFillAngle + 0 , nozzle * 5.0, firstLayerRate / 3, 4);
-            raft(nozzle/1, process.sliceFillAngle + 0 , nozzle * 5.0, firstLayerRate / 2, 4);
-            raft(nozzle/2, process.sliceFillAngle + 90, nozzle * 3.0, process.outputFeedrate, 2.5);
-            raft(nozzle/2, process.sliceFillAngle + 0 , nozzle * 1.0, process.outputFeedrate, 1.5);
-            raft(nozzle/2, process.sliceFillAngle + 90 , nozzle * 0.7, process.outputFeedrate, 0.75);
+            // cause first point of raft to be used
+            printPoint = null;
+
+            // emit raft layers
+            raft(nozzle * 1.5, angle +  0, nozzle * 6.00, rate1, 2.50, true);
+            raft(nozzle * 0.5, angle + 90, nozzle * 2.00, rate2, 1.50, true);
+            raft(nozzle * 0.5, angle +  0, nozzle * 1.00, rate2, 1.00);
+            raft(nozzle * 0.5, angle + 90, nozzle * 0.75, rate2, 0.75);
 
             // raise first layer off raft slightly to lessen adhesion
             firstLayerHeight += process.outputRaftSpacing || 0;
@@ -182,7 +185,7 @@ FDM.prepare = function(widgets, settings, update) {
                 outs: polys,
                 flat: true,
                 count: process.outputBrimCount,
-                z: firstLayerHeight / 2
+                z: firstLayerHeight / 2 + zoff - zneg
             });
 
             print.setType('brim');
@@ -536,6 +539,7 @@ FDM.prepare = function(widgets, settings, update) {
             layerout.z = z + slice.height / 2;
             layerout.height = layerout.height || slice.height;
             layerout.slice = slice;
+            layerout.params = params;
             // mark layer as anchor if slice is belt and flag set
             layerout.anchor = slice.belt && slice.belt.anchor;
             // detect extruder change and print purge block
@@ -775,7 +779,6 @@ FDM.prepare = function(widgets, settings, update) {
     return print.render;
 };
 
-// fdm only
 function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     const { settings } = print;
     const { device } = settings;
@@ -1141,9 +1144,10 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             start = 0,
             skip = false,
             lastIndex = -1,
+            raft = opt.raft || false,
             flow = opt.flow || 1,
             near = opt.near || false,
-            fast = opt.fast || false,
+            fast = opt.fast || raft || false,
             fill = (opt.fill >= 0 ? opt.fill : fillMult) * flow,
             thinDist = near ? thinWall : thinWall;
 
@@ -1234,6 +1238,9 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             }
             skip = false;
 
+            // re-seek a new start index within fill array
+            let restart = lastIndex < 0;
+
             // mark as used (temporarily)
             p1.del = true;
             p2.del = true;
@@ -1261,6 +1268,9 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
                 // bridge ends of fill when they're close together
                 if (dist < thinDist) {
+                    print.addOutput(preout, p1, fill, fillSpeed, extruder);
+                } else if (raft && !restart) {
+                    // connect raft lines unless it's a restart
                     print.addOutput(preout, p1, fill, fillSpeed, extruder);
                 } else {
                     print.addOutput(preout, p1, 0, moveSpeed, extruder);
@@ -1328,7 +1338,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     let out = [];
     if (slice.tops) {
         out.appendAll(slice.tops);
-    };
+    }
     if (opt.support && slice.supports) {
         out.appendAll(slice.supports);
     }
@@ -1345,6 +1355,9 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 outputFills(next.fill, {fast: true});
             }
         } else {
+            let top = next;
+            let isRaft = top.isRaft;
+
             print.setType('shells');
             if (lastTop && lastTop !== next) {
                 retract();
@@ -1369,6 +1382,9 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 }
             }
 
+            // raft
+            if (top.traces) outputTraces(top.traces);
+
             // innermost shells
             let inner = next.innerShells() || [];
 
@@ -1386,7 +1402,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             // then output solid and sparse fill
             print.setType('solid fill');
-            outputFills(next.fill_lines, {flow: fillMult});
+            outputFills(next.fill_lines, { flow: fillMult, raft: isRaft });
 
             print.setType('sparse infill');
             outputSparse(next.fill_sparse, sparseMult, infillSpeed);

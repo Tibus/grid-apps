@@ -6,12 +6,14 @@
 
 * `B` origin (and bed size) bug (Onshape?) when switching device modes
 * `B` can't drag slider bar on ipad / ios -- touch pad scrolling dodgy
+* `B` prevent or ask for really large models when scaling (crash ui)
 
 * `P` duplicate objects should share same slice data unless rotated or scaled
 * `P` allow selection to be decimated on demand (context menu?)
 * `P` move all persisted / workspace settings/data to IndexedDB (LS limitations)
 * `P` do not move (average) endpoints connected to long lines in decimate
 * `P` explore widget vertex reloading / replacing (Onshape) (issue #48)
+* `P` faster ray intersect https://github.com/gkjohnson/three-mesh-bvh/
 
 * `F` edit in Mesh:Tool
 * `F` custom device vars for profiles / ranges / gcode
@@ -30,6 +32,7 @@
 * `B` multi-extruder rendering of raft fails to offset the rest of the print
 * `B` multi-extruder purge blocks fail to generate properly for rafts
 
+* `F` add layer start position as a range option
 * `F` support pillar top/bottom should conform to part
 * `F` support pillar should have solid top/bottom
 * `F` more explicit line width control with ranges and min/max adaptive
@@ -77,6 +80,7 @@
 * `F` roughing flats should be constrained to flat region
 * `F` limit cut depth to flute length of selected tool (or warn)
 * `F` add ease-down support to trace op
+* `F` change color of line selection in trace op when not a closed poly
 * `F` add linear clearing strategy
 * `F` add adaptive clearing strategy
 * `F` user-defined origin (issue #28)
@@ -128,15 +132,13 @@
 # Mesh:Tool
 
 * send to Kiri:Moto workspace (or update model vertices in place)
-* face selection: find regions with < delta to normal
 * better z snap using just vertexes from face intersected
 * add section view. local clip. raycast skip points above plane
 * add isolate op = separate bodies
 * add decimate op = face reduction
-* add flatten/crush op: for z bottoms
+* add flatten/crush op: for z bottoms (or surfaces?)
 * allow setting model/group origin for scale/rotate
 * fix mirror to work with groups (just models currently)
 * bounding box toggle should be global, not selection
 * add analyze results dialog
-* rename analyze > patch
-* remove auto-repair function
+* remove/hide auto-repair function

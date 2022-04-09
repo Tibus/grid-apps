@@ -284,6 +284,7 @@ function setWinding(array, CW, recurse) {
         if (recurse && poly.inner) setWinding(poly.inner, !CW, false);
     }
     //ConsoleTool.timeStepEnd("polygons_setWinding");
+    return array;
 }
 
 /**
@@ -997,12 +998,12 @@ function rayIntersect(start, slope, polygons, for_fill) {
                     p1.del = true;
                     p2.del = true;
                 } else
-                    /**
-                     * when a ray intersects two equal points, they are either inside or outside.
-                     * to determine which, we create a line from the two points connected to them
-                     * and test intersect the ray with that line. if it intersects, the points are
-                     * inside and we keep one of them. otherwise, they are outside and we drop both.
-                     */
+                /**
+                 * when a ray intersects two equal points, they are either inside or outside.
+                 * to determine which, we create a line from the two points connected to them
+                 * and test intersect the ray with that line. if it intersects, the points are
+                 * inside and we keep one of them. otherwise, they are outside and we drop both.
+                 */
                 if (!util.intersectRayLine(start, slope, line[0], line[1])) {
                     del = true;
                     p1.del = true;

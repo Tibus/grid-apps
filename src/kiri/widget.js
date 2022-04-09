@@ -9,16 +9,16 @@
 // dep: geo.polygons
 // dep: kiri.utils
 // use: kiri.codec
+// use: mesh.util
 gapp.register("kiri.widget", [], (root, exports) => {
 
 const { base, kiri } = root;
 const { api, driver, utils } = kiri;
-const { config, util, polygons } = base;
+const { util, polygons } = base;
 const { Mesh, newPoint, verticesToPoints } = base;
 const { inRange, time } = util;
-const { rgb, avgc } = utils;
+const { avgc } = utils;
 
-const POLY = polygons;
 const solid_opacity = 1.0;
 const groups = [];
 
@@ -299,20 +299,26 @@ class Widget {
      */
     loadGeometry(geometry) {
         const mesh = new THREE.Mesh(
-            geometry,
+            geometry, [
             new THREE.MeshPhongMaterial({
                 color: 0xffff00,
                 specular: 0x202020,
                 shininess: 125,
                 transparent: true,
                 opacity: solid_opacity
-            })
-        );
+            }),
+            new THREE.MeshPhongMaterial({
+                color: 0x0088ee,
+                specular: 0x202020,
+                shininess: 100,
+                transparent: true,
+                opacity: solid_opacity
+            }),
+        ]);
         mesh.renderOrder = 1;
-        // fix invalid normals
-        // geometry.computeFaceNormals();
         geometry.computeVertexNormals();
-        mesh.material.side = THREE.DoubleSide;
+        geometry.addGroup(0, Infinity, 0);
+        mesh.material[0].side = THREE.DoubleSide;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.widget = this;
@@ -362,7 +368,7 @@ class Widget {
         if (save) {
             this.color = color;
         }
-        let material = this.mesh.material;
+        let material = this.getMaterial();
         material.color.set(this.meta.disabled ? avgc(0x888888, color, 3) : color);
     }
 
@@ -370,19 +376,37 @@ class Widget {
         return this.color;
     }
 
+    getMaterial() {
+        return this.mesh.material[0];
+    }
+
+    isVisible() {
+        return this.getMaterial().visible;
+    }
+
+    selectFaces(faces) {
+        let groups = mesh.util.facesToGroups(faces || []);
+        let geo = this.mesh.geometry;
+        geo.clearGroups();
+        for (let group of groups) {
+            geo.addGroup(group.start*3, group.count*3, group.mat || 0);
+        }
+    }
+
     /**
      * @param {number} value
      */
     setOpacity(value) {
         const mesh = this.mesh;
+        const mat = this.getMaterial();
         if (value <= 0.0) {
-            mesh.material.transparent = solid_opacity < 1.0;
-            mesh.material.opacity = solid_opacity;
-            mesh.material.visible = false;
+            mat.transparent = solid_opacity < 1.0;
+            mat.opacity = solid_opacity;
+            mat.visible = false;
         } else if (inRange(value, 0.0, solid_opacity)) {
-            mesh.material.transparent = value < 1.0;
-            mesh.material.opacity = value;
-            mesh.material.visible = true;
+            mat.transparent = value < 1.0;
+            mat.opacity = value;
+            mat.visible = true;
         }
     }
 
@@ -474,10 +498,11 @@ class Widget {
 
     _move(x, y, z, abs) {
         let mesh = this.mesh,
+            mat = this.getMaterial(),
             pos = this.track.pos,
             zcut = this.track.zcut || 0;
             // do not allow moves in pure slice view
-        if (!mesh.material.visible) return;
+        if (!mat.visible) return;
         if (abs) {
             mesh.position.set(x, y, z - zcut);
             pos.x = (x || 0);
@@ -896,7 +921,7 @@ const Group = Widget.Groups = {
                 h: group[0].track.box.h,
                 move: (x,y,z,abs) => {
                     group.forEach(widget => {
-                        widget.mesh.material.visible = true;
+                        widget.getMaterial().visible = true;
                         widget._move(x, y, z, abs);
                     });
                 }

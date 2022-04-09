@@ -8,6 +8,7 @@ gapp.register("mesh.tool", [], (root, exports) => {
 
 const { mesh } = root;
 const { geom } = mesh;
+const { Vector3 } = THREE;
 
 /**
  * tool for identiying defects and healing them
@@ -18,21 +19,25 @@ const { geom } = mesh;
 mesh.tool = class MeshTool {
     constructor(params = {}) {
         this.precision = Math.pow(10, params.precision || 6);
-        if (params.vertices) {
-            this.setVertices(params.vertices);
-        }
     }
 
-    /**
-     * @param {number[]} vertices
-     */
-    setVertices(vertices, opt = {}) {
+    checkVertices(vertices, mod) {
         if (!vertices) {
             throw "missing vertices";
         }
-        if (vertices.length % 3 !== 0) {
+        if (mod && vertices.length % mod !== 0) {
             throw "invalid vertices";
         }
+        return vertices;
+    }
+
+    /**
+     * @param {number[]} vertices non-indexed
+     */
+    generateFaces(vertices, opt = {}) {
+        this.checkVertices(vertices, 3);
+        let doClean = opt.clean !== false;
+        let doDedup = opt.dedup !== false;
         let faces = [];
         let fcac = {}; // seen face hash
         let fnew = []; // accumulate vertex triplets
@@ -58,43 +63,184 @@ mesh.tool = class MeshTool {
                 nuvt.push(y);
                 nuvt.push(z);
             }
-            // add vertex position to face accumulator
-            fnew.push(vpos);
-            if (fnew.length === 3) {
-                // check and emit face if it's unique
-                // cull invalid faces (has 2 or more shared vertices)
-                if (fnew[0] === fnew[1] || fnew[0] === fnew[2] || fnew[1] === fnew[2]) {
+            if (doClean) {
+                // add vertex position to face accumulator
+                fnew.push(vpos);
+                if (fnew.length === 3) {
+                    // check and emit face if it's unique
+                    // cull invalid faces (has 2 or more shared vertices)
+                    if (fnew[0] === fnew[1] || fnew[0] === fnew[2] || fnew[1] === fnew[2]) {
+                        fnew = [];
+                        cull++;
+                        continue;
+                    }
+                    if (doDedup) {
+                        let key = fnew.slice().sort().join('-');
+                        // drop duplicate faces (sort handles reverse order)
+                        if (!fcac[key]) {
+                            faces.appendAll(fnew);
+                            fcac[key] = key;
+                        } else {
+                            dups++;
+                        }
+                    } else {
+                        faces.appendAll(fnew);
+                    }
                     fnew = [];
-                    cull++;
-                    continue;
                 }
-                let key = fnew.slice().sort().join('-');
-                // drop duplicate faces (sort handles reverse order)
-                if (!fcac[key]) {
-                    faces.appendAll(fnew);
-                    fcac[key] = key;
-                } else {
-                    dups++;
-                }
-                fnew = [];
+            } else {
+                faces.push(vpos);
             }
         }
-        vertices = nuvt;
-        this.stats = {cull, dups, faces:faces.length/3};
+        this.stats = {cull, dups, faces: faces.length/3};
         // unique vertex array
-        this.vertices = vertices;
+        this.uvert = nuvt;
         // unique face array. elements are offset into vertices
         this.faces = faces;
         return this;
+    }
+
+    generateFaceMap(vertices) {
+        this.vertices = this.checkVertices(vertices, 3);
+        const normals = this.normals = [];
+        const sides = this.sides = [];
+        const _va = new THREE.Vector3();
+        const _vb = new THREE.Vector3();
+        const _vc = new THREE.Vector3();
+        for (let i=0, l=vertices.length; i<l; ) {
+            _va.set(vertices[i++], vertices[i++], vertices[i++]);
+            _vb.set(vertices[i++], vertices[i++], vertices[i++]);
+            _vc.set(vertices[i++], vertices[i++], vertices[i++]);
+            const vn = THREE.computeFaceNormal(_va, _vb, _vc);
+            normals.push([vn.x, vn.y, vn.z]);
+        }
+        const prec = this.precision;
+        const vround = vertices.map(v => (v * prec) | 0);
+        const sidekeyid = {};
+        const side2face = this.side2face = [];
+        for (let i=0, side=0, face=0, l=vround.length; i<l; ) {
+            const v1 = [ vround[i++], vround[i++], vround[i++] ].join(',');
+            const v2 = [ vround[i++], vround[i++], vround[i++] ].join(',');
+            const v3 = [ vround[i++], vround[i++], vround[i++] ].join(',');
+            const s1 = ( v1 < v2 ? [ v1, v2] : [ v2, v1 ] ).join('=');
+            const s2 = ( v2 < v3 ? [ v2, v3] : [ v3, v2 ] ).join('=');
+            const s3 = ( v3 < v1 ? [ v3, v1] : [ v1, v3 ] ).join('=');
+            const smap = [ s1, s2, s3 ].map(key => {
+                let id = sidekeyid[key];
+                if (id >= 0) {
+                    return id;
+                }
+                id = sidekeyid[key] = side++;
+                side2face.push([]);
+                return id;
+            });
+            for (let sfa of smap.map(id => side2face[id])) {
+                sfa.push(face);
+            }
+            sides[face] = smap;
+            face++;
+        }
+        return this;
+    }
+
+    getAdjacentFaces(face) {
+        if (!this.sides) {
+            throw "missing sides";
+        }
+        if (!this.side2face) {
+            throw "missing side2face";
+        }
+        const sides = this.sides[face];
+        if (!sides) {
+            console.log(`no adjacent faces to ${face}`);
+            return [];
+        }
+        return sides.map(side => this.side2face[side].filter(v => v != face)).flat();
+    }
+
+    // depends on generateFaceMap() being run first
+    findConnectedSurface(faces, radians, filterZ, found = {}) {
+        const norms = this.normals;
+        if (filterZ) {
+            faces = faces.filter(f => norms[f][2] >= filterZ);
+        }
+        const checked = {};
+        const check = faces.slice();
+        for (let face of faces) {
+            found[face] = 1;
+        }
+        // const _v1 = new Vector3();
+        // const _v2 = new Vector3();
+        while (check.length) {
+            const face = check.shift();
+            const norm = norms[face];
+            // if (!norm || norm.length < 3) {
+            //     throw `invalid face ${face}`;
+            // }
+            if (filterZ !== undefined && norm[2] < filterZ) {
+                continue;
+            }
+            const fadj = this.getAdjacentFaces(face);
+            for (let f of fadj) {
+                if (found[f] || checked[f]) {
+                    continue;
+                }
+                // #1 most accurate
+                // const nf = this.normals[f];
+                // _v1.set(nf[0], nf[1], nf[2]);
+                // _v2.set(norm[0], norm[1], norm[2]);
+                // const fn = _v1.angleTo(_v2);
+                // #2 slightly less so
+                // const pf = Math.PI / 4;
+                // const fn = Math.sin(pf * Math.sqrt(this.normals[f]
+                //     .map((v,i) => Math.pow(norm[i] - v, 2))
+                //     .reduce((a,v) => a + v)));
+                // #3 fastest, still good
+                const fn = Math.sqrt(norms[f]
+                    .map((v,i) => Math.pow(norm[i] - v, 2))
+                    .reduce((a,v) => a + v));
+                if (fn <= radians) {
+                    faces.push(f);
+                    check.push(f)
+                    checked[f] = 1;
+                    found[f] = 1;
+                }
+            }
+        }
+        return faces;
+    }
+
+    // depends on generateFaceMap() being run first
+    isolateBodies() {
+        const verts = this.checkVertices(this.vertices);
+        const bodies = [];
+        const used = {};
+        for (let i=0, l=this.normals.length-1; i<l; i++) {
+            if (used[i]) {
+                continue;
+            }
+            const body = this.findConnectedSurface([i], Infinity, undefined, used);
+            if (body.length) {
+                // todo: pre-allocate known length
+                // then copy array regions from verts to bverts
+                const bverts = [];
+                for (let f of body) {
+                    bverts.push(...verts.slice(f*9, f*9+9));
+                }
+                bodies.push(bverts);
+            }
+        }
+        return bodies;
     }
 
     /**
      * finds edge lines which are line segments on a single face.
      * construct ordered line maps with array of connected edges.
      * connect lines into polys. earcut polys into new faces.
+     * requires generateFaces() be run first
      */
     patch(opt = { merge: true }) {
-        let vertices = this.vertices;
+        let vertices = this.checkVertices(this.uvert);
         let faces = this.faces;
         let hash = {}; // key to line map
         let vmap = {}; // vertext to line map
@@ -423,7 +569,7 @@ mesh.tool = class MeshTool {
 
     // add vertex data from given index into array
     appendVertex(index, array = []) {
-        let vertx = this.vertices;
+        let vertx = this.uvert;
         array.push(vertx[index++]);
         array.push(vertx[index++]);
         array.push(vertx[index]);
@@ -457,7 +603,6 @@ mesh.tool = class MeshTool {
     // return non-indexed vertex list (for compatibility)
     unrolled() {
         let out = [];
-        let vertices = this.vertices;
         for (let face of this.faces) {
             this.appendVertex(face, out);
         }
