@@ -1086,7 +1086,7 @@ function doDiff(slice, options = {}) {
     let newFlats = [];
 
     POLY.subtract(topInner, downInner, newBridges, newFlats, slice.z, min, {
-        wasm: true
+        wasm: false
     });
 
     newBridges = newBridges.filter(p => p.areaDeep() >= min);
@@ -1153,7 +1153,7 @@ function doSolidsFill(slice, spacing, angle, minArea, fillQ) {
         return;
     }
 
-    let unioned = POLY.union(solids, undefined, true, { wasm: true }).flat(),
+    let unioned = POLY.union(solids, undefined, true, { wasm: false }).flat(),
         isSLA = (spacing === undefined && angle === undefined);
 
     if (solids.length === 0) return false;
@@ -1459,7 +1459,7 @@ function fillSupportPolys(promises, polys, linewidth, density, z, isBelt) {
         // angle based on width/height ratio
         let angle = isBelt || (poly.bounds.width() / poly.bounds.height() > 1) ? 90 : 0;
         // inset support poly for fill lines 33% of nozzle width
-        let inset = POLY.offset([poly], -linewidth/3, {flat: true, z, wasm: true});
+        let inset = POLY.offset([poly], -linewidth/3, {flat: true, z, wasm: false});
         // do the fill
         if (inset && inset.length > 0) {
             doFillArea(promises, inset, angle, spacing, poly.fill = []);

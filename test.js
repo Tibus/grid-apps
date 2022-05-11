@@ -169,8 +169,7 @@ engine.parse(buf)
                 "G28 X0 Y0                ; home XY axes",
                 "M84                      ; disable stepper motors"
             ],
-            "gcodeExt": [],
-            "gcodeInt": [],
+
             "gcodeProc": "",
             "gcodeDwell": [],
             "gcodeSpindle": [],
