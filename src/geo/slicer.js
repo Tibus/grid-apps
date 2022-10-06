@@ -173,8 +173,8 @@ async function slice(points, options = {}) {
             p1 = points[i++];
             p2 = points[i++];
             p3 = points[i++];
-            let zm = Math.min(p1.z, p2.z, p3.z),
-                zM = Math.max(p1.z, p2.z, p3.z),
+            let zm = Math.max(Math.min(p1.z, p2.z, p3.z),0),
+                zM = Math.max(p1.z, p2.z, p3.z,0),
                 bm = Math.floor(zm * zScale),
                 bM = Math.min(Math.ceil(zM * zScale), bucketCount);
             // add point to all buckets in range
