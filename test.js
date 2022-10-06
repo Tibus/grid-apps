@@ -17,8 +17,8 @@ let engine = kiri.newEngine();
 
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/cube.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/torus_cylinder.stl')).buffer;
-// let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
-let buf = new Uint8Array(fs.readFileSync('./web/obj/text.stl')).buffer;
+let buf = new Uint8Array(fs.readFileSync('./web/obj/poussin.stl')).buffer;
+//let buf = new Uint8Array(fs.readFileSync('./web/obj/text.stl')).buffer;
 // let buf = new Uint8Array(fs.readFileSync('./web/obj/bigCube.stl')).buffer;
 
 engine.setListener((mess) => {
