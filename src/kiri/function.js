@@ -161,7 +161,10 @@ function prepareSlices(callback, scale = 1, offset = 0) {
                 // start next widget slice
                 sliceNext();
             }
-        }, (update, msg) => {
+        }, (update, msg, alert) => {
+            if (alert) {
+                api.show.alert(alert);
+            }
             if (msg && msg !== lastMsg) {
                 let mark = Date.now();
                 if (lastMsg) {
@@ -171,12 +174,14 @@ function prepareSlices(callback, scale = 1, offset = 0) {
                 startTime = mark;
             }
             // on update
-            track[widget.id] = (update || 0) * factor;
-            totalProgress = 0;
-            for (let w of slicing) {
-                totalProgress += (track[w.id] || 0);
+            if (update >= 0) {
+                track[widget.id] = (update || 0) * factor;
+                totalProgress = 0;
+                for (let w of slicing) {
+                    totalProgress += (track[w.id] || 0);
+                }
+                show.progress(offset + (totalProgress / widgets.length) * scale, msg);
             }
-            show.progress(offset + (totalProgress / widgets.length) * scale, msg);
         });
     }
 
@@ -239,7 +244,7 @@ function preparePreview(callback, scale = 1, offset = 0) {
     const { device, process, controller } = settings;
 
     if (complete.preview === feature.pmode) {
-        if (device.extruders.length > 1) {
+        if (device.extruders && device.extruders.length > 1) {
             if (++feature.pmode > 2) {
                 feature.pmode = 1;
             }
@@ -260,6 +265,7 @@ function preparePreview(callback, scale = 1, offset = 0) {
     hide.slider(true);
 
     const isCam = mode.is_cam(), pMode = settings.mode;
+    const isDark = api.space.is_dark();
     const isBelt = device.bedBelt || false;
 
     view.set_preview();
@@ -267,7 +273,7 @@ function preparePreview(callback, scale = 1, offset = 0) {
     event.emit('preview.begin', pMode);
 
     if (isCam) {
-        api.widgets.opacity(COLOR.cam_preview_opacity);
+        api.widgets.opacity(isDark ? COLOR.cam_preview_opacity_dark : COLOR.cam_preview_opacity);
         api.widgets.each(widget => {
             widget.setColor(COLOR.cam_preview);
         });

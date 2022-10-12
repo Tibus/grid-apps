@@ -22,6 +22,8 @@ const load = [];
 const synth = {};
 const api = {};
 
+let serviceWorker = true;
+let crossOrigin = false;
 let setupFn;
 let cacheDir;
 let startTime;
@@ -30,6 +32,7 @@ let dversion;
 let lastmod;
 let logger;
 let debug;
+let over;
 let http;
 let util;
 let dir;
@@ -50,6 +53,9 @@ function init(mod) {
     lastmod = mod.util.lastmod;
     logger = mod.log;
     debug = mod.env.debug || mod.meta.debug;
+    oversion = mod.env.over || mod.meta.over;
+    crossOrigin = mod.env.xorigin || mod.meta.xorigin || false;
+    serviceWorker = (mod.env.service || mod.meta.service) !== false;
     http = mod.http;
     util = mod.util;
     dir = mod.dir;
@@ -295,7 +301,8 @@ function initModule(mod, file, dir) {
         api: api,
         adm: {
             reload: prepareScripts,
-            setver: (ver) => { oversion = ver }
+            setver: (ver) => { oversion = ver },
+            crossOrigin: (bool) => { crossOrigin = bool }
         },
         events,
         const: {
@@ -305,7 +312,7 @@ function initModule(mod, file, dir) {
             script: script,
             moddir: dir,
             rootdir: mod.dir,
-            version: version
+            version: oversion || version
         },
         env: mod.env,
         pkg: {
@@ -417,6 +424,14 @@ const script = {
     ],
     mesh_pool : [
         "&mesh/pool"
+    ],
+    cache : [
+        "moto/license",
+        "main/service",
+    ],
+    service : [
+        "moto/license",
+        "moto/service"
     ]
 };
 
@@ -474,6 +489,7 @@ function handleOptions(req, res, next) {
     } catch (e) {
         logger.log("ua parse error on : "+req.headers['user-agent']);
     }
+    res.setHeader("Service-Worker-Allowed", "/");
     if (req.method === 'OPTIONS') {
         addCorsHeaders(req, res);
         res.end();
@@ -598,11 +614,12 @@ function concatCode(array) {
     // scripts instead of serving a complete bundle
     if (debug) {
         const code = [
+            oversion ? `self.debug_version='${oversion}';self.enable_service=${serviceWorker};` : '',
             'self.debug=true;',
             '(function() { let load = [ '
         ];
         direct.forEach(file => {
-            const vers = cachever[file] || dversion || version;
+            const vers = cachever[file] || oversion || dversion || version;
             code.push(`"/${file.replace(/\\/g,'/')}?${vers}",`);
         });
         code.push([
@@ -627,6 +644,9 @@ function concatCode(array) {
         let cached = getCachedFile(file, function(path) {
             return minify(`${dir}/${file}`);
         });
+        if (oversion) {
+            cached = `self.debug_version='${oversion}';self.enable_service=${serviceWorker};` + cached;
+        }
         code.push(cached);
     });
 
@@ -722,7 +742,11 @@ function ifModifiedDate(req) {
 function addCorsHeaders(req, res) {
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Headers', 'X-Moto-Ajax, Content-Type');
-    res.setHeader("Access-Control-Allow-Origin", req.headers['origin'] || '*');
+    res.setHeader('Access-Control-Allow-Origin', req.headers['origin'] || '*');
+    if (!crossOrigin) {
+        res.setHeader("Cross-Origin-Opener-Policy", 'same-origin');
+        res.setHeader("Cross-Origin-Embedder-Policy", 'require-corp');
+    }
     res.setHeader("Allow", "GET,POST,OPTIONS");
 }
 
@@ -799,10 +823,11 @@ function cookieValue(cookie,key) {
 
 function rewriteHtmlVersion(req, res, next) {
     if (["/kiri/","/mesh/","/meta/"].indexOf(req.app.path) >= 0) {
+        addCorsHeaders(req, res);
         let real_write = res.write;
         let real_end = res.end;
         let mlen = '{{version}}'.length;
-        let vstr = dversion || version;
+        let vstr = oversion || dversion || version;
         if (vstr.length < mlen) {
             vstr = vstr.padStart(mlen,0);
         } else if (vstr.length > mlen) {

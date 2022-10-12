@@ -11,6 +11,7 @@ self.kiri.lang['en-us'] = {
     delete:         "delete",
     detail:         "detail",
     done:           "done",
+    edit:           "edit",
     enable:         "enable",
     export:         "export",
     files:          "files",
@@ -46,6 +47,7 @@ self.kiri.lang['en-us'] = {
     version:        "version",
     view:           "view",         // left view pop menu
     wire:           "wire",         // left render pop menu
+    volume:         "volume",       // device build area
 
     acct_xpo:       ["make a backup of your device","and device profiles with the","option to include workspace","objects and positions"],
 
@@ -106,6 +108,8 @@ self.kiri.lang['en-us'] = {
     dv_rezy_l:      ["y resolution"],
     dv_zmax_s:      "Z axis speed limit",
     dv_zmax_l:      ["maximum Z axis speed","in millimeters / second","0 to disable"],
+    dv_time_s:      "output time factor",
+    dv_time_l:      ["modifier to print time estimates","in the gcode export dialog.","raise or lower value based on your","predicted vs observed print times"],
     dv_spmx_s:      "max spindle",
     dv_spmx_l:      ["max spindle rpm speed","0 to disable"],
     dv_xtab_s:      "absolute positioning",
@@ -122,8 +126,10 @@ self.kiri.lang['en-us'] = {
     dv_fsrc_l:      ["how filament is fed\ninto the extruder"],
     dv_retr_s:      "firmware retract",
     dv_retr_l:      ["device fimware supports G10/G11"],
-    dv_fanp_s:      "fan power",
+    dv_fanp_s:      "cooling",
     dv_fanp_l:      "set cooling fan power",
+    dv_feat_s:      "feature",
+    dv_feat_l:      "inject code for specified features",
     dv_prog_s:      "progress",
     dv_prog_l:      "output on each % progress",
     dv_layr_s:      "layer",
@@ -231,6 +237,8 @@ self.kiri.lang['en-us'] = {
     op_xprt_l:      "show more settings options",
     op_decl_s:      "show decals",
     op_decl_l:      "show device decals and logos",
+    op_shny_s:      "detail render",
+    op_shny_l:      "choose a slice render method that is slower and uses specular highlighting. this makes it easier to see detail in some models at the expense of render speed",
     op_dang_s:      "experimental",
     op_dang_l:      "show experimental parameters",
     op_devl_s:      "developer",
@@ -279,13 +287,13 @@ self.kiri.lang['en-us'] = {
     pt_deci_s:      "decimate",
     pt_deci_l:      ["enable or disable point decimation","during port import. for faster slicing","and lower memory usage"],
     pt_qual_s:      "detail",
-    pt_qual_l:      ["level of detail to retain","during slicing operations","lower is faster"],
+    pt_qual_l:      ["level of detail to retain during slicing operations. lower is faster and uses less memory. large scale models often do no benefit from higher detail. instead it my only result in memory and processing problems. reduce this value if you are getting out of memory errors."],
     pt_heal_s:      "heal mesh",
-    pt_heal_l:      ["attempt to heal","non-manifold meshes","adds to slicing time"],
+    pt_heal_l:      ["attempt to heal non-manifold meshes during slicing. may increase slicing time. enables a warning when non-manifold geometries are detected."],
     pt_thrd_s:      "threaded",
-    pt_thrd_l:      ["use parallel processing","when browser permits"],
+    pt_thrd_l:      ["use parallel processing when browser supports nested workers. may increase memory pressure on larger models. disable if you are getting out of memory errors"],
     pt_assy_s:      "assembly",
-    pt_assy_l:      ["use web assembly","when browser permits"],
+    pt_assy_l:      ["use web assembly when supported by browser. if you experience artifacts or memory errors, try disabling this."],
 
     xp_menu:        "exports",
 
@@ -427,7 +435,7 @@ self.kiri.lang['en-us'] = {
     cc_spnd_s:      "spindle rpm",
     cc_spnd_l:      ["spindle speed in","revolutions / minute"],
     cc_sovr_s:      "step over",
-    cc_sovr_l:      ["as a fraction of","tool diameter"],
+    cc_sovr_l:      ["a fraction of tool diameter between 0 and 1. values greater than 0.5 may result in uncut areas from acute angle offsets."],
     cc_sdwn_s:      "step down",
     cc_sdwn_l:      ["step down depth","for each pass","in workspace units","0 to disable"],
     cc_feed_s:      "feed rate",
@@ -441,14 +449,16 @@ self.kiri.lang['en-us'] = {
 
     // CNC COMMON
     cc_menu:        "limits",
-    cc_flip:        "flip",
     cc_rapd_s:      "xy feed",
     cc_rapd_l:      ["max xy moves feedrate","in workspace units / minute"],
     cc_rzpd_s:      "z feed",
     cc_rzpd_l:      ["max z moves feedrate","in workspace units / minute"],
 
-    cc_loff_s:      "offset",
-    cc_loff_l:      ["distance from stock face","for leveling pass","in workspace units"],
+    // CNC LEVELING
+    cc_loff_s:      "z offset",
+    cc_loff_l:      ["distance from stock face","in workspace units"],
+    cc_lxyo_s:      "xy offset",
+    cc_lxyo_l:      ["xy offset from part boundary as a fraction of the tool diameter (0 - 1.0)"],
 
     // CNC ROUGHING
     cr_menu:        "rough",
@@ -469,6 +479,8 @@ self.kiri.lang['en-us'] = {
     co_menu:        "outline",
     co_dogb_s:      "dogbones",
     co_dogb_l:      ["insert dogbone cuts","into inside corners"],
+    co_clrt_s:      "clear top",
+    co_clrt_l:      ["cut starting at the top of stock","when stock is enabled"],
     co_wide_s:      "wide cutout",
     co_wide_l:      ["widen outside cutout paths","for deep cuts in hard material"],
     co_olin_s:      "inside only",
@@ -484,6 +496,8 @@ self.kiri.lang['en-us'] = {
     cn_menu:        "contour",
     cf_angl_s:      "max angle",
     cf_angl_l:      ["angles greater than this","are considered vertical"],
+    cf_botm_s:      "z bottom",
+    cf_botm_l:      ["obey z bottom limit"],
     cf_curv_s:      "curves only",
     cf_curv_l:      ["limit linear cleanup","to curved surfaces"],
     cf_olin_s:      "inside only",
@@ -501,6 +515,16 @@ self.kiri.lang['en-us'] = {
     // CNC POCKET
     cp_xpnd_s:      "expand",
     cp_xpnd_l:      ["grow selected area to","encompass corners"],
+    cp_smoo_s:      "smooth",
+    cp_smoo_l:      ["clean up jagged edges caused by angled walls. can speedup and improve pocketing for detailed geometries. recommend starting with values around 1 if slicing takes too long or the contours look jagged"],
+    cp_refi_s:      "refine",
+    cp_refi_l:      ["number of refining passes to perform on contoured polylines. meant to address Z delta sawtoothing caused by faced geometries whereas smoothing handles XY. values > 10 work well for gently contoured geometries with significant Z movement."],
+    cp_cont_s:      "contour",
+    cp_cont_l:      ["ignore interior voids and features"],
+    cp_engr_s:      "engrave",
+    cp_engr_l:      ["sets up a single pass around the perimeter of the selected area. also useful for 3D laser marking"],
+    cp_outl_s:      "outline only",
+    cp_outl_l:      ["ignore interior voids and features"],
 
     // CNC DRILLING
     cd_menu:        "drill",
@@ -514,8 +538,15 @@ self.kiri.lang['en-us'] = {
     cd_lift_l:      ["lift between plunges","after dwell period","in workspace units","0 to disable"],
     cd_regi_s:      "register",
     cd_regi_l:      ["drill registration holes","for double-sided parts","independent of enable","drilling but uses same","tool and settings"],
+    cd_thru_s:      "z extend",
+    cd_thru_l:      ["extend downward cut through stock","in workspace units"],
     cd_mark_s:      "marking",
     cd_mark_l:      ["only mark holes, do not drill out","the step down setting is used","to determine how deep to mark"],
+
+    // CNC FLIP
+    cf_menu:        "flip",
+    cf_nvrt_s:      "z bottom",
+    cf_nvrt_l:      "invert z bottom setting to follow stock",
 
     // CNC CUTOUT TABS
     ct_menu:        "tabs",
@@ -589,6 +620,10 @@ self.kiri.lang['en-us'] = {
     // OUTPUT CAM
     ou_toll_s:      "tolerance",
     ou_toll_l:      ["surface precision","in workspace units","lower is slower and","uses more memory","0 = automatic based","on animate preference"],
+    ou_flat_s:      "flatness",
+    ou_flat_l:      ["delta z below which two adjacent","points are considered co-linear"],
+    ou_brdg_s:      "bridging",
+    ou_brdg_l:      ["flat distance between curved","areas to bridge with a cut"],
     ou_zanc_s:      "z anchor",
     ou_zanc_l:      ["controls the position of the part","when stock Z exceeds part Z"],
     ou_ztof_s:      "z offset",
@@ -603,6 +638,8 @@ self.kiri.lang['en-us'] = {
     ou_conv_l:      ["milling direction","uncheck for 'climb'"],
     ou_depf_s:      "depth first",
     ou_depf_l:      ["optimize pocket cuts","with depth priority"],
+    ou_forz_s:      "force z max",
+    ou_forz_l:      "all moves between pockets will go to z max (above stock). this is usually required if you are not performing a roughing operation before pocketing operations.",
 
     // CAM STOCK
     cs_menu:        "stock",
@@ -653,6 +690,8 @@ self.kiri.lang['en-us'] = {
     ad_abkl_l:      ["for better flat surface finish","use micro-movements to cancel","backlash in solid layer output","in millimeters","0 to disable","if your firmware has M425","put that in the gcode header","and leave this as 0"],
     ad_lbir_s:      "belt first",
     ad_lbir_l:      ["always print shells touching the","belt before any other shells"],
+    ad_altr_s:      "alternating",
+    ad_altr_l:      ["alternate shell winding order","clockwise / counter-clockwise","may reduce warping in thin areas","and help with belt edge adhesion"],
     ad_lret_s:      "layer retract",
     ad_lret_l:      ["force filament retraction","between layers"],
     ad_agap_s:      "avoid gaps",

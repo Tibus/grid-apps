@@ -12,14 +12,15 @@
 // dep: mesh.model
 // dep: mesh.build
 // dep: load.file
+// use: geo.polygons
 gapp.main("main.mesh", [], (root) => {
 
-const { Quaternion, Mesh, MeshPhongMaterial, PlaneGeometry, DoubleSide } = THREE;
+const { Quaternion, Mesh, MeshPhongMaterial, PlaneGeometry, DoubleSide, Vector3 } = THREE;
 const { broker } = gapp;
 const { moto } = root;
 const { space } = moto;
 
-const version = '1.1.0';
+const version = '1.2.0';
 const call = broker.send;
 const dbindex = [ "admin", "space" ];
 
@@ -136,7 +137,10 @@ function restore_space() {
             let selist = space.select || [];
             let smodel = api.model.list().filter(m => selist.contains(m.id));
             let sgroup = api.group.list().filter(m => selist.contains(m.id));
-            api.selection.set([...smodel, ...sgroup]);
+            let tolist = space.tools || [];
+            let tmodel = api.model.list().filter(m => tolist.contains(m.id));
+            let tgroup = api.group.list().filter(m => tolist.contains(m.id));
+            api.selection.set([...smodel, ...sgroup], [...tmodel, ...tgroup]);
             // restore edit mode
             api.mode.set(mode);
             // restore dark mode
@@ -176,15 +180,9 @@ let split = {
         // hide until first hover
         obj.visible = false;
         // enable temp mode
-        let state = split.state = { button, obj, zlist:[] };
+        let state = split.state = { button, obj };
         let models = state.models = api.selection.models();
         let meshes = models.map(m => m.mesh);
-        // get z list for snapping
-        Promise.all(models.map(m => m.zlist(3))).then(zs => {
-            for (let z of zs.flat()) {
-                state.zlist.addOnce(z);
-            }
-        });
         // for split and lay flat modes
         space.mouse.onHover((int, event, ints) => {
             if (!event) {
@@ -196,19 +194,13 @@ let split = {
                 return;
             }
             let { dim, mid } = util.bounds(meshes);
-            let { x, y, z } = int.point;
-            // snap to zlist when shift pressed
-            let { zlist } = state;
+            let { point, face, object } = int;
+            let { x, y, z } = point;
+
             mat.color.set(0x5555aa);
             obj.visible = true;
-            if (event.shiftKey && zlist.length) {
-                for (let v of zlist) {
-                    if (Math.abs(v - y) < 0.1) {
-                        mat.color.set(0xaa5555);
-                        y = v;
-                        break;
-                    }
-                }
+            if (event.shiftKey) {
+                y = split.closestZ(y, object, face).y;
             }
             // y is z in model space for the purposes of a split
             state.plane = { z: y };
@@ -220,7 +212,7 @@ let split = {
 
     select() {
         let { log } = mesh.api;
-        let { models, plane, zlist } = split.state;
+        let { models, plane } = split.state;
         log.emit(`splitting ${models.length} model(s) at ${plane.z.round(3)}`).pin();
         Promise.all(models.map(m => m.split(plane))).then(models => {
             mesh.api.selection.set(models);
@@ -237,6 +229,18 @@ let split = {
         space.mouse.onHover(undefined);
         temp_mode = split.state = undefined;
         mesh.api.selection.update();
+    },
+
+    closestZ(z, object, face) {
+        let { position } = object.geometry.attributes;
+        let matrix = object.matrixWorld;
+        let v0 = new Vector3(position.getX(face.a), position.getY(face.a), position.getZ(face.a)).applyMatrix4(matrix);
+        let v1 = new Vector3(position.getX(face.b), position.getY(face.b), position.getZ(face.b)).applyMatrix4(matrix);
+        let v2 = new Vector3(position.getX(face.c), position.getY(face.c), position.getZ(face.c)).applyMatrix4(matrix);
+        v0._d = Math.abs(v0.y - z);
+        v1._d = Math.abs(v1.y - z);
+        v2._d = Math.abs(v2.y - z);
+        return [ v0, v1, v2 ].sort((a,b) => a._d - b._d)[0];
     }
 }
 
@@ -288,39 +292,33 @@ function space_init(data) {
                 case 'KeyX':
                     return api.file.export();
                 case 'KeyD':
-                    if (shiftKey) return api.tool.duplicate();
-                    break;
+                    return shiftKey && api.tool.duplicate();
                 case 'KeyC':
                     return selection.centerXY().focus();
                 case 'KeyF':
                     return selection.floor().focus();
                 case 'KeyM':
-                    if (shiftKey) return api.tool.merge();
-                    return api.tool.mirror();
+                    return shiftKey ? api.tool.merge() : api.tool.mirror();
                 case 'KeyU':
                     return shiftKey && api.tool.union();
                 case 'KeyA':
-                    return shiftKey ? api.tool.analyze() : undefined;
+                    return shiftKey && api.tool.analyze();
                 case 'KeyR':
-                    if (shiftKey) return api.tool.rebuild();
-                    return api.tool.repair();
+                    return shiftKey ? api.tool.rebuild() : api.tool.repair();
                 case 'KeyE':
                     return api.tool.clean();
                 case 'KeyV':
                     return selection.focus();
                 case 'KeyN':
-                    if (shiftKey) return estop(evt, api.tool.rename());
-                    return api.normals();
+                    return shiftKey ? estop(evt, api.tool.rename()) : api.normals();
                 case 'KeyW':
                     return api.wireframe();
                 case 'KeyG':
-                    if (shiftKey) return api.tool.regroup();
-                    return api.grid();
+                    return shiftKey ? api.tool.regroup() : api.grid();
                 case 'KeyL':
                     return api.log.toggle({ spinner: false });
                 case 'KeyS':
-                    if (shiftKey) return selection.visible({toggle:true});
-                    return call.edit_split();
+                    return shiftKey ? selection.visible({toggle:true}) : call.edit_split();
                 case 'KeyB':
                     return selection.boundsBox({toggle:true});
                 case 'KeyH':
@@ -356,16 +354,12 @@ function space_init(data) {
                 case 'Backspace':
                 case 'Delete':
                     let mode = api.mode.get();
-                    if (mode !== api.modes.object) {
+                    if ([api.modes.object, api.modes.tool].contains(mode)) {
+                        selection.delete();
+                    } else {
                         for (let m of selection.models()) {
                             m.deleteSelections(mode);
                             space.refresh()
-                        }
-                    } else {
-                        for (let s of selection.list(true)) {
-                            selection.remove(s);
-                            s.showBounds(false);
-                            s.remove();
                         }
                     }
                     estop(evt);
@@ -407,19 +401,19 @@ function space_init(data) {
 
     space.mouse.upSelect((int, event) => {
         if (event && event.target.nodeName === "CANVAS") {
-            let model = int && int.object.model ? int.object.model : undefined;
+            const model = int && int.object.model ? int.object.model : undefined;
             if (temp_mode) {
                 return temp_mode.select(model);
             }
             if (model) {
-                let group = model.group;
-                let { altKey, ctrlKey, metaKey, shiftKey } = event;
+                const group = model.group;
+                const { altKey, ctrlKey, metaKey, shiftKey } = event;
                 if (metaKey) {
                     // set focus on intersected face
-                    let { x, y, z } = int.point;
-                    let q = new Quaternion().setFromRotationMatrix(group.object.matrix);
+                    const { x, y, z } = int.point;
+                    const q = new Quaternion().setFromRotationMatrix(group.object.matrix);
                     // rotate normal using group's matrix
-                    let normal = int.face.normal.applyQuaternion(q);
+                    const normal = int.face.normal.applyQuaternion(q);
                     // y,z swap due to world rotation for orbit controls
                     api.focus({center: { x, y:-z, z:y }, normal});
                 } else if (ctrlKey) {
@@ -427,18 +421,18 @@ function space_init(data) {
                     group.faceDown(int.face.normal);
                     selection.update();
                 } else {
-                    let { modes } = api;
-                    let { surface } = api.prefs.map;
-                    let opt = { radians: 0, radius: surface.radius };
-                    switch(api.mode.get()) {
+                    const { modes } = api;
+                    const { surface } = api.prefs.map;
+                    const opt = { radians: 0, radius: surface.radius };
+                    const mode = api.mode.get();
+                    switch(mode) {
                         case modes.object:
-                            selection.toggle(shiftKey ? model : model.group);
+                        case modes.tool:
+                            selection.toggle(shiftKey ? model : model.group, mode === modes.tool);
                             break;
                         case modes.surface:
                             opt.radians = surface.radians;
                         case modes.face:
-                        case modes.line:
-                        case modes.vertex:
                             // find faces adjacent to point/line clicked
                             model.find(int,
                                 altKey ? { toggle: true } :
@@ -454,9 +448,10 @@ function space_init(data) {
     });
 
     space.mouse.onDrag((delta, offset, up = false) => {
+        const { mode, modes } = api;
         if (delta && delta.event.shiftKey) {
             selection.move(delta.x, delta.y, 0);
-        } else {
+        } else if (mode.is([ modes.object, modes.tool ])) {
             return api.objects().length > 0;
         }
     });
@@ -464,7 +459,57 @@ function space_init(data) {
 
 function load_files(files) {
     mesh.api.log.emit(`loading file...`);
-    load.File.load([...files])
+    let api = mesh.api;
+    let has_image = false;
+    for (let file of files) {
+        has_image = has_image || file.type === 'image/png';
+    }
+    if (has_image) {
+        api.modal.dialog({
+            title: `image options`,
+            body: [ h.div({ class: "image-import" }, [
+                h.div([
+                    h.label("invert pixels"),
+                    h.input({ id: "inv_image", type: "checkbox" })
+                ]),
+                h.div([
+                    h.label("invert alpha"),
+                    h.input({ id: "inv_alpha", type: "checkbox" })
+                ]),
+                h.div([
+                    h.label("border size"),
+                    h.input({ id: "img_border", value: 0, size: 4 })
+                ]),
+                h.div([
+                    h.label("blur pixels"),
+                    h.input({ id: "img_blur", value: 0, size: 4 })
+                ]),
+                h.div([
+                    h.label("base pixels"),
+                    h.input({ id: "img_base", value: 0, size: 4 })
+                ]),
+                h.div([
+                    h.button({ _: "next", onclick() {
+                        let { inv_image, inv_alpha, img_border, img_blur, img_base } = api.modal.bound;
+                        load_files_opt(files, {
+                            inv_image: inv_image.checked,
+                            inv_alpha: inv_alpha.checked,
+                            border: parseInt(img_border.value || 0),
+                            blur: parseInt(img_blur.value || 0),
+                            base: parseInt(img_base.value || 0),
+                        });
+                        api.modal.hide();
+                    } }),
+                ])
+            ]) ]
+        });
+    } else {
+        load_files_opt(files);
+    }
+}
+
+function load_files_opt(files, opt) {
+    load.File.load([...files], opt)
         .then(data => {
             call.space_load(data);
         })
@@ -478,7 +523,8 @@ function load_files(files) {
 
 // add object loader
 function space_load(data) {
-    mesh.api.group.new(data.flat().map(el => new mesh.model(el)))
+    if (data && data.length && (data = data.flat()).length)
+    mesh.api.group.new(data.map(el => new mesh.model(el)))
         .promote()
         .focus();
 }
@@ -528,6 +574,7 @@ function set_darkmode(dark) {
             colorMinor: 0xeeeeee,
         },
     });
+    mesh.api.updateFog();
     platform.setSize();
     for (let m of model.list()) {
         m.normals({ refresh: true });
@@ -564,6 +611,18 @@ function set_surface_radius(radius) {
     prefs.save();
 }
 
+function set_wireframe_opacity(opacity) {
+    let { prefs } = mesh.api;
+    prefs.map.wireframe.opacity = parseFloat(opacity || 0.15);
+    prefs.save();
+}
+
+function set_wireframe_fog(fogx) {
+    let { prefs } = mesh.api;
+    prefs.map.wireframe.fog = parseFloat(fogx || 3);
+    prefs.save();
+}
+
 // bind functions to topics
 broker.listeners({
     edit_split,
@@ -576,7 +635,9 @@ broker.listeners({
     set_normals_color,
     set_normals_length,
     set_surface_radians,
-    set_surface_radius
+    set_surface_radius,
+    set_wireframe_opacity,
+    set_wireframe_fog
 });
 
 // remove version cache bust from url

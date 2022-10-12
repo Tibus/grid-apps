@@ -106,7 +106,8 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
         solidLayers = process.sliceSolidLayers || 0,
         vaseMode = process.sliceFillType === 'vase' && !isSynth,
         metadata = widget.anno,
-        extruder = parseInt(isSynth ? process.sliceSupportNozzle : metadata.extruder || 0),
+        maxtruder = Math.max(0, device.extruders.length - 1),
+        extruder = Math.min(maxtruder, parseInt(isSynth ? process.sliceSupportNozzle : metadata.extruder || 0)),
         sliceHeight = process.sliceHeight,
         sliceHeightBase = (isBelt ? sliceHeight : process.firstSliceHeight) || sliceHeight,
         lineWidth = process.sliceLineWidth || device.extruders[extruder].extNozzle,
@@ -159,6 +160,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
     let points = widget.getPoints();
     let indices = [];
     let heights = [];
+    let healed = false;
 
     // handle z cutting (floor method) and base flattening
     let zPress = isBelt ? process.firstLayerFlatten || 0 : 0;
@@ -296,13 +298,21 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
     }).then((output) => {
         // post process slices and re-incorporate missing meta-data
         return output.slices.map(data => {
-            let { z, clip, lines, groups } = data;
+            let { z, clip, lines, groups, changes } = data;
             if (!data.tops) return null;
             let slice = newSlice(z).addTops(data.tops);
             slice.index = indices.indexOf(z);
             slice.height = heights[slice.index];
             slice.clips = clip;
+            if (changes) {
+                healed = true;
+                slice.changes = changes;
+                if (self.debug) {
+                    console.log('slice healed', slice.index, slice.z);
+                }
+            }
             if (process.xray) {
+                slice.index = process.xrayi.shift();
                 slice.lines = lines;
                 slice.groups = groups;
                 slice.xray = process.xray;
@@ -341,6 +351,11 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
     }
 
     async function onSliceDone(slices) {
+        // alert non-manifold parts
+        if (healed) {
+            onupdate(null, null, "part may not be manifold");
+        }
+
         // remove all empty slices above part but leave below
         // for multi-part (multi-extruder) setups where the void is ok
         // also reverse because slicing occurs bottom-up
@@ -440,7 +455,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
             let range = slice.params;
             let spaceMult = slice.index === 0 ? process.firstLayerLineMult || 1 : 1;
             let isBottom = slice.index < process.sliceBottomLayers;
-            let isTop = slice.index > slices.length - process.sliceTopLayers - 1;
+            let isTop = process.sliceTopLayers && slice.index > slices.length - process.sliceTopLayers - 1;
             let isDense = range.sliceFillSparse > 0.995;
             let isSolid = (isBottom || ((isTop || isDense) && !vaseMode)) && !isSynth;
             let solidWidth = isSolid ? range.sliceFillWidth || 1 : 0;
@@ -560,6 +575,9 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
         }
 
         // calculations only relevant when solid layers are used
+        // layer boolean diffs need to be computed to find flat areas to fill
+        // and overhangs that need to be supported. these are stored in flats
+        // and bridges, projected up/down, and merged into an array of solids
         if (solidLayers && !vaseMode && !isSynth) {
             profileStart("delta");
             forSlices(0.2, 0.34, slice => {
@@ -597,8 +615,9 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
             profileEnd();
         }
 
+        // for "real" objects, fill the remaining voids with sparse fill
+        // sparse layers only present when non-vase mose and sparse % > 0
         if (!isSynth && !vaseMode) {
-            // sparse layers only present when non-vase mose and sparse % > 0
             let lastType;
             // disabled until memory issue tracked down
             let promises = false && isConcurrent ? [] : undefined;
@@ -816,9 +835,8 @@ function doRender(slice, isSynth, params, devel) {
             .setLayer("support", COLOR.support)
             .addLines(poly.fill, vopt({ offset, height }));
     });
-
     if (slice.xray) {
-        const color = [ 0xff0000, 0x00aa00, 0x0000ff, 0xaaaa00, 0xff00ff ];
+        const color = [ 0xff0000, 0x00aa00, 0x0000ff, 0xaaaa00, 0xff00ff, 0x0 ];
         if (slice.lines) {
             slice.lines.forEach((line, i) => {
                 const group = i % 5;
@@ -875,6 +893,10 @@ function doShells(slice, count, offset1, offsetN, fillOffset, opt = {}) {
  * @param {number} density
  */
  function doSolidLayerFill(slice, spacing, angle) {
+    if (slice.xray) {
+        return;
+    }
+
     if (slice.tops.length === 0 || typeof(angle) != 'number') {
         slice.isSolidLayer = false;
         return;
@@ -893,6 +915,10 @@ function doShells(slice, count, offset1, offsetN, fillOffset, opt = {}) {
  * the bounds of the top polygons and their inner solid areas.
  */
 function doSparseLayerFill(slice, options = {}) {
+    if (slice.xray) {
+        return;
+    }
+
     let process = options.process,
         spacing = options.spacing,  // spacing space between fill lines
         density = options.density,  // density of infill 0.0 - 1.0
@@ -1065,7 +1091,7 @@ function doSparseLayerFill(slice, options = {}) {
  */
 function doDiff(slice, options = {}) {
     const { sla, fakedown, grow, min } = options;
-    if (slice.index <= 0 && !fakedown) {
+    if ((slice.index <= 0 && !fakedown) || slice.xray) {
         return;
     }
     const top = slice,
@@ -1149,7 +1175,7 @@ function doSolidsFill(slice, spacing, angle, minArea, fillQ) {
         return;
     }
 
-    if (slice.isSolidLayer) {
+    if (slice.isSolidLayer || slice.xray) {
         return;
     }
 

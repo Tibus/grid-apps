@@ -7,7 +7,7 @@
 // use: ext.clip2
 // use: geo.slope
 // use: geo.polygon
-gapp.register("base.polygons", [], (root, exports) => {
+gapp.register("geo.polygons", [], (root, exports) => {
 
 const { base } = root;
 const { util, config, newPoint } = base;
@@ -38,6 +38,7 @@ const POLYS = base.polygons = {
     expand,
     expand_lines,
     points,
+    length,
     route,
     union,
     inset,
@@ -53,6 +54,14 @@ const POLYS = base.polygons = {
     fingerprintCompare,
     fingerprint
 };
+
+function length(polys) {
+    let length = 0;
+    for (let p of polys) {
+        length += p.deepLength;
+    }
+    return length;
+}
 
 function setZ(polys, z) {
     for (let poly of polys) {
@@ -461,28 +470,36 @@ function subtract(setA, setB, outA, outB, z, minArea, opt = {}) {
  */
 function union(polys, minarea, all, opt = {}) {
     if (polys.length < 2) return polys;
+    let lpre = length(polys);
 
     //ConsoleTool.timeStepStart("polygons_union");
+
 
     if (false && opt.wasm && geo.wasm) {
         let min = minarea || 0.01;
         // let deepLength = polys.map(p => p.deepLength).reduce((a,v) => a+v);
         // if (deepLength < 15000)
         try {
-            return geo.wasm.js.union(polys, polys[0].getZ()).filter(p => p.area() > min);
+            let out = geo.wasm.js.union(polys, polys[0].getZ()).filter(p => p.area() > min);
+            opt.changes = length(out) - lpre;
+            return out;
         } catch (e) {
             console.log({union_fail: polys, minarea, all});
         }
     }
 
-    let out = polys.slice(), i, j, union, uset = [];
+    let out = polys.slice(), i, j, union, uset = [], a, b;
 
-    outer: for (i=0; i<out.length; i++) {
+    outer: for (i = 0; i < out.length; i++) {
         if (!out[i]) continue;
-        for (j=i+1; j<out.length; j++) {
+        for (j = i + 1; j < out.length; j++) {
             if (!out[j]) continue;
             union = out[i].union(out[j], minarea, all);
             if (union && union.length) {
+                if (opt.onmerge) {
+                    a = out[i];
+                    b = out[j];
+                }
                 out[i] = null;
                 out[j] = null;
                 if (all) {
@@ -490,15 +507,19 @@ function union(polys, minarea, all, opt = {}) {
                 } else {
                     out.push(union);
                 }
+                if (opt.onmerge) {
+                    opt.onmerge(a, b, union);
+                }
                 continue outer;
             }
         }
     }
 
-    for (i=0; i<out.length; i++) {
+    for (i = 0; i < out.length; i++) {
         if (out[i]) uset.push(out[i]);
     }
 
+    opt.changes = length(uset) - lpre;
     //ConsoleTool.timeStepEnd("polygons_union");
     return uset;
 }

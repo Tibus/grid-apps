@@ -127,7 +127,6 @@ class Widget {
         const widget = this;
         index().put('ws-save-'+this.id, {
             geo: widget.getGeoVertices(false),
-            ind: widget.getGeoIndices(),
             track: widget.track,
             group: this.group.id,
             meta: this.meta,
@@ -156,14 +155,19 @@ class Widget {
      */
     loadVertices(data, options = { index: false }) {
         let vertices,
-            indices,
             autoscale = false;
         if (ArrayBuffer.isView(data) || typeof(data) != 'object') {
             vertices = data;
         } else {
             vertices = data.vertices;
-            indices = data.indices;
+            throw "deprecated vertex data format";
         }
+        // will not serialize into indexeddb -- need a performance sensitive workaround
+        // if (window.SharedArrayBuffer) {
+        //     let newvert = new Float32Array(new SharedArrayBuffer(vertices.buffer.byteLength));
+        //     newvert.set(vertices);
+        //     vertices = newvert;
+        // }
         switch (typeof(autoscale)) {
             case 'boolean':
                 autoscale = options;
@@ -188,25 +192,17 @@ class Widget {
                 }
             }
         }
-        if (options.index && !indices) {
-            let mesh = new Mesh({vertices});
-            vertices = mesh.vertices.toFloat32();
-            indices = Uint32Array.from(mesh.faces.map(v => v/3));
-        }
         if (this.mesh) {
             let geo = this.mesh.geometry;
-            if (indices) geo.setIndex(new THREE.BufferAttribute(indices, 1));
             geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
             geo.setAttribute('normal', undefined);
             geo.attributes.position.needsUpdate = true;
-            // geo.computeFaceNormals();
             geo.computeVertexNormals();
             this.meta.vertices = vertices.length / 3;
             this.points = null;
             return this;
         } else {
             let geo = new THREE.BufferGeometry();
-            if (indices) geo.setIndex(new THREE.BufferAttribute(indices, 1));
             geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
             geo.setAttribute('normal', undefined);
             this.meta.vertices = vertices.length / 3;
@@ -224,16 +220,6 @@ class Widget {
         if (this.mesh && this.mesh.geometry) {
             // this fixes ray intersections after the mesh is modified
             this.mesh.geometry.boundingSphere = null;
-        }
-    }
-
-    indexGeo() {
-        let indices = this.getGeoIndices();
-        if (!indices) {
-            let mesh = new Mesh({vertices: this.getGeoVertices()});
-            vertices = mesh.vertices.toFloat32();
-            indices = Uint32Array.from(mesh.faces.map(v => v/3));
-            this.loadData({vertices, indices});
         }
     }
 
@@ -301,13 +287,16 @@ class Widget {
         const mesh = new THREE.Mesh(
             geometry, [
             new THREE.MeshPhongMaterial({
+                side: THREE.DoubleSide,
                 color: 0xffff00,
                 specular: 0x202020,
-                shininess: 125,
+                shininess: 120,
                 transparent: true,
-                opacity: solid_opacity
+                opacity: solid_opacity,
+                clipIntersection: false
             }),
             new THREE.MeshPhongMaterial({
+                side: THREE.DoubleSide,
                 color: 0x0088ee,
                 specular: 0x202020,
                 shininess: 100,
@@ -318,7 +307,6 @@ class Widget {
         mesh.renderOrder = 1;
         geometry.computeVertexNormals();
         geometry.addGroup(0, Infinity, 0);
-        mesh.material[0].side = THREE.DoubleSide;
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.widget = this;
@@ -378,6 +366,15 @@ class Widget {
 
     getMaterial() {
         return this.mesh.material[0];
+    }
+
+    setZClip(from, to) {
+        let mat = this.getMaterial();
+        mat.clippingPlanes = (from >= 0 && to >= 0) ? [
+            new THREE.Plane(new THREE.Vector3(0, 1, 0), -from),
+            new THREE.Plane(new THREE.Vector3(0, -1, 0), to),
+        ] : null;
+        moto.space.refresh();
     }
 
     isVisible() {
@@ -622,7 +619,6 @@ class Widget {
             arr[i*3+8] = z;
         }
         pos.needsUpdate = true;
-        // geo.computeFaceNormals();
         geo.computeVertexNormals();
         ot.mirror = !ot.mirror;
         this.setModified();
@@ -648,11 +644,6 @@ class Widget {
         } else {
             return pos;
         }
-    }
-
-    getGeoIndices() {
-        let indices = this.mesh.geometry.index;
-        return indices ? indices.array : undefined;
     }
 
     iterPoints() {
@@ -742,6 +733,9 @@ class Widget {
 
             // executed from kiri.js
             kiri.client.slice(settings, this, function(reply) {
+                if (reply.alert) {
+                    onupdate(null, null, reply.alert);
+                }
                 if (reply.update) {
                     onupdate(reply.update, reply.updateStatus);
                 }
@@ -783,8 +777,8 @@ class Widget {
                 ondone();
             };
 
-            let catchupdate = function(progress, message) {
-                onupdate(progress, message);
+            let catchupdate = function(progress, message, alert) {
+                onupdate(progress, message, alert);
             };
 
             let drv = driver[settings.mode.toUpperCase()];
@@ -968,13 +962,12 @@ Widget.loadFromState = function(id, ondone, move) {
     index().get('ws-save-'+id, function(data) {
         if (data) {
             let vertices = data.geo || data,
-                indices = data.ind || undefined,
                 track = data.track || undefined,
                 group = data.group || id,
                 anno = data.anno || undefined,
                 widget = newWidget(id, Group.forid(group)),
                 meta = data.meta || widget.meta,
-                ptr = widget.loadVertices({vertices, indices});
+                ptr = widget.loadVertices(vertices);
             widget.meta = meta;
             widget.anno = anno || widget.anno;
             // restore widget position if specified

@@ -9,6 +9,7 @@ gapp.register("mesh.tool", [], (root, exports) => {
 const { mesh } = root;
 const { geom } = mesh;
 const { Vector3 } = THREE;
+const empty = 0xffffffff;
 
 /**
  * tool for identiying defects and healing them
@@ -29,6 +30,13 @@ mesh.tool = class MeshTool {
             throw "invalid vertices";
         }
         return vertices;
+    }
+
+    getIndex() {
+        if (!this.indexed) {
+            throw "missing index";
+        }
+        return this.indexed;
     }
 
     /**
@@ -100,84 +108,137 @@ mesh.tool = class MeshTool {
         return this;
     }
 
-    generateFaceMap(vertices) {
+    // todo: supercede generatedFaces() for patch()
+    // face record: vi1, vi2, vi3, nx, ny, nz
+    // vi = vertex index
+    // n = normal
+    // af = adjacent face index
+    index(vertices) {
         this.vertices = this.checkVertices(vertices, 3);
-        const normals = this.normals = [];
-        const sides = this.sides = [];
-        const _va = new THREE.Vector3();
-        const _vb = new THREE.Vector3();
-        const _vc = new THREE.Vector3();
-        for (let i=0, l=vertices.length; i<l; ) {
-            _va.set(vertices[i++], vertices[i++], vertices[i++]);
-            _vb.set(vertices[i++], vertices[i++], vertices[i++]);
-            _vc.set(vertices[i++], vertices[i++], vertices[i++]);
-            const vn = THREE.computeFaceNormal(_va, _vb, _vc);
-            normals.push([vn.x, vn.y, vn.z]);
-        }
         const prec = this.precision;
+        const vcount = vertices.length / 3;
+        const fcount = vcount / 3;
         const vround = vertices.map(v => (v * prec) | 0);
-        const sidekeyid = {};
-        const side2face = this.side2face = [];
-        for (let i=0, side=0, face=0, l=vround.length; i<l; ) {
-            const v1 = [ vround[i++], vround[i++], vround[i++] ].join(',');
-            const v2 = [ vround[i++], vround[i++], vround[i++] ].join(',');
-            const v3 = [ vround[i++], vround[i++], vround[i++] ].join(',');
-            const s1 = ( v1 < v2 ? [ v1, v2] : [ v2, v1 ] ).join('=');
-            const s2 = ( v2 < v3 ? [ v2, v3] : [ v3, v2 ] ).join('=');
-            const s3 = ( v3 < v1 ? [ v3, v1] : [ v1, v3 ] ).join('=');
-            const smap = [ s1, s2, s3 ].map(key => {
-                let id = sidekeyid[key];
-                if (id >= 0) {
-                    return id;
-                }
-                id = sidekeyid[key] = side++;
-                side2face.push([]);
-                return id;
-            });
-            for (let sfa of smap.map(id => side2face[id])) {
-                sfa.push(face);
+        // side records [ vi0, vi1, fn1, fn2 ]
+        const sides = new Uint32Array(fcount * 4 * 3).fill(empty);
+        // map of side index to face count
+        const srecs = {};
+        // side extended records when face count exceeds 2 (bad mesh)
+        const sideExt = {};
+        // face record array [ nx, ny, nz, sn0, sn1, sn2 ]
+        const faces = new Float32Array(fcount * 6);
+        // vertex key to vertex index
+        const vimap = {};
+        // normal key to normal index
+        const nimap = {};
+        // side key to side index
+        const simap = {};
+        // tmp face vertex indices
+        const vinds = [ 0, 0, 0 ];
+        // tmp face raw vertex offset
+        const viraw = [ 0, 0, 0 ];
+        // tmp vector array
+        const vects = [ new Vector3(), new Vector3(), new Vector3() ];
+        // i=vround index, fi=faces record index
+        // vi=vinds index % 3, x,y,z = tmp vars
+        // fn=next face index, vn=next vertex index, sn=next side index
+        for (let i=0, l=vround.length, fn=0, vn=0, sn=0, fi=0, vi=0, x, y, z; i<l; ) {
+            const vroot = i;
+            // create unique vertex map
+            vects[vi].set(x = vround[i++], y = vround[i++], z = vround[i++]);
+            let key = x + ',' + y + ',' + z;
+            // vertex index
+            let vid = vimap[key];
+            if (vid === undefined) {
+                vid = vimap[key] = vn++;
             }
-            sides[face] = smap;
-            face++;
+            viraw[vi] = vroot;
+            vinds[vi++] = vid;
+            // completed record for a face
+            if (vi === 3) {
+                // create indexed unique normal map
+                const cfn = THREE.computeFaceNormal(...vects);
+                const [ v0, v1, v2 ] = vinds;
+                // create consistent side order for index key
+                const s0 = (v0 < v1 ? v0 + "," + v1 : v1 + ","  +v0);
+                const s1 = (v1 < v2 ? v1 + "," + v2 : v2 + ","  +v1);
+                const s2 = (v2 < v0 ? v2 + "," + v0 : v0 + ","  +v2);
+                // for storing raw vertex offset in side record
+                const [ vr0, vr1, vr2 ] = viraw;
+                // store face indexes into sdrec array for each side
+                const smap = [ s0, s1, s2 ].map((key,ki) => {
+                    let sid = simap[key], sdoff, sdcnt;
+                    if (sid === undefined) {
+                        sid = simap[key] = sn++;
+                        sdcnt = srecs[sid] = 1;
+                        sdoff = sid * 4;
+                        sides[sdoff] = viraw[ki];
+                        sides[sdoff + 1] = viraw[(ki + 1) % 3];
+                    } else {
+                        sdoff = sid * 4;
+                        sdcnt = ++srecs[sid];
+                    }
+                    if (sdcnt > 2) {
+                        (sideExt[sid] = sideExt[sid] ||
+                            [ sides[sdoff], sides[sdoff + 1], sides[sdoff + 2], sides[sdoff + 3] ]
+                        ).push(fn);
+                    } else {
+                        sides[sdoff + sdcnt + 1] = fn;
+                    }
+                    return sid;
+                });
+                faces[fi++] = cfn.x;
+                faces[fi++] = cfn.y;
+                faces[fi++] = cfn.z;
+                faces[fi++] = smap[0];
+                faces[fi++] = smap[1];
+                faces[fi++] = smap[2];
+                vi = 0;
+                fn++;
+            }
         }
-        return this;
+        this.indexed = {
+            faces, sides, sideExt
+        };
     }
 
     getAdjacentFaces(face) {
-        if (!this.sides) {
-            throw "missing sides";
-        }
-        if (!this.side2face) {
-            throw "missing side2face";
-        }
-        const sides = this.sides[face];
-        if (!sides) {
+        const { faces, sides } = this.getIndex();
+        const foff = face * 6;
+        const s0 = faces[foff + 3];
+        const s1 = faces[foff + 4];
+        const s2 = faces[foff + 5];
+        const farr = [
+            sides[s0 * 4 + 2],
+            sides[s0 * 4 + 3],
+            sides[s1 * 4 + 2],
+            sides[s1 * 4 + 3],
+            sides[s2 * 4 + 2],
+            sides[s2 * 4 + 3]
+        ].filter(f => f !== empty && f !== face);
+        if (!farr.length) {
             console.log(`no adjacent faces to ${face}`);
             return [];
         }
-        return sides.map(side => this.side2face[side].filter(v => v != face)).flat();
+        return farr;
     }
 
-    // depends on generateFaceMap() being run first
+    // depends on index() being run first
     findConnectedSurface(faces, radians, filterZ, found = {}) {
-        const norms = this.normals;
+        const norms = this.getIndex().faces;
         if (filterZ) {
-            faces = faces.filter(f => norms[f][2] >= filterZ);
+            // optional filter to z normal >= value
+            faces = faces.filter(f => norms[f * 6 + 2] >= filterZ);
         }
         const checked = {};
         const check = faces.slice();
         for (let face of faces) {
             found[face] = 1;
         }
-        // const _v1 = new Vector3();
-        // const _v2 = new Vector3();
         while (check.length) {
             const face = check.shift();
-            const norm = norms[face];
-            // if (!norm || norm.length < 3) {
-            //     throw `invalid face ${face}`;
-            // }
-            if (filterZ !== undefined && norm[2] < filterZ) {
+            const froot = face * 6;
+            if (filterZ !== undefined && norms[froot +2] < filterZ) {
                 continue;
             }
             const fadj = this.getAdjacentFaces(face);
@@ -185,20 +246,12 @@ mesh.tool = class MeshTool {
                 if (found[f] || checked[f]) {
                     continue;
                 }
-                // #1 most accurate
-                // const nf = this.normals[f];
-                // _v1.set(nf[0], nf[1], nf[2]);
-                // _v2.set(norm[0], norm[1], norm[2]);
-                // const fn = _v1.angleTo(_v2);
-                // #2 slightly less so
-                // const pf = Math.PI / 4;
-                // const fn = Math.sin(pf * Math.sqrt(this.normals[f]
-                //     .map((v,i) => Math.pow(norm[i] - v, 2))
-                //     .reduce((a,v) => a + v)));
-                // #3 fastest, still good
-                const fn = Math.sqrt(norms[f]
-                    .map((v,i) => Math.pow(norm[i] - v, 2))
-                    .reduce((a,v) => a + v));
+                const aroot = f * 6;
+                let sum = 0;
+                for (let i=0; i<3; i++) {
+                    sum += Math.pow(norms[froot + i] - norms[aroot + i], 2);
+                }
+                const fn = Math.sqrt(sum);
                 if (fn <= radians) {
                     faces.push(f);
                     check.push(f)
@@ -210,12 +263,88 @@ mesh.tool = class MeshTool {
         return faces;
     }
 
-    // depends on generateFaceMap() being run first
+    // given a list of faces (indices), return an array of closed
+    // polylines that represent the outlines of each discrete island
+    generateOutlines(list) {
+        const { faces, sides } = this.getIndex();
+        const prec = this.precision;
+        const verts = this.vertices;
+        const lines = {};
+        const point = {};
+        const pindx = {};
+        let pnext = 0;
+        function vert2point(v) {
+            const x = verts[v];
+            const y = verts[v + 1];
+            const z = verts[v + 2];
+            const key = ((x * prec) | 0) + ',' + ((y * prec) | 0) + ',' + ((z * prec) | 0);
+            const rec = point[key];
+            if (rec === undefined) {
+                pindx[pnext] = { x, y, z, to: [] };
+                return point[key] = pnext++;
+            } else {
+                return rec;
+            }
+        }
+        function addLine(s) {
+            if (s === empty) return;
+            const v0 = vert2point(sides[s * 4]);
+            const v1 = vert2point(sides[s * 4 + 1]);
+            const key = v0 < v1 ? v0 + ',' + v1 : v1 +',' + v0;
+            const rec = lines[key];
+            if (rec) {
+                rec.del = true;
+            } else {
+                lines[key] = { v0, v1 };
+            }
+        }
+        for (let face of list) {
+            const foff = face * 6;
+            addLine(faces[foff + 3]);
+            addLine(faces[foff + 4]);
+            addLine(faces[foff + 5]);
+        }
+        const pairs = Object.values(lines).filter(l => !l.del);
+        for (let line of pairs) {
+            const { v0, v1 } = line;
+            const p0 = pindx[v0];
+            const p1 = pindx[v1];
+            p0.to.push(v1);
+            p1.to.push(v0);
+        }
+        let curr;
+        let outs = [ ];
+        for (let prec of Object.values(pindx)) {
+            if (prec.used || prec.to.length === 0) continue;
+            outs.push(curr = []);
+            while (prec) {
+                let { to, x, y, z } = prec;
+                if (to.length < 2) {
+                    throw `invalid to ${to.length} @ ${x},${y},${z}`;
+                }
+                prec.used = true;
+                curr.push({ x, y, z });
+                const t0 = pindx[to[0]];
+                const t1 = pindx[to[1]];
+                if (!t0.used) {
+                    prec = t0;
+                } else if (!t1.used) {
+                    prec = t1;
+                } else {
+                    prec = undefined;
+                }
+            }
+        }
+        // console.log({lines, pairs, pindx, outs});
+        return outs;
+    }
+
+    // depends on index() being run first
     isolateBodies() {
         const verts = this.checkVertices(this.vertices);
         const bodies = [];
         const used = {};
-        for (let i=0, l=this.normals.length-1; i<l; i++) {
+        for (let i=0, l=verts.length / 9; i<l; i++) {
             if (used[i]) {
                 continue;
             }

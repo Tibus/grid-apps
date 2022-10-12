@@ -2,18 +2,23 @@
 
 ## `C` cosmetic, `F` functional, `P` performance, `B` bug fix
 
+* `F` experiment with structuredClone(), SharedArrayBuffer, createImageBitmap()
+* `F` test #private fields, array.at() for negative indices
+* `F` option to hide platform when viewing from below
+
 # Kiri:Moto
 
 * `B` origin (and bed size) bug (Onshape?) when switching device modes
 * `B` can't drag slider bar on ipad / ios -- touch pad scrolling dodgy
 * `B` prevent or ask for really large models when scaling (crash ui)
 
+* `P` refactor vertex replacement and widget update matrix tracking
 * `P` duplicate objects should share same slice data unless rotated or scaled
 * `P` allow selection to be decimated on demand (context menu?)
 * `P` move all persisted / workspace settings/data to IndexedDB (LS limitations)
 * `P` do not move (average) endpoints connected to long lines in decimate
-* `P` explore widget vertex reloading / replacing (Onshape) (issue #48)
 * `P` faster ray intersect https://github.com/gkjohnson/three-mesh-bvh/
+* `P` try material clipping planes for slice range selection
 
 * `F` edit in Mesh:Tool
 * `F` custom device vars for profiles / ranges / gcode
@@ -21,10 +26,8 @@
 * `F` allow select of a range by typing in values in slices or workspace units
 * `F` complete and expose grouping feature
 * `F` add svgnest-like arrange algorithm
-* `F` warn if part hanging in negative Z space or off bed in general
 * `F` date column and sorting in recent files list
-
-* `C` reflow device dialog to add bottom tabbing, vertical macro list
+* `F` warn if part hanging in negative Z space or off bed in general
 
 # FDM
 
@@ -32,23 +35,21 @@
 * `B` multi-extruder rendering of raft fails to offset the rest of the print
 * `B` multi-extruder purge blocks fail to generate properly for rafts
 
-* `F` add layer start position as a range option
+* `F` convert ranges to z offsets while continuing to show layer #
 * `F` support pillar top/bottom should conform to part
 * `F` support pillar should have solid top/bottom
 * `F` more explicit line width control with ranges and min/max adaptive
 * `F` test outlining solid projected areas (internally)
 * `F` gradient infill https://www.youtube.com/watch?v=hq53gsYREHU&feature=emb_logo
 * `F` feather sharp tips by reducing extrusion in area of overlap
-* `F` first layer segment large flat areas for better fill reliability
+* `F` segment large flat areas on first layer to mitigate peeling
 * `F` option to support interior bridges when 0% infill
 * `F` calculate filament use per extruder per print
 * `F` expand internal supporting flats / solids before projection
 
-* `P` reduce fan speed for bridging
-* `P` enable purge blocks when quick layers are detected
-* `P` refactor skirt, brim, raft as synth widget instead of in path routing
+* `P` reduce fan speed and extrusion factor for bridges
+* `P` auto purge pullars when quick layers are detected for extra cooling
 * `P` extruder + filament max flow rate cap in planner
-* `P` revisit path routing / optimization
 * `P` solid fill the tops of supports for down facing flats
 
 # FDM - SLA
@@ -62,58 +63,60 @@
 * `B` auto bed resizing leaves the origin in the wrong place at first
 * `B` re-add progress calls for all work units
 
-* `F` promote forced layer retraction to a range parameter
 * `F` test and enable arcs in belt more
-* `F` anchors should be generated anywhere needed in the print, not just head
 * `F` slightly angle supports to lean into the Z of the part
+* `F` anchors should be generated anywhere needed in the print, not just head
 
 # CAM
 
 * `B` tab cuts cause loss of direction, parenting, depth, and it's hard to fix
-* `B` tabs are not cut to exact height
 * `B` tabs do not properly track widget mirror events
+* `B` tabs are not cut to exact height
 * `B` first rough step too far down in certain circumstances?
 * `B` need to force cut line at synthetic z bottom (midlines, etc)
 * `B` contour does not honor clip to stock
 
+* `F` add custom gcode operation for things like injecting pauses
+* `F` add optional hover notes or titles to help visually differentiate dup ops
+* `F` all ops should allow limit and milling direction / ease down overrides
+* `F` drill op should allow selecting holes >= current tool
+* `F` intelligently turn circle hole pocket clear into spiral down
+* `F` separate leveling op. add features like uni-directional cutting
+* `F` add option for op-major ordering (instead of part major)
+* `F` animate only selected range (as an option)
 * `F` add `plunge max` to contouring that can override z feed limit
-* `F` roughing flats should be constrained to flat region
-* `F` limit cut depth to flute length of selected tool (or warn)
-* `F` add ease-down support to trace op
-* `F` change color of line selection in trace op when not a closed poly
+* `F` add ability to select regions for contouring op (like pocketing)
+* `F` add lead-in milling (requires adding clamp / no go areas)
 * `F` add linear clearing strategy
 * `F` add adaptive clearing strategy
-* `F` user-defined origin (issue #28)
-* `F` intelligently turn circle hole pocket clear into spiral down
-* `F` trace follow hole that matches endmill should turn into a drill op
+* `F` add ease-down support to trace op
 * `F` add climb/conventional into each operation
-* `F` update analyzer to detect overhangs from faces, not slices
-* `F` extend acute roughing on inside polys to clear small voids
-* `F` option to use part / STL coordinate space to determine X,Y origin
+* `F` add lathe mode / A-axis / 4th axis / rotary milling ops
+* `F` add support for tapered ball mills
+* `F` roughing flats should be constrained to flat region, not create a new layer
+* `F` change color of line selection in trace op when not a closed poly
+* `F` limit cut depth to flute length of selected tool (or warn)
+* `F` user-defined origin (issue #28)
 * `F` validate muti-part layout and spacing exceeds largest outside tool diameter
-* `F` polygon simplification option in tracing (for image derived maps)
 * `F` parameterize dropping close points in prep.js. ensure long segments remain straight
 * `F` flat and volumetric rendering of paths
-* `F` z planar settings visualizations
-* `F` convert acute angles to arcs to avoid jerk
-* `F` lead-in milling
+* `F` z planar settings visualizations (edit using snappable dragging of planes)
 * `F` trapezoidal tabs in Z
 * `F` ease-in and ease-out especially on tab cut-out start/stop
 * `F` add option to spiral in vs out (optimal tool life) vs mixed (optimal path)
-* `F` add support for tapered ball mills
 * `F` can animation clear the mesh in areas where the cuts go through the stock?
-* `F` support lathe mode / A-axis / rotary
 * `F` gcode output option as zip for multiple or flip ops or tool change
 * `F` maintain several part orientations + op chains in a single profile
 
+* `P` use SharedArrayBuffer for position array in animation
+* `P` routing should start with the smallest poly by area
+* `P` refactor slicing engine to use common core in geo
 * `P` port slicing to common core & refactor accordingly
 * `P` decrease cutting speed when entire tool is engaged (start of roughing)
 * `P` clear void should cut inside-to-out when a part would be freed from stock
 * `P` port arc code from FDM export to CAM export
 * `P` common part pre-analyze to speed up 'slice' and improve shadow (overhangs)
 * `P` redo all path route / planning in prepare to account for terrain before camOut
-* `P` allow faster z movements when contouring (not plunging)
-* `P` common / faster shadow generator using vertices shared with ledges
 
 # SLA
 
@@ -131,6 +134,7 @@
 
 # Mesh:Tool
 
+* add undo/redo
 * send to Kiri:Moto workspace (or update model vertices in place)
 * better z snap using just vertexes from face intersected
 * add section view. local clip. raycast skip points above plane

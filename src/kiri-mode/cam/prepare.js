@@ -41,7 +41,8 @@ CAM.prepare = function(widgets, settings, update) {
         });
     });
 
-    print.render = render.path(print.output, (progress, layer) => {
+    const output = print.output.filter(level => Array.isArray(level));
+    print.render = render.path(output, (progress, layer) => {
         update(0.75 + progress * 0.25, "render", layer);
     }, {
         thin: true,
@@ -71,6 +72,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         startCenter = process.outputOriginCenter,
         alignTop = settings.controller.alignTop,
         zclear = (process.camZClearance || 1),
+        zmax_force = process.camForceZMax || false,
         zmax_outer = hasStock ? stock.z + zclear : outerz + zclear,
         wztop = widget.track.top,
         ztOff = hasStock ? stock.z - wztop : 0,
@@ -124,6 +126,15 @@ function prepEach(widget, settings, print, firstPoint, update) {
         layerOut = [];
         layerOut.mode = lastMode;
         layerOut.spindle = spindle;
+    }
+
+    function addGCode(text) {
+        newOutput.push(text);
+        if (layerOut.length) {
+            layerOut = [];
+            layerOut.mode = lastMode;
+            layerOut.spindle = spindle;
+        }
     }
 
     // non-zero means contouring
@@ -273,7 +284,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         }
 
         // convert short planar moves to cuts in some cases
-        if (isMove && deltaXY <= moveLen) {
+        if (isMove && deltaXY <= moveLen && deltaZ <= 0) {
             let iscontour = tolerance > 0;
             let isflat = absDeltaZ < 0.001;
             // restrict this to contouring
@@ -291,7 +302,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
             const bigXY = (deltaXY > moveLen);
             const bigZ = (deltaZ > toolDiam/2 && deltaXY > tolerance);
             const midZ = (absDeltaZ >= tolerance);
-            if ((bigXY || bigZ) && midZ) {
+            if (bigXY || bigZ || midZ) {
                 let maxz = getZClearPath(
                         terrain,
                         lastPoint.x - wmx,
@@ -305,13 +316,16 @@ function prepEach(widget, settings, print, firstPoint, update) {
                     ),
                     mustGoUp = Math.max(maxz - point.z, maxz - lastPoint.z) >= tolerance,
                     clearz = maxz;
+                if (zmax_force) {
+                    clearz = maxz = zmax + zadd;
+                }
                 // up if any point between higher than start/outline, go up first
                 if (mustGoUp) {
-                    layerPush(lastPoint.clone().setZ(clearz), 0, 0, tool.getNumber());
+                    layerPush(lastPoint.clone().setZ(clearz + ztOff), 0, 0, tool.getNumber());
                 }
                 // move to point above target point
                 if (mustGoUp || point.z < maxz) {
-                    layerPush(point.clone().setZ(clearz), 0, 0, tool.getNumber());
+                    layerPush(point.clone().setZ(clearz + ztOff), 0, 0, tool.getNumber());
                     // new pos for plunge calc
                     deltaXY = 0;
                 }
@@ -368,6 +382,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         setPrintPoint,
         printPoint,
         newLayer,
+        addGCode,
         camOut,
         polyEmit,
         poly2polyEmit,
@@ -501,9 +516,13 @@ function prepEach(widget, settings, print, firstPoint, update) {
     }
 
     // last layer/move is to zmax
-    // injected into the last layer generated
-    if (lastPoint && newOutput.length)
-    print.addOutput(newOutput[newOutput.length-1], printPoint = lastPoint.clone().setZ(zmax_outer), 0, 0, tool.getNumber());
+    // re-inject that point into the last layer generated
+    if (lastPoint && newOutput.length) {
+        let lastLayer = newOutput.filter(layer => Array.isArray(layer)).peek();
+        if (Array.isArray(lastLayer)) {
+            print.addOutput(lastLayer, printPoint = lastPoint.clone().setZ(zmax_outer), 0, 0, tool.getNumber());
+        }
+    }
 
     // replace output single flattened layer with all points
     print.output = newOutput;

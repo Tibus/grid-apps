@@ -47,8 +47,10 @@ const devel = {
     xray: (layers, raw) => {
         let proc = api.conf.get().process;
         let size = proc.sliceHeight || proc.slaSlice || 1;
+        let base = (proc.firstSliceHeight || size);
         layers = Array.isArray(layers) ? layers : [ layers ];
-        proc.xray = layers.map(l => raw ? l : l * size + size / 2);
+        proc.xray = layers.map(l => raw ? l : base + l * size - size / 2);
+        proc.xrayi = layers.slice();
         api.function.slice();
     }
 };

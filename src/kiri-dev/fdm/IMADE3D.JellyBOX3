@@ -1,7 +1,7 @@
 {
-    "deviceName": "IMADE3D JellyBOX Original nzl-0.4",
-    "bedWidth": 170,
-    "bedDepth": 145,
+    "deviceName": "IMADE3D JellyBOX3 nzl-0.4",
+    "bedWidth": 180,
+    "bedDepth": 165,
     "maxHeight": 140,
     "mode": "FDM",
     "new": false,
@@ -194,7 +194,7 @@
             "sliceDetectThin": "off"
         },
         {
-            "processName": "PETG - L0.3 T235 N0.4",
+            "processName": "PETG - N0.4 L0.3 T235 N0.4",
             "sliceHeight": 0.3,
             "sliceShells": 2,
             "sliceShellOrder": "in-out",

@@ -177,6 +177,7 @@ gapp.register("kiri.init", [], (root, exports) => {
         if (control.antiAlias != ui.antiAlias.checked) {
             api.show.alert('Page Reload Required to Change Aliasing');
         }
+        control.shiny = ui.shiny.checked;
         control.decals = ui.decals.checked;
         control.danger = ui.danger.checked;
         control.showOrigin = ui.showOrigin.checked;
@@ -227,8 +228,8 @@ gapp.register("kiri.init", [], (root, exports) => {
         let { div, fps, rms, rnfo } = ui.stats;
         div.style.display = 'flex';
         setInterval(() => {
-            const nfps = space.view.getFPS().toFixed(2);
-            const nrms = space.view.getRMS().toFixed(2);
+            const nrms = space.view.getRMS().toFixed(1);
+            const nfps = space.view.getFPS().toFixed(1);
             const rend = space.renderInfo();
             const { memory, render } = rend;
             if (nfps !== fps.innerText) {
@@ -238,7 +239,9 @@ gapp.register("kiri.init", [], (root, exports) => {
                 rms.innerText = nrms;
             }
             if (rnfo.offsetParent !== null) {
-                rnfo.innerText = JSON.stringify({ ...memory, ...render }, null, 4);
+                rnfo.innerHTML = Object.entries({ ...memory, ...render, render_ms: nrms, frames_sec: nfps }).map(row => {
+                    return `<div>${row[0]}</div><label>${base.util.comma(row[1])}</label>`
+                }).join('');
             }
         }, 100);
     }
@@ -749,6 +752,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             api.event.emit('device.set', devicename);
 
             let mode = api.mode.get(),
+                lmode = mode.toLowerCase(),
                 current = settings(),
                 local = isLocalDevice(devicename),
                 dev = current.device = conf.device_from_code(code,mode),
@@ -756,6 +760,9 @@ gapp.register("kiri.init", [], (root, exports) => {
                 newdev = dproc === undefined,   // first time device is selected
                 predev = current.filter[mode],  // previous device selection
                 chgdev = predev !== devicename; // device is changing
+
+            // fill missing device fields
+            conf.fill_cull_once(dev, conf.defaults[lmode].d);
 
             // first time device use, add any print profiles and set to default if present
             if (code.profiles) {
@@ -828,7 +835,9 @@ gapp.register("kiri.init", [], (root, exports) => {
                 ui.fwRetract,
                 ui.filamentSource,
                 ui.deviceZMax,
+                ui.gcodeTime,
                 ui.gcodeFan,
+                ui.gcodeFeature,
                 ui.gcodeTrack,
                 ui.gcodeLayer,
                 ui.extFilament,
@@ -976,7 +985,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             case 7: pos = { x: 0,                     y: -(bedDepth - height)/2 }; break;
             case 8: pos = { x:  (bedWidth - width)/2, y: -(bedDepth - height)/2 }; break;
         }
-        let geometry = new THREE.PlaneBufferGeometry(width, height, 1),
+        let geometry = new THREE.PlaneGeometry(width, height, 1),
             material = new THREE.MeshBasicMaterial({ map: texture, transparent: true }),
             mesh = new THREE.Mesh(geometry, material);
         mesh.position.z = -bedHeight;
@@ -1667,14 +1676,23 @@ gapp.register("kiri.init", [], (root, exports) => {
             stockHeight:        $('stock-width'),
 
             device:           uc.newGroup(LANG.dv_gr_dev, $('device1'), {group:"ddev", inline:true, class:"noshow"}),
-            deviceName:       uc.newInput(LANG.dv_name_s, {title:LANG.dv_name_l, size:"65%", text:true, action:updateDeviceName}),
-            bedWidth:         uc.newInput(LANG.dv_bedw_s, {title:LANG.dv_bedw_l, convert:uc.toFloat, size:6, units:true, round:2, action:updateDeviceSize}),
-            bedDepth:         uc.newInput(LANG.dv_bedd_s, {title:LANG.dv_bedd_l, convert:uc.toFloat, size:6, units:true, round:2, action:updateDeviceSize}),
-            maxHeight:        uc.newInput(LANG.dv_bedh_s, {title:LANG.dv_bedh_l, convert:uc.toFloat, size:6, modes:FDM_SLA, action:updateDeviceSize}),
-            resolutionX:      uc.newInput(LANG.dv_rezx_s, {title:LANG.dv_rezx_l, convert:uc.toInt, size:6, modes:SLA}),
-            resolutionY:      uc.newInput(LANG.dv_rezy_s, {title:LANG.dv_rezy_l, convert:uc.toInt, size:6, modes:SLA}),
-            spindleMax:       uc.newInput(LANG.dv_spmx_s, {title:LANG.dv_spmx_l, convert:uc.toInt, size: 6, modes:CAM}),
-            deviceZMax:       uc.newInput(LANG.dv_zmax_s, {title:LANG.dv_zmax_l, convert:uc.toInt, size: 6, modes:FDM}),
+            deviceName:       uc.newInput(LANG.dv_name_s, {title:LANG.dv_name_l, size:"70%", text:true, action:updateDeviceName}),
+
+            devbed:           uc.newRow([
+                uc.newLabel(LANG.volume, { class: "grow" }),
+                uc.newLabel('X'),
+                ui.bedWidth   = uc.newInput2({title:LANG.dv_bedw_l, convert:uc.toFloat, size:5, units:true, round:2, action:updateDeviceSize}),
+                uc.newLabel('Y'),
+                ui.bedDepth   = uc.newInput2({title:LANG.dv_bedd_l, convert:uc.toFloat, size:5, units:true, round:2, action:updateDeviceSize}),
+                uc.newLabel('Z'),
+                ui.maxHeight  = uc.newInput2({title:LANG.dv_bedh_l, convert:uc.toFloat, size:5, modes:FDM_SLA, action:updateDeviceSize}),
+            ], { class: "var-area" }),
+
+            resolutionX:      uc.newInput(LANG.dv_rezx_s, {title:LANG.dv_rezx_l, convert:uc.toInt, size:5, modes:SLA}),
+            resolutionY:      uc.newInput(LANG.dv_rezy_s, {title:LANG.dv_rezy_l, convert:uc.toInt, size:5, modes:SLA}),
+            spindleMax:       uc.newInput(LANG.dv_spmx_s, {title:LANG.dv_spmx_l, convert:uc.toInt, size:5, modes:CAM}),
+            deviceZMax:       uc.newInput(LANG.dv_zmax_s, {title:LANG.dv_zmax_l, convert:uc.toInt, size:5, modes:FDM}),
+            gcodeTime:        uc.newInput(LANG.dv_time_s, {title:LANG.dv_time_l, convert:uc.toFloat, size:5, modes:FDM}),
             fdmSep:           uc.newBlank({class:"pop-sep", modes:FDM}),
             filamentSource:   uc.newSelect(LANG.dv_fsrc_s, {title: LANG.dv_fsrc_l, action: filamentSourceSave, modes:FDM}, "filasrc"),
             fwRetract:        uc.newBoolean(LANG.dv_retr_s, onBooleanClick, {title:LANG.dv_retr_l, modes:FDM}),
@@ -1687,8 +1705,8 @@ gapp.register("kiri.init", [], (root, exports) => {
             extNozzle:        uc.newInput(LANG.dv_nozl_s, {title:LANG.dv_nozl_l, convert:uc.toFloat, modes:FDM}),
             extOffsetX:       uc.newInput(LANG.dv_exox_s, {title:LANG.dv_exox_l, convert:uc.toFloat, modes:FDM}),
             extOffsetY:       uc.newInput(LANG.dv_exoy_s, {title:LANG.dv_exoy_l, convert:uc.toFloat, modes:FDM}),
-            extSelect:        uc.newText(LANG.dv_exts_s, {title:LANG.dv_exts_l, modes:FDM, size:14, height:3, modes:FDM, area:gcode}),
-            extDeselect:      uc.newText(LANG.dv_dext_s, {title:LANG.dv_dext_l, modes:FDM, size:14, height:3, modes:FDM, area:gcode}),
+            extSelect:        uc.newText(LANG.dv_exts_s, {title:LANG.dv_exts_l, modes:FDM, size:14, height:3, area:gcode}),
+            extDeselect:      uc.newText(LANG.dv_dext_s, {title:LANG.dv_dext_l, modes:FDM, size:14, height:3, area:gcode}),
             extPad:           uc.newBlank({class:"grow", modes:FDM}),
             extActions:       uc.newRow([
                 ui.extPrev = uc.newButton(undefined, undefined, {icon:'<i class="fas fa-less-than"></i>'}),
@@ -1720,6 +1738,7 @@ gapp.register("kiri.init", [], (root, exports) => {
                 (ui.gcodeLayer = uc.newGCode(LANG.dv_layr_s, {title:LANG.dv_layr_l, modes:FDM, area:gcode})).button,
                 (ui.gcodeTrack = uc.newGCode(LANG.dv_prog_s, {title:LANG.dv_prog_l, modes:FDM, area:gcode})).button,
                 (ui.gcodeFan = uc.newGCode(LANG.dv_fanp_s, {title:LANG.dv_fanp_l, modes:FDM, area:gcode})).button,
+                (ui.gcodeFeature = uc.newGCode(LANG.dv_feat_s, {title:LANG.dv_feat_l, modes:FDM, area:gcode})).button,
                 (ui.gcodeLaserOn = uc.newGCode(LANG.dv_lzon_s, {title:LANG.dv_lzon_l, modes:LASER, area:gcode})).button,
                 (ui.gcodeLaserOff = uc.newGCode(LANG.dv_lzof_s, {title:LANG.dv_lzof_l, modes:LASER, area:gcode})).button,
                 (ui.gcodeChange = uc.newGCode(LANG.dv_tool_s, {title:LANG.dv_tool_l, modes:CAM, area:gcode})).button,
@@ -1740,6 +1759,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             showRulers:       uc.newBoolean(LANG.op_shru_s, booleanSave, {title:LANG.op_shru_l}),
             showSpeeds:       uc.newBoolean(LANG.op_sped_s, speedSave, {title:LANG.op_sped_l}),
             decals:           uc.newBoolean(LANG.op_decl_s, booleanSave, {title:LANG.op_decl_s}),
+            shiny:            uc.newBoolean(LANG.op_shny_s, booleanSave, {title:LANG.op_shny_l, modes:FDM}),
             lineType:         uc.newSelect(LANG.op_line_s, {title: LANG.op_line_l, action: lineTypeSave, modes:FDM}, "linetype"),
             animesh:          uc.newSelect(LANG.op_anim_s, {title: LANG.op_anim_l, action: aniMeshSave, modes:CAM}, "animesh"),
             units:            uc.newSelect(LANG.op_unit_s, {title: LANG.op_unit_l, action: unitsSave, modes:CAM, trace:true}, "units"),
@@ -1778,7 +1798,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             sliceSolidLayers:    uc.newInput(LANG.sl_lsld_s, {title:LANG.sl_lsld_l, convert:uc.toInt, modes:FDM}),
             sliceBottomLayers:   uc.newInput(LANG.sl_lbot_s, {title:LANG.sl_lbot_l, convert:uc.toInt, modes:FDM}),
             fdmSep:              uc.newBlank({class:"pop-sep", modes:FDM}),
-            sliceDetectThin:     uc.newSelect(LANG.ad_thin_s, {title: LANG.ad_thin_l, action: thinWallSave}, "thin"),
+            sliceDetectThin:     uc.newSelect(LANG.ad_thin_s, {title: LANG.ad_thin_l, action: thinWallSave, modes:FDM}, "thin"),
             sliceAdaptive:       uc.newBoolean(LANG.ad_adap_s, onBooleanClick, {title: LANG.ad_adap_l, modes:FDM, trigger: true}),
 
             laserOffset:         uc.newInput(LANG.ls_offs_s, {title:LANG.ls_offs_l, convert:uc.toFloat, modes:LASER}),
@@ -1900,7 +1920,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             knifeSep:            uc.newBlank({class:"pop-sep", modes:LASER}),
             knifeOn:             uc.newBoolean(LANG.enable, onBooleanClick, {title:LANG.ou_drkn_l, modes:LASER}),
 
-            output:              uc.newGroup(LANG.ou_menu, null, {modes:GCODE}),
+            output:              uc.newGroup(LANG.ou_menu, null, {class: "fdmout", modes:GCODE}),
             outputLaserPower:    uc.newInput(LANG.ou_powr_s, {title:LANG.ou_powr_l, convert:uc.toInt, bound:uc.bound(1,100), modes:LASER}),
             outputLaserSpeed:    uc.newInput(LANG.ou_sped_s, {title:LANG.ou_sped_l, convert:uc.toInt, modes:LASER}),
             laserSep:            uc.newBlank({class:"pop-sep", modes:LASER}),
@@ -1926,6 +1946,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             fdmSep:              uc.newBlank({class:"pop-sep", modes:FDM}),
             outputLayerRetract:  uc.newBoolean(LANG.ad_lret_s, onBooleanClick, {title:LANG.ad_lret_l, modes:FDM}),
             outputAvoidGaps:     uc.newBoolean(LANG.ad_agap_s, onBooleanClick, {title:LANG.ad_agap_l, modes:FDM}),
+            outputAlternating:   uc.newBoolean(LANG.ad_altr_s, onBooleanClick, {title:LANG.ad_altr_l, modes:FDM}),
             outputBeltFirst:     uc.newBoolean(LANG.ad_lbir_s, onBooleanClick, {title:LANG.ad_lbir_l, show: isBelt, modes:FDM}),
             camConventional:     uc.newBoolean(LANG.ou_conv_s, onBooleanClick, {title:LANG.ou_conv_l, modes:CAM}),
             camEaseDown:         uc.newBoolean(LANG.cr_ease_s, onBooleanClick, {title:LANG.cr_ease_l, modes:CAM}),
@@ -1933,6 +1954,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             outputOriginBounds:  uc.newBoolean(LANG.or_bnds_s, onBooleanClick, {title:LANG.or_bnds_l, modes:LASER}),
             outputOriginCenter:  uc.newBoolean(LANG.or_cntr_s, onBooleanClick, {title:LANG.or_cntr_l, modes:CAM_LZR}),
             camOriginTop:        uc.newBoolean(LANG.or_topp_s, onBooleanClick, {title:LANG.or_topp_l, modes:CAM}),
+            camForceZMax:        uc.newBoolean(LANG.ou_forz_s, onBooleanClick, {title:LANG.ou_forz_l, modes:CAM}),
 
             camExpert:           uc.newGroup(LANG.op_xprt_s, null, {group: "cam_expert", modes:CAM, marker: false}),
             camExpertFast:       uc.newBoolean(LANG.cx_fast_s, onBooleanClick, {title:LANG.cx_fast_l, modes:CAM, show: () => !ui.camTrueShadow.checked }),
@@ -1953,7 +1975,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             arcTolerance:        uc.newInput(LANG.ad_arct_s, {title:LANG.ad_arct_l, bound:uc.bound(0,1.0), convert:uc.toFloat, modes:FDM, show:() => { return isDanger() && isNotBelt() }}),
             antiBacklash:        uc.newInput(LANG.ad_abkl_s, {title:LANG.ad_abkl_l, bound:uc.bound(0,3), convert:uc.toInt, modes:FDM}),
             fdmSep:              uc.newBlank({class:"pop-sep", modes:FDM}),
-            outputLoops:         uc.newInput(LANG.ag_loop_s, {title:LANG.ag_loop_l, convert:uc.toInt, bound:uc.bound(0,1000), modes:FDM, show:isBelt}),
+            outputLoops:         uc.newInput(LANG.ag_loop_s, {title:LANG.ag_loop_l, convert:uc.toInt, bound:uc.bound(-1,1000), modes:FDM, show:isBelt}),
             outputPurgeTower:    uc.newInput(LANG.ad_purg_s, {title:LANG.ad_purg_l, convert:uc.toInt, bound:uc.bound(0,1000), modes:FDM}),
 
             // SLA
@@ -2569,7 +2591,7 @@ gapp.register("kiri.init", [], (root, exports) => {
 
         // load workspace from url
         if (SETUP.wrk) {
-            api.settings.import_url(`${proto}//${SETUP.wrk[0]}`, true);
+            api.settings.import_url(`${proto}//${SETUP.wrk[0]}`, false);
         }
 
         // bind this to UI so main can call it on settings import

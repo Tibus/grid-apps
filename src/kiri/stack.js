@@ -6,13 +6,17 @@ gapp.register("kiri.stack", [], (root, exports) => {
 
 const { kiri } = root;
 
+/*
+ * converts `layers.js` output data structures into three.js meshes for display
+ */
 class Stack {
-    constructor(view, freeMem) {
+    constructor(view, freeMem, shiny) {
         this._view = view;
         this.view = view.newGroup();
         this.slices = [];
         this.meshes = [];
         this.freeMem = freeMem;
+        newMat = shiny ? createPhongMaterial : createLambertMaterial;
     }
 
     size() {
@@ -164,7 +168,6 @@ class Stack {
             } else {
                 geo.setAttribute('position', new THREE.BufferAttribute(faces, 3));
             }
-            // geo.computeFaceNormals();
             geo.computeVertexNormals();
             if (cface) {
                 cface.forEach((c, i) => geo.addGroup(c.start, c.count, i));
@@ -191,8 +194,7 @@ class Stack {
                 const { index, faces, z, colors } = path;
                 const geo = new THREE.BufferGeometry();
                 geo.setAttribute('position', new THREE.BufferAttribute(faces, 3));
-                geo.setIndex(index);
-                // geo.computeFaceNormals();
+                if (index.length) geo.setIndex(index);
                 geo.computeVertexNormals();
                 if (cpath) {
                     cpath.forEach((c, i) => geo.addGroup(c.start, c.count, i));
@@ -239,13 +241,11 @@ function createLineMaterial(color, array) {
 }
 
 function createStandardMaterial(color, flat) {
-    return new THREE.MeshStandardMaterial({
-        emissive,
-        roughness,
-        metalness,
+    return new THREE.MeshMatcapMaterial({
         transparent: color.opacity != 1,
         opacity: color.opacity || 1,
         color: color.face,
+        flatShading: true,
         side: flat ? THREE.DoubleSide : THREE.FrontSide
     });
 }
@@ -254,6 +254,15 @@ function createPhongMaterial(color, flat) {
     return new THREE.MeshPhongMaterial({
         shininess,
         specular,
+        transparent: color.opacity != 1,
+        opacity: color.opacity || 1,
+        color: color.face,
+        side: flat ? THREE.DoubleSide : THREE.FrontSide
+    });
+}
+
+function createLambertMaterial(color, flat) {
+    return new THREE.MeshLambertMaterial({
         transparent: color.opacity != 1,
         opacity: color.opacity || 1,
         color: color.face,

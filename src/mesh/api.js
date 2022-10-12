@@ -21,6 +21,7 @@ const worker = moto.client.fn
 const groups = [];
 
 let selected = [];
+let tools = [];
 
 const selection = {
     // @returns {MeshObject[]} or all groups if not strict and no selection
@@ -57,49 +58,77 @@ const selection = {
     },
 
     // @param group {MeshObject[]}
-    set(objects) {
-        selected = objects;
+    set(objects, toolist) {
+        // flatten groups into model lists when present
+        selected = objects.map(o => o.models ? o.models : o).flat();
+        tools = toolist || [];
         util.defer(selection.update);
     },
 
     // @param group {MeshObject}
-    add(object) {
-        // pendantic code necessary to minimize re-entrant api calls
+    add(object, tool = mode.is([ modes.tool ])) {
+        // when group added, add group models instead
         if (object.models) {
-            // if group, remove discrete selected members
             for (let m of object.models) {
-                if (selected.contains(m)) {
-                    selection.remove(m);
+                selected.addOnce(m);
+                if (tool) {
+                    tools.addOnce(m);
                 }
             }
         } else {
-            // if model, remove selcted group
-            if (selected.contains(object.group)) {
-                selection.remove(object.group);
+            selected.addOnce(object);
+            if (tool) {
+                tools.addOnce(object);
             }
         }
-        selected.addOnce(object);
         util.defer(selection.update);
     },
 
     // @param group {MeshObject}
     remove(object) {
-        selected.remove(object);
+        if (object.models) {
+            for (let m of object.models) {
+                selected.remove(m);
+                tools.remove(m);
+            }
+        } else {
+            selected.remove(object);
+            tools.remove(object);
+        }
         util.defer(selection.update);
     },
 
+    // remove all
+    delete() {
+        for (let s of selection.list(true)) {
+            selection.remove(s);
+            tools.remove(s);
+            s.showBounds(false);
+            s.remove();
+        }
+    },
+
     // @param group {MeshObject}
-    toggle(object) {
+    toggle(object, tool = mode.is([ modes.tool ])) {
+        if (object.models) {
+            for (let m of object.models) {
+                if (selected.contains(m)) {
+                    return selection.remove(object);
+                }
+            }
+            return selection.add(object, tool);
+        }
         if (selected.contains(object)) {
             selection.remove(object);
         } else {
-            selection.add(object);
+            selection.add(object, tool);
         }
     },
 
     clear() {
         for (let s of selection.list()) {
             selection.remove(s);
+            tools.remove(s);
         }
         for (let m of api.model.list()) {
             m.clearSelections();
@@ -117,18 +146,20 @@ const selection = {
     update() {
         for (let group of groups) {
             group.select(false);
-            group.wireframe(prefs.map.space.wire || false);
+            group.wireframe(prefs.map.space.wire || false, prefs.map.wireframe.opacity);
             group.normals(prefs.map.space.norm || false);
         }
+        api.updateFog();
         // prevent selection of model and its group
         let mgsel = selected.filter(s => s instanceof mesh.model).map(m => m.group);
         selected = selected.filter(sel => !mgsel.contains(sel)).filter(v => v);
         // highlight selected
         for (let object of selected) {
-            object.select(true);
+            object.select(true, tools.contains(object));
         }
         // update saved selection id list
         prefs.save( prefs.map.space.select = selected.map(s => s.id) );
+        prefs.save( prefs.map.space.tools = tools.map(s => s.id) );
         // force repaint in case of idle
         space.update();
         return selection;
@@ -232,6 +263,63 @@ let model = {
     }
 };
 
+let add = {
+    input() {
+        api.modal.dialog({
+            title: "vertices",
+            body: [ h.div({ class: "addact" }, [
+                h.textarea({ value: '', size: 5, id: "genvrt" }),
+                h.button({ _: "create", onclick() {
+                    const vert = (api.modal.bound.genvrt.value)
+                        .split(',').map(v => parseFloat(v)).toFloat32();
+                    const nmdl = new mesh.model({ file: "input", mesh: vert });
+                    const ngrp = group.new([ nmdl ]);
+                    api.modal.hide();
+                } })
+            ]) ]
+        });
+        api.modal.bound.genvrt.focus();
+    },
+
+    cube() {
+        const box = new THREE.BoxGeometry(1,1,1).toNonIndexed();
+        const vert = box.attributes.position.array;
+        const nmdl = new mesh.model({ file: "box", mesh: vert });
+        const ngrp = group.new([ nmdl ]);
+        ngrp.scale(5, 5, 5).floor();
+    },
+
+    cylinder(opt = { facets: 30 }) {
+        function gencyl(facets) {
+            api.modal.hide();
+            facets = parseInt(facets);
+            if (facets > 3) {
+                api.log.emit(`add cylinder with ${facets} facets`);
+                const cyl = new THREE.CylinderGeometry(5,5,1,facets).toNonIndexed();
+                const vert = cyl.attributes.position.array;
+                const nmdl = new mesh.model({ file: "cylinder", mesh: vert });
+                const ngrp = group.new([ nmdl ]);
+                ngrp.floor();
+            }
+        }
+        if (opt.facets > 2) {
+            gencyl(opt.facets);
+        } else {
+            api.modal.dialog({
+                title: "cylinder",
+                body: [ h.div({ class: "addact" }, [
+                    h.label('facets'),
+                    h.input({ value: opt.facets || 30, size: 5, id: "gencyl" }),
+                    h.button({ _: "create", onclick() {
+                        gencyl(api.modal.bound.gencyl.value)
+                    } })
+                ]) ]
+            });
+            api.modal.bound.gencyl.focus();
+        }
+    }
+};
+
 let file = {
     import() {
         // binding created in mesh.build
@@ -303,17 +391,49 @@ const tool = {
 
     union(models) {
         models = fallback(models);
-        api.log.emit(`union ${models.length} model(s)`).pin();
+        api.log.emit(`union ${models.length} models`).pin();
         worker.model_union(models.map(m => {
             return { id: m.id, matrix: m.matrix }
         }))
         .then(data => {
             let group = api.group.new([new mesh.model({
-                file: `unioned`,
+                file: `union`,
                 mesh: data
             })]).promote();
             api.selection.set([group]);
             api.log.emit('union complete').unpin();
+        });
+    },
+
+    intersect(models) {
+        models = fallback(models);
+        api.log.emit(`intersect ${models.length} models`).pin();
+        worker.model_intersect(models.map(m => {
+            return { id: m.id, matrix: m.matrix }
+        }))
+        .then(data => {
+            let group = api.group.new([new mesh.model({
+                file: `intersect`,
+                mesh: data
+            })]).promote();
+            api.selection.set([group]);
+            api.log.emit('intersect complete').unpin();
+        });
+    },
+
+    subtract(models) {
+        models = fallback(models);
+        api.log.emit(`subtract ${models.length} models`).pin();
+        worker.model_subtract(models.map(m => {
+            return { id: m.id, matrix: m.matrix, tool: m.tool() }
+        }))
+        .then(data => {
+            let group = api.group.new([new mesh.model({
+                file: `subtract`,
+                mesh: data
+            })]).promote();
+            api.selection.set([group]);
+            api.log.emit('subtract complete').unpin();
         });
     },
 
@@ -405,6 +525,7 @@ const tool = {
         api.log.emit('isolating bodies').pin();
         let promises = [];
         let mcore = new Matrix4().makeRotationX(Math.PI / 2);
+        let mark = Date.now();
         for (let m of models) {
             let p = worker.model_isolate({ id: m.id }).then(bodies => {
                 bodies = bodies.map(vert => new mesh.model({
@@ -417,21 +538,24 @@ const tool = {
         }
         Promise.all(promises).then(() => {
             api.log.emit('isolation complete').unpin();
+            // api.log.emit(`... isolate time = ${Date.now() - mark}`);
         });
     },
 
-    mapFaces(models) {
+    indexFaces(models, opt = {}) {
         models = fallback(models);
         api.log.emit('mapping faces').pin();
         let promises = [];
+        let mark = Date.now();
         for (let m of models) {
-            let p = worker.model_mapFaces({ id: m.id }).then(data => {
+            let p = worker.model_indexFaces({ id: m.id, opt }).then(data => {
                 // console.log({map_info: data});
             });
             promises.push(p);
         }
         Promise.all(promises).then(() => {
             api.log.emit('mapping complete').unpin();
+            // api.log.emit(`... index time = ${Date.now() - mark}`);
         });
     },
 
@@ -483,9 +607,8 @@ const tool = {
 
 const modes = {
     object: "object",
+    tool: "tool",
     face: "face",
-    line: "line",
-    vertex: "vertex",
     surface: "surface"
 };
 
@@ -504,29 +627,44 @@ const mode = {
         return prefs.map.mode;
     },
 
+    is(modelist) {
+        for (let m of modelist) {
+            if (prefs.map.mode === m) return true;
+        }
+        return false;
+    },
+
     check() {
         if (prefs.map.mode === modes.surface) {
-            tool.mapFaces();
+            tool.indexFaces();
         }
     },
 
     object() {
+        if (mode.is([ modes.face, modes.surface ])) {
+            selection.clear();
+        }
         mode.set(modes.object);
     },
 
+    tool() {
+        if (mode.is([ modes.face, modes.surface ])) {
+            selection.clear();
+        }
+        mode.set(modes.tool);
+    },
+
     face() {
+        if (mode.is([ modes.object, modes.tool ])) {
+            selection.clear();
+        }
         mode.set(modes.face);
     },
 
-    line() {
-        mode.set(modes.line);
-    },
-
-    vertex() {
-        mode.set(modes.vertex);
-    },
-
     surface() {
+        if (mode.is([ modes.object, modes.tool ])) {
+            selection.clear();
+        }
         mode.set(modes.surface);
     }
 };
@@ -564,6 +702,10 @@ const prefs = {
         surface: {
             radians: 0.1,
             radius: 0.2
+        },
+        wireframe: {
+            opacity: 0.4,
+            fog: 3
         }
     },
 
@@ -597,7 +739,7 @@ const api = exports({
     },
 
     version() {
-        window.location = "/choose";
+        window.location = "/choose?back";
     },
 
     clear() {
@@ -617,20 +759,17 @@ const api = exports({
         let left, up;
         if (normal) {
             let { x, y, z } = normal;
-            left = new Vector3(x,y,0).angleTo(new Vector3(0,-1,0));
-            up = new Vector3(0,y,z).angleTo(new Vector3(0,0,1));
+            left = new Vector3(x,y,z).angleTo(new Vector3(0,-1,0));
+            up = new Vector3(x,y,z).angleTo(new Vector3(0,0,1));
             if (x < 0) left = -left;
         }
         // sets "home" views (front, back, home, reset)
         space.platform.setCenter(center.x, -center.y, center.z);
         // sets camera focus
         space.view.panTo(center.x, center.z, -center.y, left, up);
-        // space.view.setFocus(new Vector3(
-        //     center.x, center.z, -center.y
-        // ));
     },
 
-    grid(state = {toggle:true}) {
+    grid(state = { toggle:true }) {
         let { platform } = space;
         let { map, save } = prefs;
         if (state.toggle) {
@@ -642,8 +781,9 @@ const api = exports({
         save();
     },
 
-    wireframe(state = {toggle:true}, opt = { }) {
-        let wire = prefs.map.space.wire;
+    wireframe(state = { toggle:true }, opt = { opacity: prefs.map.wireframe.opacity }) {
+        const mspace = prefs.map.space;
+        let wire = mspace.wire;
         if (state.toggle) {
             wire = !wire;
         } else {
@@ -652,7 +792,18 @@ const api = exports({
         for (let m of model.list()) {
             m.wireframe(wire, opt);
         }
-        prefs.save( prefs.map.space.wire = wire );
+        prefs.save( mspace.wire = wire );
+        api.updateFog();
+    },
+
+    updateFog() {
+        const mspace = prefs.map.space;
+        const mwire = prefs.map.wireframe;
+        if (mspace.wire) {
+            space.scene.setFog(mwire.fog, mspace.dark ? 0 : 0xffffff);
+        } else {
+            space.scene.setFog(false);
+        }
     },
 
     normals(state = {toggle:true}) {
@@ -677,6 +828,8 @@ const api = exports({
     group,
 
     model,
+
+    add,
 
     file,
 
