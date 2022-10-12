@@ -19,7 +19,9 @@
     <link rel="apple-touch-icon" href="/kiri/favicon-mobile.png">
     <link rel="stylesheet" type="text/css" href="/kiri/index.css?{{version}}">
     <link href="/font/css/all.min.css" rel="stylesheet">
-    <script src="/font/js/all.min.js" crossorigin="anonymous" async></script>
+    <link href="/kiri/manifest.json" rel="manifest">
+    <script src="/code/cache.js?{{version}}" defer></script>
+    <script src="/font/js/all.min.js" crossorigin="anonymous" defer></script>
     <script src="/code/kiri.js?{{version}}"></script>
 </head>
 <body>
@@ -87,7 +89,6 @@
             </div>
             <div id="lt-top">
                 <div id="float-tools" class="f-col movable">
-
                     <div id="float-tools-title" class="title mover">
                         <label id="ft-label" class="grow">title bar</label>
                         <div id="float-tools-close" class="closer"><i class="fas fa-times"></i></div>
@@ -189,7 +190,7 @@
                 <label lk="view">view</label>
                 <div id="pop-view" class="pop-lcol f-row">
                     <div id="view-arrange">
-                        <i class="fas fa-th"></i>
+                        <i class="fas fa-shapes"></i>
                         <label lk="arrange">arrange</label>
                     </div>
                     <div id="view-top">
@@ -211,7 +212,7 @@
                 <label id="label-slice" title="analyze parts" lk="slice">slice</label>
                 <div id="pop-slice" class="pop-lcol f-row">
                     <div id="act-preview">
-                        <i class="fas fa-cubes"></i>
+                        <i class="fas fa-layer-group"></i>
                         <label id="label-preview" title="show routing and paths" lk="preview">preview</label>
                     </div>
                     <div id="act-animate">
@@ -230,7 +231,7 @@
                 <label lk="render">render</label>
                 <div id="pop-render" class="pop-lcol f-row">
                     <div id="render-solid" class="grow a-center">
-                        <i class="fas fa-th-large"></i>
+                        <i class="fas fa-square"></i>
                         <label lk="solid">solid</label>
                     </div>
                     <div id="render-wire" class="grow a-center">
@@ -373,7 +374,7 @@
                             <div class="t-pad"></div>
                             <label class="t-33" lk="view">view</label>
                         </div>
-                        <div class="f-row">
+                        <div id="tool-cols" class="f-row">
                             <div class="f-col t-33">
                                 <select id="tool-select" size="10" class="grow"></select>
                             </div>
@@ -482,6 +483,7 @@
                             <div title="drill any holes matching&#13;selected tool diameter">drill</div>
                             <hr width="100%">
                             <div title="drill registration holes&#13;along the X or Y axis&#13;for double-sided work">register</div>
+                            <div title="insert custom gcode">gcode</div>
                             <div title="flip part and load&#13;profile for other side&#13;for double-sided work">flip</div>
                         </div>
                     </div>

@@ -9,6 +9,8 @@
 gapp.register("moto.space", [], (root, exports) => {
 
     const { moto } = root;
+    const { WebGLRenderer, WebGL1Renderer } = THREE;
+    const nav = navigator;
 
     let WIN = window,
         DOC = document,
@@ -31,19 +33,26 @@ gapp.register("moto.space", [], (root, exports) => {
         refreshRequested = false,
         selectRecurse = false,
         defaultKeys = true,
-        lightIntensity = 0.09,
         initialized = false,
         alignedTracking = false,
         skyAmbient,
         skyGridColor = 0xcccccc,
-        skyMaterial = undefined,
         skyGridMaterial = undefined,
         showSkyGrid = false,
         showPlatform = true,
         hidePlatformBelow = true,
-        origin = {x:0, y:0, z: 0},
-        trackcam = addLight(0, 0, 0, lightIntensity),
+        hideGridBelow = false,
+        showFocus = 0,
+        focalPoint = undefined,
+        lightInfo = {
+            mode: 2,
+            array: [],
+            intensity: 0.09,
+            debug: false
+        },
+        cameraLight = addLight(0, 0, 0, lightInfo.intensity),
         trackDelta = {x:0, y:0, z:0},
+        origin = {x:0, y:0, z: 0},
         mouse = {x: 0, y: 0},
         mouseStart = null,
         mouseDragPoint = null,
@@ -96,7 +105,6 @@ gapp.register("moto.space", [], (root, exports) => {
         platformOnMoveTime = 500,
         platformMoveTimer,
         volume,
-        lights,
         camera,
         renderer,
         container,
@@ -240,38 +248,61 @@ gapp.register("moto.space", [], (root, exports) => {
         }
     }
 
-    function addLight(x,y,z,i) {
-        let l = new THREE.DirectionalLight(0xffffff, i, 0);
+    function addLight(x, y, z, i, color = 0xffffff) {
+        let l = new THREE.DirectionalLight(color, i, 0);
         l.position.set(x,z,y);
-        // let b; l.add(b = new THREE.Mesh(
-        //     new THREE.BoxGeometry(1,1,1),
-        //     new THREE.MeshBasicMaterial( {color: 0xff0000} )
-        // )); b.scale.set(5,5,5);
+        if (lightInfo.debug) {
+            let b; l.add(b = new THREE.Mesh(
+                new THREE.BoxGeometry(1,1,1),
+                new THREE.MeshBasicMaterial( {color: 0xff0000} )
+            )); b.scale.set(5,5,5);
+        }
         SCENE.add(l);
         return l;
     }
 
     // 4 corners bottom, 4 axis centers top
-    function updateLights(x, y, z) {
-        // remove old
-        for (let l of lights || []) {
+    function updateLights() {
+        let x = psize.width;
+        let y = psize.depth;
+        let z = Math.max(x,y);
+
+        let { mode, intensity, array } = lightInfo;
+
+        // remove old lights
+        for (let l of array) {
             SCENE.remove(l);
         }
-        // override
-        x *= 4; y *= 4; z *= 4;
+
         // add new
         let x0 = -x/2, y0 = -y/2, z0 = 0;
         let x1 =  x/2, y1 =  y/2, z1 = z / 2, z2 = z;
-        lights = [
-            // over
-            addLight(  0,   0,  z2, lightIntensity * 1.2),
-            addLight( x0,  y0,  z1, lightIntensity * 2.5),
-            addLight( x1,  y1,  z1, lightIntensity * 2.5),
-            // under
-            addLight( x0,  y1, -z1, lightIntensity * 0.5),
-            addLight( x1,  y0, -z1, lightIntensity * 0.5),
-            addLight(  0,   0, -z2, lightIntensity * 0.8),
-        ];
+
+        switch (mode) {
+            case 0: array = [
+                addLight( x1,  y0,  z1, intensity * 1.5),
+                addLight( x0,  y1, -z1, intensity * 0.7)];
+                break;
+            case 1: array = [
+                addLight( x1,  y1,  z1, intensity * 2.5),
+                addLight( x0,  y1, -z1, intensity * 0.5),
+                addLight( x0,  y0,  z1, intensity * 2.5, 0xeeeeee),
+                addLight( x1,  y0, -z1, intensity * 0.5, 0xeeeeee)];
+                break;
+            case 2: array = [
+                addLight( x1,  y1,  z1, intensity * 2.5),
+                addLight( x0,  y1, -z1, intensity * 0.5),
+                addLight( x0,  y0,  z1, intensity * 2.5, 0xeeeeee),
+                addLight( x1,  y0, -z1, intensity * 0.5, 0xeeeeee),
+                addLight(  0,   0,  z2, intensity * 1.2),
+                addLight(  0,   0, -z2, intensity * 0.8)];
+                break;
+        }
+
+        lightInfo.array = array;
+        lightInfo.camera = cameraLight;
+        lightInfo.ambient = skyAmbient;
+        requestRefresh();
     }
 
     function updatePlatformPosition() {
@@ -297,7 +328,7 @@ gapp.register("moto.space", [], (root, exports) => {
         }
         viewControl.maxDistance = Math.max(width,depth) * 4;
         updatePlatformPosition();
-        updateLights(width, depth, maxz);
+        updateLights();
         if (volume) {
             SCENE.remove(volume);
             THREE.dispose(volume);
@@ -373,7 +404,21 @@ gapp.register("moto.space", [], (root, exports) => {
         canvas.width = w * scale;
         canvas.height = h * scale;
 
-        context.scale(scale, scale);
+        canvas.addEventListener("webglcontextlost", event => {
+            console.log('WEB GL CONTEXT LOST');
+            event.preventDefault();
+        }, false);
+
+        canvas.addEventListener("webglcontextrestored", event => {
+            console.log('WEB GL CONTEXT RESTORED');
+        }, false);
+
+        try {
+            context.scale(scale, scale);
+        } catch (e) {
+            console.log('unable to create label canvas', e ? e.name : 'unknown');
+            return {};
+        }
         context.fillStyle = color || fontColor;
         context.font = `${size}px sans-serif`;
         context.textAlign = textAlign;
@@ -423,6 +468,7 @@ gapp.register("moto.space", [], (root, exports) => {
                 canvas = canvasInMesh(x + xPadding, labelSize * 3, 'center', 'top', rulerColor, labelSize),
                 context = canvas.context,
                 mesh = canvas.mesh;
+                if (!(context && mesh)) return;
 
             for (let i = 0; i >= ruler.x1; i -= grid.unitMajor) {
                 context.fillText((i * factor).round(1).toString(), ruler.xo + i + xPadding / 2, 0);
@@ -442,6 +488,7 @@ gapp.register("moto.space", [], (root, exports) => {
                 canvas = canvasInMesh(labelSize * 4, y + yPadding, 'end', 'middle', rulerColor, labelSize),
                 context = canvas.context,
                 mesh = canvas.mesh;
+            if (!(context && mesh)) return;
 
             for (let i = 0; i >= ruler.y1; i -= grid.unitMajor) {
                 context.fillText((i * factor).round(1), labelSize * 4, y - (ruler.yo + i) + yPadding / 2);
@@ -503,6 +550,7 @@ gapp.register("moto.space", [], (root, exports) => {
         let { view, unitMinor, unitMajor, colorMajor, colorMinor, colorX, colorY } = grid;
         let oldView = view;
         view = grid.view = new THREE.Group();
+        view.visible = oldView ? oldView.visible : true;
 
         let majors = [],
             minors = [],
@@ -947,6 +995,25 @@ gapp.register("moto.space", [], (root, exports) => {
      * Space Object
      ******************************************************************* */
 
+    function updateFocus() {
+        if (focalPoint) {
+            Space.scene.remove(focalPoint);
+        }
+        if (showFocus) {
+            let mesh = focalPoint = new THREE.Mesh(
+                new THREE.SphereGeometry(1, 16, 16),
+                new THREE.MeshPhongMaterial({
+                    side: THREE.DoubleSide,
+                    specular: 0x202020,
+                    color: 0xff0000,
+                    shininess: 125
+                })
+            );
+            Space.scene.add(mesh);
+            mesh.position.copy(viewControl.target);
+        }
+    }
+
     function setSky(opt = {}) {
         let { grid, color, gridColor } = opt;
         if (grid) Space.sky.showGrid(grid);
@@ -964,7 +1031,7 @@ gapp.register("moto.space", [], (root, exports) => {
         let { color, round, size, grid, opacity } = opt;
         let { visible, volume, zOffset, origin, light } = opt;
         if (light) {
-            lightIntensity = light;
+            lightInfo.intensity = light;
         }
         if (color) {
             platform.setColor(color);
@@ -1044,7 +1111,34 @@ gapp.register("moto.space", [], (root, exports) => {
                 return SCENE.remove(o);
             },
 
-            active: updateLastAction
+            active: updateLastAction,
+
+            setFog: function(mult, color) {
+                if (mult) {
+                    SCENE.fog = new THREE.Fog(color, 100, 1000);
+                    SCENE.fog.mult = mult > 0 ? mult : 3;
+                } else {
+                    SCENE.fog = undefined;
+                }
+                Space.scene.updateFog();
+            },
+
+            updateFog: function() {
+                const { fog } = SCENE;
+                if (fog) {
+                    const dist = camera.position.distanceTo(viewControl.target);
+                    fog.near = dist;
+                    fog.far = dist * fog.mult;
+                }
+                // todo: option to clip for close views
+                // camera.near = dist / 2;
+                // camera.updateProjectionMatrix();
+            },
+
+            lightInfo: () => {
+                setTimeout(updateLights, 0);
+                return lightInfo;
+            }
         },
 
         world: {
@@ -1075,6 +1169,7 @@ gapp.register("moto.space", [], (root, exports) => {
             setRound,
             showAxes,
             showVolume,
+            showGridBelow: (b) => { hideGridBelow = !b },
             showGrid:   (b) => { grid.view.visible = b },
             setMaxZ:    (z) => { panY = z / 2 },
             setCenter:  (x,y,z) => { panX = x; panY = z, panZ = y },
@@ -1125,7 +1220,15 @@ gapp.register("moto.space", [], (root, exports) => {
             getFPS () { return fps },
             getRMS() { return renderTime },
             getFocus() { return viewControl.getTarget() },
-            setFocus(v) { viewControl.setTarget(v); refresh() },
+            setFocus(v) {
+                viewControl.setTarget(v);
+                updateFocus();
+                refresh()
+            },
+            showFocus(ms) {
+                showFocus = ms;
+                updateFocus();
+            },
             setHome(r,u) {
                 home = r || 0;
                 up = u || PI4;
@@ -1204,11 +1307,16 @@ gapp.register("moto.space", [], (root, exports) => {
             domelement.style.width = width();
             domelement.style.height = height();
 
-            renderer = new THREE.WebGLRenderer({
+            // workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=1321452
+            let Renderer = nav.platform === 'MacIntel' &&
+                nav.vendor.indexOf('Google') >= 0 ? WebGL1Renderer : WebGLRenderer;
+
+            renderer = new Renderer({
                 antialias: antiAlias,
                 preserveDrawingBuffer: true,
                 logarithmicDepthBuffer: true
             });
+            renderer.localClippingEnabled = true;
             camera = ortho ?
                 new THREE.OrthographicCamera(-100 * aspect(), 100 * aspect(), 100, -100, 0.1, 100000) :
                 new THREE.PerspectiveCamera(perspective, aspect(), 0.1, 100000);
@@ -1223,15 +1331,21 @@ gapp.register("moto.space", [], (root, exports) => {
                 if (platform) {
                     platform.visible = hidePlatformBelow ?
                         initialized && position.y >= 0 && showPlatform : showPlatform;
+                    volume.visible = showVolume && platform.visible;
                 }
-                if (trackcam) {
-                    trackcam.position.copy(camera.position);
+                if (grid.view) {
+                    grid.view.visible = hideGridBelow ? platform.visible : true;
+                }
+                if (cameraLight) {
+                    cameraLight.position.copy(camera.position);
                 }
                 if (moved && platformOnMove) {
                     clearTimeout(platformMoveTimer);
                     platformMoveTimer = setTimeout(platformOnMove, 500);
+                    Space.scene.updateFog();
                 }
                 updateLastAction();
+                updateFocus();
             }, (val) => {
                 updateLastAction();
                 if (slider) slider(val);
@@ -1241,8 +1355,6 @@ gapp.register("moto.space", [], (root, exports) => {
             viewControl.maxDistance = 1000;
 
             SCENE.add(skyAmbient = new THREE.AmbientLight(0x707070));
-
-            updateLights(250, 250, 250);
 
             platform = new THREE.Mesh(
                 new THREE.BoxGeometry(1, 1, 1),
@@ -1254,7 +1366,7 @@ gapp.register("moto.space", [], (root, exports) => {
             platform.visible = showPlatform;
 
             trackPlane = new THREE.Mesh(
-                new THREE.PlaneBufferGeometry(100000, 100000, 1, 1),
+                new THREE.PlaneGeometry(100000, 100000, 1, 1),
                 new THREE.MeshBasicMaterial( { color: 0x777777, opacity: 0, transparent: true } )
             );
             trackPlane.visible = false;
@@ -1316,15 +1428,13 @@ gapp.register("moto.space", [], (root, exports) => {
             animate();
 
             const ctx = renderer.getContext();
-            const ext = ctx.getExtension('WEBGL_debug_renderer_info');
-            const nav = navigator;
+
             Space.info = {
                 ver: ctx.getParameter(ctx.VERSION),
                 ven: ctx.getParameter(ctx.VENDOR),
-                glr: ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL),
-                // glv: ctx.getParameter(ext.UNMASKED_VENDOR_WEBGL),
+                glr: ctx.getParameter(ctx.RENDERER),
                 pla: nav.platform
-            },
+            };
 
             initialized = true;
         }

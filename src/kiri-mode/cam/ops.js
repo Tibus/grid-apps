@@ -6,13 +6,14 @@
 // dep: geo.paths
 // dep: geo.point
 // dep: geo.polygons
+// dep: geo.slicer
 // dep: kiri.slice
 // use: kiri-mode.cam.topo
 gapp.register("kiri-mode.cam.ops", [], (root, exports) => {
 
 const { base, kiri } = root;
-const { paths, polygons, newPoint, newPolygon } = base;
-const { poly2polyEmit, tip2tipEmit } = paths;
+const { paths, polygons, newPoint, newPolygon, sliceConnect } = base;
+const { poly2polyEmit, tip2tipEmit, segmentNormal, vertexNormal } = paths;
 const { driver, newSlice } = kiri;
 const { CAM } = driver;
 
@@ -37,6 +38,18 @@ class CamOp {
     prepare() { }
 }
 
+class OpGCode extends CamOp {
+    constructor(state, op) {
+        super(state, op);
+    }
+
+    prepare(ops, progress) {
+        if (this.op.gcode) {
+            ops.addGCode(this.op.gcode);
+        }
+    }
+}
+
 class OpLevel extends CamOp {
     constructor(state, op) {
         super(state, op);
@@ -46,57 +59,50 @@ class OpLevel extends CamOp {
         let { op, state } = this;
         let { settings, widget, sliceAll } = state;
         let { updateToolDiams, thruHoles, tabs, cutTabs } = state;
-        let { bounds, zMax, ztOff, color } = state;
+        let { bounds, zMax, ztOff, color, tshadow } = state;
         let { stock } = settings;
 
         let toolDiam = new CAM.Tool(settings, op.tool).fluteDiameter();
-        let stepOver = toolDiam * op.step;
+        let stepOver = this.stepOver = toolDiam * op.step;
+        let z = zMax + ztOff - op.down;
+
         updateToolDiams(toolDiam);
 
-        let path = newPolygon().setOpen(),
-            center = {x:0, y:0, z:0},
-            x1 = bounds.min.x,
-            y1 = bounds.min.y,
-            x2 = bounds.max.x,
-            y2 = bounds.max.y,
-            z = bounds.max.z - (op.down || 0);
+        let points = [];
+        let clear = POLY.offset(tshadow, toolDiam * (op.over || 0));
+        // let tabsub = [];
+        // POLY.subtract(clear, POLY.offset(tabs.map(t => t.poly), toolDiam/2), tabsub, []);
+        POLY.fillArea(clear, 90, stepOver, points);
 
-        if (stock.x && stock.y && stock.z) {
-            x1 = -stock.x / 2;
-            y1 = -stock.y / 2;
-            x2 = -x1;
-            y2 = -y1;
-            z = zMax + ztOff - (op.down || 0);
+        let lines = this.lines = [];
+        for (let i=0; i<points.length; i += 2) {
+            let slice = newSlice(z);
+            lines.push( newPolygon().setOpen().addPoints([ points[i], points[i+1] ]).setZ(z) );
+            slice.output()
+                .setLayer("level", {face: color, line: color})
+                .addPolys(this.lines);
+            sliceAll.push(slice);
         }
-
-        let ei = 0,
-            xd = x2 - x1,
-            xi = xd / Math.floor(xd / stepOver);
-
-        for (let x = x1, lx = x, ei = 0; x <= x2; x += xi, ei++, lx = x) {
-            if (ei % 2 === 0) {
-                path.add(x,y1,z).add(x,y2,z);
-            } else {
-                path.add(x,y2,z).add(x,y1,z);
-            }
-        }
-
-        let slice = newSlice(z);
-        this.lines = slice.camLines = [ path ];
-        slice.output()
-            .setLayer("level", {face: color, line: color})
-            .addPolys(this.lines);
-        sliceAll.push(slice);
     }
 
     prepare(ops, progress) {
-        let { op, state, lines } = this;
-        let { setTool, setSpindle } = ops;
-        let { polyEmit, newLayer } = ops;
+        let { op, state, lines, stepOver } = this;
+        let { setTool, setSpindle, printPoint } = ops;
+        let { polyEmit, newLayer, tip2tipEmit, camOut } = ops;
 
         setTool(op.tool, op.rate);
         setSpindle(op.spindle);
-        polyEmit(lines[0]);
+        lines = lines.map(p => { return { first: p.first(), last: p.last(), poly: p } });
+        tip2tipEmit(lines, printPoint, (el, point, count) => {
+            let poly = el.poly;
+            if (poly.last() === point) {
+                poly.reverse();
+            }
+            poly.forEachPoint((point, pidx) => {
+                camOut(point.clone(), pidx > 0, stepOver);
+            }, false);
+        });
+
         newLayer();
     }
 }
@@ -110,7 +116,7 @@ class OpRough extends CamOp {
         let { op, state } = this;
         let { settings, widget, slicer, sliceAll, unsafe, color } = state;
         let { updateToolDiams, thruHoles, tabs, cutTabs, cutPolys } = state;
-        let { tshadow, shadowTop, ztOff, zBottom, zMax } = state;
+        let { tshadow, shadowTop, ztOff, zBottom, zMax, shadowAt } = state;
         let { process, stock } = settings;
 
         if (op.down <= 0) {
@@ -204,7 +210,8 @@ class OpRough extends CamOp {
                 // exclude flats injected to complete shadow
                 return;
             }
-            data.shadow = trueShadow ? CAM.shadowAt(widget, data.z) : shadow.clone(true);
+            // data.shadow = trueShadow ? CAM.shadowAt(widget, data.z) : shadow.clone(true);
+            data.shadow = trueShadow ? shadowAt(data.z) : shadow.clone(true);
             data.slice.shadow = data.shadow;
             // data.slice.tops[0].inner = data.shadow;
             // data.slice.tops[0].inner = POLY.setZ(tshadow.clone(true), data.z);
@@ -247,7 +254,7 @@ class OpRough extends CamOp {
 
             // inset offset array by 1/2 diameter then by tool overlap %
             offset = POLY.offset(nest, [-(toolDiam / 2 + roughLeave), -toolDiam * op.step], {
-                minArea: 0.1,
+                minArea: Math.min(0.01, toolDiam * op.step / 4),
                 z: slice.z,
                 count: 999,
                 flat: true,
@@ -418,6 +425,7 @@ class OpOutline extends CamOp {
         let { op, state } = this;
         let { settings, widget, slicer, sliceAll, tshadow, thruHoles, unsafe, color } = state;
         let { updateToolDiams, zThru, zBottom, shadowTop, tabs, cutTabs, cutPolys } = state;
+        let { zMax, ztOff } = state;
         let { process, stock } = settings;
 
         if (op.down <= 0) {
@@ -429,7 +437,11 @@ class OpOutline extends CamOp {
 
         let shadow = [];
         let slices = [];
-        let indices = slicer.interval(op.down, { down: true, min: zBottom, fit: true, off: 0.01 });
+        let intopt = {
+            down: true, min: zBottom, fit: true, off: 0.01,
+            max: op.top ? zMax + ztOff : undefined
+        };
+        let indices = slicer.interval(op.down, intopt);
         let trueShadow = process.camTrueShadow === true;
         // shift out first (top-most) slice
         indices.shift();
@@ -467,6 +479,23 @@ class OpOutline extends CamOp {
             progress((index / total) * 0.5);
         }, genso: true });
         shadow = POLY.union(shadow.appendAll(shadowTop.tops), 0.01, true);
+
+        // start slices at top of stock when `clear top` enabled
+        if (op.top) {
+            let first = slices[0];
+            let zlist = slices.map(s => s.z);
+            console.log({zlist});
+            for (let z of indices.filter(v => v >= zMax).reverse()) {
+                if (zlist.contains(z)) {
+                    continue;
+                }
+                let add = first.clone(true);
+                add.tops.forEach(top => top.poly.setZ(add.z));
+                add.shadow = first.shadow.clone(true);
+                add.z = z;
+                slices.splice(0,0,add);
+            }
+        }
 
         // extend cut thru (only when z bottom is 0)
         if (zThru) {
@@ -533,15 +562,15 @@ class OpOutline extends CamOp {
                 }
             }
 
+            if (op.dogbones && !op.wide) {
+                CAM.addDogbones(offset, toolDiam / 5);
+            }
+
             if (tabs) {
                 tabs.forEach(tab => {
                     tab.off = POLY.expand([tab.poly], toolDiam / 2).flat();
                 });
                 offset = cutTabs(tabs, offset, slice.z);
-            }
-
-            if (op.dogbones && !op.wide) {
-                CAM.addDogbones(offset, toolDiam / 5);
             }
 
             if (process.camStockClipTo && stock.x && stock.y && stock.center) {
@@ -734,8 +763,9 @@ class OpTrace extends CamOp {
         let { op, state } = this;
         let { tool, rate, down, plunge, offset } = op;
         let { settings, widget, sliceAll, zMax, zTop, zThru, tabs } = state;
-        let { updateToolDiams, cutTabs, cutPolys, healPolys } = state;
+        let { updateToolDiams, cutTabs, cutPolys, healPolys, color } = state;
         let { process, stock } = settings;
+        let { camStockClipTo, camZBottom } = process;
         // generate tracing offsets from chosen features
         let sliceOut = this.sliceOut = [];
         let areas = op.areas[widget.id] || [];
@@ -771,11 +801,11 @@ class OpTrace extends CamOp {
             } else {
                 slice.camLines = [ poly ];
             }
-            if (process.camStockClipTo && stockRect) {
+            if (camStockClipTo && stockRect) {
                 slice.camLines = cutPolys([stockRect], slice.camLines, z, true);
             }
             slice.output()
-                .setLayer("follow", {line: 0xaa00aa}, false)
+                .setLayer("follow", {line: color}, false)
                 .addPolys(slice.camLines)
         }
         function clearZ(polys, z, down) {
@@ -795,7 +825,7 @@ class OpTrace extends CamOp {
                     }
                     POLY.setWinding(slice.camLines, cutdir, false);
                     slice.output()
-                        .setLayer("clear", {line: 0xaa00aa}, false)
+                        .setLayer("clear", {line: color}, false)
                         .addPolys(slice.camLines)
                 }
             }
@@ -893,9 +923,13 @@ class OpTrace extends CamOp {
                 }
                 break;
             case "clear":
+                const zbo = widget.track.top - widget.track.box.d;
                 let zmap = {};
                 for (let poly of polys) {
                     let z = poly.getZ();
+                    if (op.bottom && camZBottom) {
+                        z = Math.max(z, camZBottom) - zbo;
+                    }
                     (zmap[z] = zmap[z] || []).push(poly);
                 }
                 for (let [zv, polys] of Object.entries(zmap)) {
@@ -923,16 +957,37 @@ class OpPocket extends CamOp {
     }
 
     slice(progress) {
+        const pocket = this;
+        const debug = false;
         let { op, state } = this;
-        let { tool, rate, down, plunge, expand } = op;
-        let { settings, widget, sliceAll, zMax, zTop, zThru, tabs } = state;
-        let { updateToolDiams, cutTabs, cutPolys, healPolys } = state;
+        let { tool, rate, down, plunge, expand, contour, smooth, tolerance } = op;
+        let { settings, widget, sliceAll, zMax, zTop, zThru, tabs, color } = state;
+        let { updateToolDiams, cutTabs, cutPolys, healPolys, shadowAt } = state;
         let { process, stock } = settings;
         // generate tracing offsets from chosen features
         let sliceOut = this.sliceOut = [];
-        let toolDiam = new CAM.Tool(settings, tool).fluteDiameter();
+        let camTool = new CAM.Tool(settings, tool);
+        let toolDiam = camTool.fluteDiameter();
         let toolOver = toolDiam * op.step;
         let cutdir = process.camConventional;
+        let engrave = contour && op.engrave;
+        if (contour) {
+            down = 0;
+            this.topo = new CAM.Topo({
+                // onupdate: (update, msg) => {
+                onupdate: (index, total, msg) => {
+                    progress((index / total) * 0.9, msg);
+                },
+                ondone: (slices) => { },
+                contour: {
+                    tool,
+                    tolerance,
+                    inside: true,
+                    axis: "-"
+                },
+                state: state
+            });
+        }
         updateToolDiams(toolDiam);
         if (tabs) {
             tabs.forEach(tab => {
@@ -945,89 +1000,175 @@ class OpPocket extends CamOp {
             sliceOut.push(slice);
             return slice;
         }
-        let shadows = {};
-        function genShadows(zs) {
-            for (let z of zs) {
-                if (shadows[z]) continue;
-                // find closest shadow above and use
-                let minzkey;
-                let zover = Object.keys(shadows).map(v => parseFloat(v)).filter(v => v > z);
-                for (let zkey of zover) {
-                    if (minzkey && zkey < minzkey) {
-                        minzkey = zkey;
-                    } else {
-                        minzkey = zkey;
-                    }
-                }
-                let shadow = CAM.shadowAt(widget, z + 0.001, minzkey);
-                if (minzkey) {
-                    shadow = POLY.union([...shadow, ...shadows[minzkey]], undefined, true);
-                }
-                shadows[z] = POLY.setZ(shadow, z);
-            }
-        }
         function clearZ(polys, z, down) {
+            if (down) {
+                // adjust step down to a value <= down that
+                // ends on the lowest z specified
+                let diff = zTop - z;
+                down = diff / Math.ceil(diff / down);
+            }
             let zs = down ? base.util.lerp(zTop, z, down) : [ z ];
-            if (expand) polys = POLY.offset(polys, expand);
+            if (engrave) {
+                toolDiam = toolOver;
+            }
+            if (contour) {
+                expand = engrave ? 0 : toolOver;
+            }
+            if (expand) {
+                polys = POLY.offset(polys, expand);
+            }
+            let zpro = 0, zinc = 1 / (polys.length * zs.length);
             for (let poly of polys) {
-                genShadows(zs);
                 for (let z of zs) {
-                    let shadow = shadows[z];
-                    let clip = [];
-                    POLY.subtract([ poly ], shadow, clip);
+                    let clip = [], shadow;
+                    if (contour) {
+                        if (smooth) {
+                            clip = POLY.offset(POLY.offset([ poly ], smooth), -smooth);
+                        } else {
+                            clip = [ poly ];
+                        }
+                    } else {
+                        shadow = shadowAt(z);
+                        if (smooth) {
+                            shadow = POLY.setZ(POLY.offset(POLY.offset(shadow, smooth), -smooth), z);
+                        }
+                        POLY.subtract([ poly ], shadow, clip);
+                    }
+                    if (clip.length === 0) {
+                        continue;
+                    }
                     let slice = newSliceOut(z);
+                    let count = engrave ? 1 : 999;
                     slice.camTrace = { tool, rate, plunge };
-                    POLY.offset(clip, -toolOver, {
-                        count:999, outs: slice.camLines = [], flat:true, z
-                    });
+                    if (toolDiam) {
+                        POLY.offset(clip, [ -toolDiam / 2, -toolOver ], {
+                            count, outs: slice.camLines = [], flat:true, z
+                        });
+                    } else {
+                        // when engraving with a 0 width tip
+                        slice.camLines = clip;
+                    }
                     if (tabs) {
                         slice.camLines = cutTabs(tabs, POLY.flatten(slice.camLines, null, true), z);
                     } else {
                         slice.camLines = POLY.flatten(slice.camLines, null, true);
                     }
                     POLY.setWinding(slice.camLines, cutdir, false);
+                    if (contour) {
+                        slice.camLines = pocket.conform(slice.camLines, op.refine, engrave, pct => {
+                            progress(0.9 + (zpro + zinc * pct) * 0.1, "conform");
+                        });
+                    }
                     slice.output()
-                        .setLayer("pocket", {line: 0xaa00aa}, false)
+                        .setLayer("pocket", {line: color}, false)
                         .addPolys(slice.camLines)
-                    if (false) slice.output()
+                    if (debug && shadow) slice.output()
                         .setLayer("pocket shadow", {line: 0xff8811}, false)
                         .addPolys(shadow)
+                    if (!contour) {
+                        progress(zpro, "pocket");
+                    }
+                    zpro += zinc;
                 }
             }
         }
-        let polys = [];
+        let surfaces = op.surfaces[widget.id] || [];
         let vert = widget.getVertices().array.map(v => v.round(4));
-        for (let surface of op.surfaces[widget.id] || []) {
-            let outline = [];
-            let faces = CAM.surface_find(widget, [surface]);
-            let zmin = Infinity;
-            for (let face of faces) {
-                let i = face * 9;
-                outline.push(newPolygon()
-                    .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
-                    .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
-                    .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
-                );
+        let outline = [];
+        let faces = CAM.surface_find(widget, surfaces);
+        let zmin = Infinity;
+        let j=0, k=faces.length;
+        for (let face of faces) {
+            let i = face * 9;
+            outline.push(newPolygon()
+                .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
+                .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
+                .add(vert[i++], vert[i++], zmin = Math.min(zmin, vert[i++]))
+            );
+        }
+        outline = POLY.union(outline, 0.0001, true);
+        outline = POLY.setWinding(outline, cutdir, false);
+        outline = healPolys(outline);
+        if (smooth) {
+            outline = POLY.offset(POLY.offset(outline, smooth), -smooth);
+        }
+        if (outline.length) {
+            // option to skip interior features (holes, pillars)
+            if (!contour && op.outline) {
+                for (let p of outline) {
+                    p.inner = undefined;
+                }
             }
-            outline = POLY.union(outline, 0.0001, true);
-            outline = POLY.setWinding(outline, cutdir, false);
-            outline = healPolys(outline);
-            if (false) newSliceOut(zmin).output()
+            if (debug) newSliceOut(zmin).output()
                 .setLayer("pocket area", {line: 0x1188ff}, false)
                 .addPolys(outline)
-            clearZ(outline, zmin, down);
+            clearZ(outline, zmin + 0.0001, down);
+            progress(1, "pocket");
         }
     }
 
+    // mold cam output lines to the surface of the topo offset by tool geometry
+    conform(camLines, refine, engrave, progress) {
+        const topo = this.topo;
+        // re-segment polygon to a higher resolution
+        const hirez = refine > 0 ? camLines.map(p => p.segment(topo.tolerance * 2)) : camLines;
+        // walk points and offset from surface taking into account tool geometry
+        let steps = hirez.length;
+        let iter = 0;
+        for (let poly of hirez) {
+            for (let point of poly.points) {
+                point.z = engrave ? topo.zAtXY(point.x, point.y) : topo.toolAtXY(point.x, point.y);
+            }
+            progress((iter++ / steps) * 0.8);
+        }
+        steps = steps * refine;
+        iter = 0;
+        // walk points noting z deltas and smoothing sawtooth patterns
+        for (let j=0; j<refine; j++) {
+            for (let poly of hirez) {
+                const points = poly.points, length = points.length;
+                let sn = []; // segment normals
+                let dz = []; // z deltas
+                for (let i=0; i<length; i++) {
+                    let p1 = points[i];
+                    let p2 = points[(i + 1) % length];
+                    dz.push(p1.z - p2.z);
+                    sn.push(segmentNormal(p1, p2));
+                }
+                let vn = []; // vertex normals
+                for (let i=0; i<length; i++) {
+                    let n1 = sn[(i + length - 1) % length];
+                    let n2 = sn[i];
+                    let vi = vertexNormal(n1, n2, 1);
+                    vn.push(vi);
+                    let vl = Math.abs(1 - vi.vl).round(2);
+                    // vl should be close to zero on smooth / continuous curves
+                    // factoring out hard turns, we smooth the z using the weighted
+                    // z values of the points before and after the current point
+                    if (vl === 0) {
+                        let p0 = points[(i + length - 1) % length];
+                        let p1 = points[i];
+                        let p2 = points[(i + 1) % length];
+                        p1.z = (p0.z + p2.z + p1.z) / 3;
+                    }
+                }
+                progress((iter++ / steps) * 0.2 + 0.8);
+            }
+        }
+        return hirez;
+    }
+
     prepare(ops, progress) {
-        let { op, state } = this;
-        let { settings } = state;
+        let { op, state, sliceOut } = this;
         let { setTool, setSpindle } = ops;
 
         setTool(op.tool, op.rate);
         setSpindle(op.spindle);
-        for (let slice of this.sliceOut) {
+
+        let i=0, l=sliceOut.length;
+        for (let slice of sliceOut.filter(s => s.camLines)) {
             ops.emitTrace(slice);
+            progress(++i / l, "pocket");
         }
     }
 }
@@ -1146,7 +1287,7 @@ class OpRegister extends CamOp {
             o3 = tool.fluteDiameter() * 2,
             mx = (lx + hx) / 2,
             my = (ly + hy) / 2,
-            mz = zThru || 0,
+            mz = op.thru || zThru || 0,
             dx = (stock.x - (hx - lx)) / 4,
             dy = (stock.y - (hy - ly)) / 4,
             dz = stock.z,
@@ -1232,7 +1373,7 @@ class OpRegister extends CamOp {
                     slice.camTrace = { tool: tool.getID(), rate: op.feed, plunge: op.rate };
                     slice.camLines = [ poly ];
                     slice.output()
-                        .setLayer("register", {line: 0xaa00aa}, false)
+                        .setLayer("register", {line: color}, false)
                         .addPolys(slice.camLines)
                 }
                 break;
@@ -1309,7 +1450,7 @@ class OpShadow extends CamOp {
 
     slice(progress) {
         let state = this.state;
-        let { ops, slicer, widget, unsafe, sliceAll } = state;
+        let { ops, slicer, widget, unsafe, sliceAll, shadowAt } = state;
 
         let real = ops.map(rec => rec.op).filter(op => op);
         let drill = real.filter(op => op.type === 'drill').length > 0;
@@ -1335,8 +1476,9 @@ class OpShadow extends CamOp {
 
         let lsz; // only shadow up to bottom of last shadow for progressive union
         let terrain = slicer.slice(tzindex, { each: (data, index, total) => {
-            let shadowAt = trueShadow ? CAM.shadowAt(widget, data.z, lsz) : [];
-            tshadow = POLY.union(tshadow.slice().appendAll(data.tops).appendAll(shadowAt), 0.01, true);
+            // let shadow = trueShadow ? CAM.shadowAt(widget, data.z, lsz) : [];
+            let shadow = trueShadow ? shadowAt(data.z, lsz) : [];
+            tshadow = POLY.union(tshadow.slice().appendAll(data.tops).appendAll(shadow), 0.01, true);
             tslices.push(data.slice);
             data.slice.shadow = tshadow;
             if (false) {
@@ -1367,8 +1509,8 @@ class OpShadow extends CamOp {
 
         state.shadowTop = terrain[terrain.length - 1];
         state.center = tshadow[0].bounds.center();
-        state.tshadow = tshadow;
-        state.terrain = terrain;
+        state.tshadow = tshadow; // true shadow (bottom of part)
+        state.terrain = terrain; // stack of shadow slices with tops
         state.tslices = tslices;
         state.skipTerrain = skipTerrain;
 
@@ -1377,27 +1519,35 @@ class OpShadow extends CamOp {
     }
 }
 
+// union triangles > z (opt cap < ztop) into polygon(s)
 CAM.shadowAt = function(widget, z, ztop) {
-    let geo = widget.cache.geo || new THREE.BufferGeometry()
+    const geo = widget.cache.geo || new THREE.BufferGeometry()
         .setAttribute('position', new THREE.BufferAttribute(widget.vertices, 3));
     widget.cache.geo = geo;
-    let rad = (Math.PI / 180);
-    let deg = (180 / Math.PI);
-    let angle = rad * 1;
-    let thresh = -Math.sin(angle);
-    let found = [];
-    let { position } = geo.attributes;
-    let { itemSize, count, array } = position;
-    if (widget._shadow_array) {
-        array = widget._shadow_array;
-    } else {
-        array = widget._shadow_array = [...array].map(v => v.round(3));
+    const { position } = geo.attributes;
+    const { itemSize, count, array } = position;
+    // cache faces with normals up
+    if (!widget._shadow_faces) {
+        const faces = [];
+        for (let i=0, ip=0; i<count; i += itemSize) {
+            const a = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
+            const b = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
+            const c = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
+            const n = THREE.computeFaceNormal(a,b,c);
+            if (n.z > 0.001) {
+                faces.push(a,b,c);
+                // faces.push(newPoint(...a), newPoint(...b), newPoint(...c));
+            }
+        }
+        widget._shadow_faces = faces;
     }
-    for (let i = 0; i<count; i += 3) {
-        let ip = i * itemSize;
-        let a = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
-        let b = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
-        let c = new THREE.Vector3(array[ip++], array[ip++], array[ip++]);
+    const found = [];
+    const faces = widget._shadow_faces;
+    const { checkOverUnderOn, intersectPoints } = self.kiri.cam_slicer;
+    for (let i=0; i<faces.length; ) {
+        const a = faces[i++];
+        const b = faces[i++];
+        const c = faces[i++];
         let where = undefined;
         if (ztop && a.z > ztop && b.z > ztop && c.z > ztop) {
             // skip faces over top threshold
@@ -1407,19 +1557,10 @@ CAM.shadowAt = function(widget, z, ztop) {
             // skip faces under threshold
             continue;
         } else if (a.z > z && b.z > z && c.z > z) {
-            // limit to selected faces over threshold
-            let norm = THREE.computeFaceNormal(a,b,c);
-            if (norm.z < thresh) {
-                continue;
-            }
             found.push([a,b,c]);
-            continue;
         } else {
             // check faces straddling threshold
-            where = {under: [], over: [], on: []};
-        }
-        if (where) {
-            let { checkOverUnderOn, intersectPoints } = self.kiri.cam_slicer;
+            const where = { under: [], over: [], on: [] };
             checkOverUnderOn(newPoint(a.x, a.y, a.z), z, where);
             checkOverUnderOn(newPoint(b.x, b.y, b.z), z, where);
             checkOverUnderOn(newPoint(c.x, c.y, c.z), z, where);
@@ -1428,9 +1569,7 @@ CAM.shadowAt = function(widget, z, ztop) {
                 let line = intersectPoints(where.over, where.under, z);
                 if (line.length === 2) {
                     if (where.over.length === 2) {
-                        found.push([where.over[0], line[0], line[1]]);
                         found.push([where.over[1], line[0], line[1]]);
-                        found.push([where.over[0], where.over[1], line[1]]);
                         found.push([where.over[0], where.over[1], line[0]]);
                     } else {
                         found.push([where.over[0], line[0], line[1]]);
@@ -1439,19 +1578,37 @@ CAM.shadowAt = function(widget, z, ztop) {
                     console.log({msg: "invalid ips", line: line, where: where});
                 }
             }
-            continue;
-        } else {
-            continue;
         }
-        found.push([a,b,c]);
     }
+
+    // const lines = {};
+    // function addline(p1, p2) {
+    //     let key = p1.key < p2.key ? p1.key + ',' + p2.key : p2.key + ',' + p1.key;
+    //     let rec = lines[key];
+    //     if (rec) {
+    //         rec.count++;
+    //     } else {
+    //         lines[key] = { p1, p2, count: 1 };
+    //     }
+    // }
+    // for (let face of found) {
+    //     addline(face[0], face[1]);
+    //     addline(face[1], face[2]);
+    //     addline(face[2], face[0]);
+    // }
+    // const singles = Object.entries(lines).filter(a => a[1].count === 1).map(a => a[1]);
+    // const loops = POLY.nest(sliceConnect(singles, z));
+
     let polys = found.map(a => {
         return newPolygon()
             .add(a[0].x,a[0].y,a[0].z)
             .add(a[1].x,a[1].y,a[1].z)
             .add(a[2].x,a[2].y,a[2].z);
     });
-    return POLY.union(polys, 0.0001, true);
+    polys = POLY.union(polys, 0.001, true);
+    // console.log({z, loops, polys});
+    // return loops;
+    return polys;
 };
 
 CAM.OPS = CamOp.MAP = {
@@ -1465,6 +1622,7 @@ CAM.OPS = CamOp.MAP = {
     "trace":    OpTrace,
     "drill":    OpDrill,
     "register": OpRegister,
+    "gcode":    OpGCode,
     "flip":     CamOp
 };
 

@@ -22,6 +22,15 @@ if (!AP.flat) {
     };
 }
 
+AP.find = function(fn) {
+    for (let i=0, l=this.length; i<l; i++) {
+        if (fn(this[i])) {
+            return i;
+        }
+    }
+    return -1;
+};
+
 AP.equals = function(arr) {
     if (!arr) return false;
     if (arr.length !== this.length) return false;
@@ -31,8 +40,14 @@ AP.equals = function(arr) {
     return true;
 };
 
-AP.peek = function() {
-    return this[this.length - 1];
+AP.peek = function(val = 1) {
+    return this[this.length - val];
+};
+
+AP.drop = function(pre = 0, post = 0) {
+    while (pre-- > 0) this.shift();
+    while (post-- > 0) this.pop();
+    return this;
 };
 
 /**
@@ -218,6 +233,8 @@ String.prototype.reverse = function() {
 };
 
 Object.clone = function(o) {
+    // not using structuredClone because failes with some objects
+    // this method "cleans" out non clonables
     return o ? JSON.parse(JSON.stringify(o)) : o;
 };
 

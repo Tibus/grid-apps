@@ -9,6 +9,9 @@ gapp.register("moto.webui", [], (root, exports) => {
 let nextid = 1;
 
 function build(data, context) {
+    if (!data) {
+        return [];
+    }
     if (Array.isArray(data)) {
         let html = [];
         for (let d of data) {
@@ -16,7 +19,10 @@ function build(data, context) {
         }
         return html;
     }
-    let { type, attr, innr } = data;
+    let { type, attr, innr, raw } = data;
+    if (raw) {
+        return [ raw ];
+    }
     // auto text content
     if (typeof attr === 'string') {
         attr = { _: attr };
@@ -93,6 +99,14 @@ let h = exports({
             attr = {};
         }
         return { type, attr, innr };
+    },
+
+    raw: ( text ) => {
+        return { raw: text }
+    },
+
+    build: (data) => {
+        return build(data, []).join('');
     }
 });
 
@@ -119,7 +133,7 @@ gapp.overlay(root, {
 });
 
 // add common element types
-["a", "i", "hr", "div", "span", "label", "input", "button", "svg"].forEach(type => {
+["a", "i", "hr", "div", "span", "label", "input", "button", "svg", "textarea"].forEach(type => {
     h[type] = (attr, innr) => {
         return h.el(type, attr, innr);
     }

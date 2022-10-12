@@ -45,6 +45,7 @@ FDM.init = function(kiri, api) {
         "sliceSolidMinArea": LANG.ad_msol_s,
         "firstLayerRate": LANG.fl_rate_s,
         "firstLayerPrintMult": LANG.fl_mult_s,
+        "firstLayerFanSpeed": LANG.ou_fans_s,
         // prepare
         "sliceShellOrder": LANG.sl_ordr_s,
         "sliceFillOverlap": LANG.fi_over_s,
@@ -54,6 +55,7 @@ FDM.init = function(kiri, api) {
         "outputFillMult": LANG.ou_flml_s,
         "outputSparseMult": LANG.ou_spml_s,
         "outputRetractWipe": LANG.ad_wpln_s,
+        "outputAlternating": LANG.ad_altr_s,
         "outputShortPoly": LANG.ad_spol_s,
         "outputMinSpeed": LANG.ad_mins_s,
         "outputCoastDist": LANG.ad_scst_s,
@@ -73,8 +75,9 @@ FDM.init = function(kiri, api) {
         "outputBedTemp": LANG.ou_bedd_s,
         "outputFanSpeed": LANG.ou_fans_s,
         "outputRetractDist": LANG.ad_rdst_s,
-        "outputRetractSpeed": LANG.outputRetractSpeed,
+        "outputRetractSpeed": LANG.ad_rrat_s,
         "outputRetractDwell": LANG.ad_rdwl_s,
+        "outputLayerRetract": LANG.ad_lret_s
     };
 
     for (let key of Object.keys(rangeVars)) {
@@ -663,7 +666,7 @@ function addbox(point, color, name, dim = {x:1,y:1,z:1,rz:0}, opt = {}) {
         new BoxGeometry(dim.x, dim.y, dim.z),
         new MeshPhongMaterial({
             transparent: true,
-            opacity: 0.5,
+            opacity: opt.opacity || 0.5,
             color
         })
     );

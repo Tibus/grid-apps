@@ -36,7 +36,7 @@ FDM.prepare = function(widgets, settings, update) {
 
     let { device, process, controller, bounds, mode } = settings,
         { sliceHeight, firstSliceHeight, firstLayerRate } = process,
-        { outputSeekrate, outputLayerRetract, outputDraftShield, outputPurgeTower } = process,
+        { outputSeekrate, outputDraftShield, outputPurgeTower } = process,
         { bedWidth, bedDepth, filamentSource } = device,
         { lineType, danger } = controller,
         printPoint = newPoint(0,0,0),
@@ -56,6 +56,8 @@ FDM.prepare = function(widgets, settings, update) {
         shield,
         output = [],
         layerout = [];
+
+    let lastLayerStart = null;
 
     // compute bounds if missing
     if (!bounds) {
@@ -588,7 +590,7 @@ FDM.prepare = function(widgets, settings, update) {
             lastPoly = slice.lastPoly;
             lastLayer = layerout;
 
-            if (outputLayerRetract && layerout.length) {
+            if (params.outputLayerRetract && layerout.length) {
                 layerout.last().retract = true;
             }
         }
@@ -625,7 +627,7 @@ FDM.prepare = function(widgets, settings, update) {
 
         // if a declared extruder isn't used in a layer, use selected
         // extruder to fill the relevant purge blocks for later support
-        track.slice().forEach(ext => {
+        if (lastOut) track.slice().forEach(ext => {
             printPoint = purge(ext.extruder, track, layerout, printPoint, lastOut.z, lastExt, lastOffset);
         });
 
@@ -691,8 +693,9 @@ FDM.prepare = function(widgets, settings, update) {
                 }
                 if (rec.emit && belty <= thresh && lastout && Math.abs(lastout.belty - belty) < 0.005) {
                     // apply base speed to segments touching belt
-                    rec.speed = Math.min(rec.speed, lowrate);
+                    rec.speed = params.firstLayerRate || Math.min(rec.speed, lowrate);
                     rec.emit *= bmult;
+                    rec.fan = params.firstLayerFanSpeed;
                     minx = Math.min(minx, point.x, lastout.point.x);
                     maxx = Math.max(maxx, point.x, lastout.point.x);
                     maxy = Math.max(maxy, point.y);
@@ -768,6 +771,7 @@ FDM.prepare = function(widgets, settings, update) {
         print.render = render.path(output, (progress, layer) => {
             update(0.5 + progress * 0.5, "render", layer);
         }, {
+            lineWidth: settings.process.sliceLineWidth,
             toolMode: settings.pmode === 2,
             tools: device.extruders,
             thin: isThin,
@@ -1041,6 +1045,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         } else {
             let finishShell = poly.depth === 0 && !firstLayer;
             startPoint = print.polyPrintPath(poly, startPoint, preout, {
+                ccw: opt.shell && process.outputAlternating && slice.index % 2,
                 tool: extruder,
                 rate: finishShell ? finishSpeed : printSpeed,
                 accel: finishShell,
@@ -1119,6 +1124,9 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
         }
         let first = points[0];
         let last = first;
+        if (startPoint && startPoint.distTo2D(first) > thinWall && intersectsTop(startPoint, first)) {
+            retract();
+        }
         print.addOutput(preout, first, 0, moveSpeed, extruder);
         for (let p of order) {
             let dist = last ? last.distTo2D(p) : 0;
@@ -1127,11 +1135,12 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
                 print.addOutput(preout, p, 0, moveSpeed, extruder);
             }
             print.addOutput(preout, p, 1, fillSpeed, extruder);
-            last = p;
+            startPoint = last = p;
         }
         // close a circle
         if (last && last.distTo2D(first) <= thinWall) {
             print.addOutput(preout, first, 1, fillSpeed, extruder);
+            startPoint = first;
         }
     }
 
@@ -1365,6 +1374,8 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             // control of layer start point
             switch (process.sliceLayerStart) {
+                case "last":
+                    break;
                 case "center":
                     startPoint = newPoint(0,0,startPoint.z);
                     break;
@@ -1387,14 +1398,22 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             // innermost shells
             let inner = next.innerShells() || [];
+            let shells = next.shells || [];
+
+            // alternating winding option
+            // if (process.outputAlternating || slice.index % 2) {
+            //     console.log({alternating: slice, shells, inner});
+            //     POLY.setWinding(inner, false);
+            //     POLY.setWinding(shells, false);
+            // }
 
             // output inner polygons
-            if (shellOrder === 1) outputTraces(inner, { sort: shellOrder });
+            if (shellOrder === 1) outputTraces(inner, { sort: shellOrder, shell: true });
 
-            outputTraces(next.shells, { sort: shellOrder });
+            outputTraces(shells, { sort: shellOrder, shell: true });
 
             // output outer polygons
-            if (shellOrder === -1) outputTraces(inner, { sort: shellOrder });
+            if (shellOrder === -1) outputTraces(inner, { sort: shellOrder, shell: true });
 
             // output thin fill
             print.setType('thin fill');

@@ -19,12 +19,13 @@ FDM.export = function(print, online, ondone, ondebug) {
     const { danger, exportThumb } = device;
     const { bedWidth, bedDepth, bedRound, bedBelt, maxHeight } = device;
     const { extruders, fwRetract } = device;
-    const { gcodeFan, gcodeLayer, gcodeTrack, gcodePause } = device;
+    const { gcodeFan, gcodeLayer, gcodeTrack, gcodePause, gcodeFeature } = device;
 
     let layers = print.output,
         extras = device.extras || {},
         { extrudeAbs } = device,
         extused = Object.keys(print.extruders).map(v => parseInt(v)),
+        timeFactor = (device.gcodeTime || 1) * 1.5,
         decimals = config.gcode_decimals || 4,
         zMoveMax = device.deviceZMax || 0,
         isBelt = bedBelt,
@@ -42,6 +43,7 @@ FDM.export = function(print, online, ondone, ondebug) {
         distance = 0,
         emitted = 0,
         retracted = 0,
+        axis = { X:' X', Y:' Y', Z:' Z', E:' E'},
         pos = { x:0, y:0, z:0, f:0 },
         lout = { x:0, y:0, z:0 },
         last = null,
@@ -79,6 +81,8 @@ FDM.export = function(print, online, ondone, ondebug) {
         extrudeSet = false,
         nozzleTemp = process.firstLayerNozzleTemp || process.outputTemp,
         bedTemp = process.firstLayerBedTemp || process.outputBedTemp,
+        fanSpeedSave = undefined,
+        fanSpeedBase = undefined,
         fanSpeed = undefined,
         lastType = undefined,
         lastNozzleTemp = nozzleTemp,
@@ -95,6 +99,7 @@ FDM.export = function(print, online, ondone, ondebug) {
             temp: nozzleTemp,
             temp_bed: bedTemp,
             bed_temp: bedTemp,
+            fan_speed_base: fanSpeedBase,
             fan_speed: fanSpeed,
             speed: fanSpeed, // legacy
             top: offset.y ? bedDepth : bedDepth/2,
@@ -133,9 +138,23 @@ FDM.export = function(print, online, ondone, ondebug) {
     }
     subst.tool_count = tools_used.length;
 
+    function setTempFanSpeed(tempSpeed) {
+        if (tempSpeed > 0) {
+            fanSpeedSave = fanSpeedSave >= 0 ? fanSpeedSave : fanSpeed;
+            fanSpeed = tempSpeed;
+            subst.fan_speed = fanSpeed;
+            subst.fan_speed_base = tempSpeed;
+        } else {
+            fanSpeed = fanSpeedSave >= 0 ? fanSpeedSave : fanSpeed
+            fanSpeedSave = undefined;
+            subst.fan_speed = fanSpeed;
+            subst.fan_speed_base = fanSpeedBase;
+        }
+    }
+
     // smallish band-aid. refactor above to remove redundancy
     function updateParams(layer, params) {
-        // let params = getRangeParameters(process, layer);
+        // params = getRangeParameters(process, layer);
         zhop = params.zHopDistance || 0; // range
         retDist = params.outputRetractDist || 0; // range
         retSpeed = params.outputRetractSpeed * 60 || 1; // range
@@ -147,6 +166,7 @@ FDM.export = function(print, online, ondone, ondebug) {
         bedTemp = layer === 0 ?
             params.firstLayerBedTemp || params.outputBedTemp :
             params.outputBedTemp || params.firstLayerBedTemp;
+        fanSpeedBase = params.firstLayerFanSpeed || 0;
         fanSpeed = layer === 0 ?
             params.firstLayerFanSpeed || 0 :
             params.outputFanSpeed || 0;
@@ -154,6 +174,7 @@ FDM.export = function(print, online, ondone, ondebug) {
             temp_bed: bedTemp,
             bed_temp: bedTemp,
             fan_speed: fanSpeed,
+            fan_speed_base: fanSpeedBase,
             speed: fanSpeed, // legacy
             retract_speed: retSpeed,
             retract_distance: retDist,
@@ -170,6 +191,13 @@ FDM.export = function(print, online, ondone, ondebug) {
             start: layers[0].slice.index,
             end: Infinity,
             iter: oloops - 1
+        });
+    } else if (oloops < 0) {
+        // if oloops negative, loop entire part to infinity
+        rloops.push({
+            start: layers[0].slice.index,
+            end: Infinity,
+            iter: 0
         });
     }
     if (process.ranges) {
@@ -282,6 +310,11 @@ FDM.export = function(print, online, ondone, ondebug) {
         if (line.indexOf(";; PREAMBLE ") === 0) {
             if (line === ';; PREAMBLE OFF') pre = 1;
             if (line === ';; PREAMBLE END') pre = 2;
+        } if (line.indexOf(";; AXISMAP ") === 0) {
+            let axmap = JSON.parse(line.substring(11).trim());
+            for (let key in axmap) {
+                axis[key] = ` ${axmap[key]}`;
+            }
         } else {
             gcpre.push(line);
         }
@@ -449,9 +482,9 @@ FDM.export = function(print, online, ondone, ondebug) {
             epos.y = -pos.y + epos.z * bcos + belt_add_y;
             lout = epos;
         }
-        if (emit.x) o.append(" X").append(epos.x.toFixed(decimals));
-        if (emit.y) o.append(" Y").append(epos.y.toFixed(decimals));
-        if (emit.z) o.append(" Z").append(epos.z.toFixed(decimals));
+        if (emit.x) o.append(axis.X).append(epos.x.toFixed(decimals));
+        if (emit.y) o.append(axis.Y).append(epos.y.toFixed(decimals));
+        if (emit.z) o.append(axis.Z).append(epos.z.toFixed(decimals));
         if (debug) {
             if (emit.x) minz.x = Math.min(minz.x, epos.x);
             if (emit.y) minz.y = Math.min(minz.y, epos.y);
@@ -461,9 +494,9 @@ FDM.export = function(print, online, ondone, ondebug) {
             outputLength += newpos.e;
             if (extrudeAbs) {
                 // for cumulative (absolute) extruder positions
-                o.append(" E").append(outputLength.toFixed(decimals));
+                o.append(axis.E).append(outputLength.toFixed(decimals));
             } else {
-                o.append(" E").append(newpos.e.toFixed(decimals));
+                o.append(axis.E).append(newpos.e.toFixed(decimals));
             }
         }
         if (zMoveMax && emit.z) {
@@ -624,8 +657,12 @@ FDM.export = function(print, online, ondone, ondebug) {
 
             // emit comment on output type chage
             if (last && out.type !== last.type) {
-                append(`; feature ${out.type}`);
-                lastType = out.type;
+                lastType = subst.feature = out.type;
+                if (gcodeFeature && gcodeFeature.length) {
+                    appendAllSub(gcodeFeature);
+                } else {
+                    append(`; feature ${out.type}`);
+                }
             }
 
             // look for extruder change, run scripts, recalc emit factor
@@ -671,6 +708,15 @@ FDM.export = function(print, online, ondone, ondebug) {
             // re-engage post-retraction before new extrusion
             if (out.emit && retracted) {
                 unretract();
+            }
+
+            // in belt mode, fan can change per segment (for base)
+            if (isBelt) {
+                setTempFanSpeed(out.fan);
+                if (fanSpeed !== lastFanSpeed) {
+                    appendAllSub(gcodeFan);
+                    lastFanSpeed = fanSpeed;
+                }
             }
 
             if (lastp && out.emit) {
@@ -786,7 +832,7 @@ FDM.export = function(print, online, ondone, ondebug) {
             }
 
             // update time and distance (should calc in moveTo() instead)
-            time += (dist / speedMMM) * 60 * 1.5;
+            time += (dist / speedMMM) * 60 * timeFactor;
             distance += dist;
             subst.progress = progress = Math.round((distance / totaldistance) * 100);
 

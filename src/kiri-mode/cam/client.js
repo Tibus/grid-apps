@@ -16,13 +16,15 @@ let isAnimate,
     isCamMode,
     isParsed,
     camStock,
+    camZBottom,
     current,
     poppedRec,
     hoveredOp,
-    API, FDM, SPACE, STACKS, MODES, VIEWS, UI, UC, LANG;
+    API, FDM, SPACE, STACKS, MODES, VIEWS, UI, UC, LANG, MCAM;
 
 let zaxis = { x: 0, y: 0, z: 1 },
     popOp = {},
+    seed = Date.now(),
     func = {
         hover: noop,
         hoverUp: noop
@@ -40,9 +42,14 @@ CAM.init = function(kiri, api) {
     VIEWS = kiri.consts.VIEWS;
     STACKS = api.const.STACKS;
     LANG = api.const.LANG;
+    MCAM = [ MODES.CAM ];
     UI = api.ui;
     UC = api.uc;
     API = api;
+
+    function zBottom() {
+        return API.conf.get().process.camZBottom > 0;
+    }
 
     // wire up animate button in ui
     api.event.on("function.animate", (mode) => {
@@ -73,14 +80,14 @@ CAM.init = function(kiri, api) {
         updateStock(undefined, 'internal');
         UI.func.animate.style.display = isCamMode ? '' : 'none';
         if (!isCamMode) {
-            func.tabClear();
-            func.traceDone();
+            func.clearPops();
             UI.label.slice.innerText = LANG.slice;
             UI.label.preview.innerText = LANG.preview;
             UI.label.export.innerText = LANG.export;
         } else {
             UI.label.slice.innerText = LANG.start;
         }
+        $('camops').style.display = isCamMode && isArrange ? 'flex' : '';
         // do not persist traces across page reloads
         func.traceClear();
         func.opRender();
@@ -90,12 +97,12 @@ CAM.init = function(kiri, api) {
         isArrange = (mode === VIEWS.ARRANGE);
         isAnimate = false;
         CAM.animate_clear(api);
-        func.tabDone();
-        func.traceDone();
-        func.opRender();
+        func.clearPops();
+        $('camops').style.display = isCamMode && isArrange ? 'flex' : '';
     });
 
     api.event.on("settings.saved", (settings) => {
+        validateTools(settings.tools);
         current = settings;
         let proc = settings.process;
         let hasTabs = false;
@@ -118,6 +125,7 @@ CAM.init = function(kiri, api) {
     api.event.on("settings.load", (settings) => {
         func.opRender();
         if (!isCamMode) return;
+        validateTools(settings.tools);
         restoreTabs(api.widgets.all());
     });
 
@@ -137,6 +145,31 @@ CAM.init = function(kiri, api) {
         "selection.scale",
         "selection.rotate"
     ], updateStock);
+
+    // invalidate trace ops on scale or rotate
+    api.event.on([
+        "selection.scale",
+        "selection.rotate"
+    ], () => {
+        if (!isCamMode) return;
+        for (let op of current.process.ops) {
+            if (op.type === 'trace') {
+                op.areas = {};
+            }
+        }
+    });
+
+    // invalidate tabs when scaleds
+    api.event.on([
+        "selection.scale",
+    ], () => {
+        func.tabClear();
+    });
+
+    api.event.on([
+        // update tab color/opacity on dark/light change
+        "boolean.update"
+    ], updateTabs);
 
     api.event.on("preview.end", () => {
         isParsed = false;
@@ -162,6 +195,7 @@ CAM.init = function(kiri, api) {
         let settings = API.conf.get();
         let { process, device } = settings;
         switch (ev.target.innerText) {
+            case "gcode": return func.opAddGCode();
             case "level": return func.opAddLevel();
             case "rough": return func.opAddRough();
             case "outline": return func.opAddOutline();
@@ -186,6 +220,10 @@ CAM.init = function(kiri, api) {
                 }
                 return func.opAddFlip();
         }
+    };
+
+    func.opAddGCode = () => {
+        func.opAdd(popOp.gcode.new());
     };
 
     func.opAddLevel = () => {
@@ -256,6 +294,11 @@ CAM.init = function(kiri, api) {
         let oplist = current.process.ops;
         if (oplist.indexOf(rec) < 0) {
             oplist.push(rec);
+            let fpos = oplist.find(rec => rec.type === 'flip');
+            if (fpos >= 0 && oplist.length > 1) {
+                let oprec = oplist.splice(fpos,1);
+                oplist.push(oprec[0]);
+            }
             API.conf.save();
             func.opRender();
         }
@@ -274,9 +317,10 @@ CAM.init = function(kiri, api) {
     });
 
     api.event.on("cam.op.render", func.opRender = () => {
-        $('camops').style.display = isCamMode && isArrange ? 'flex' : '';
+        // $('camops').style.display = isCamMode && isArrange ? 'flex' : '';
         let oplist = current.process.ops;
         if (!(isCamMode && oplist)) return;
+        oplist = oplist.filter(rec => !Array.isArray(rec));
         let mark = Date.now();
         let html = [];
         $('ophint').style.display = oplist.length === 0 ? '' : 'none';
@@ -286,7 +330,7 @@ CAM.init = function(kiri, api) {
             html.appendAll([
                 `<div id="${mark+i}" class="draggable">`,
                 `<label class="label">${rec.type}</label>`,
-                `<label id="${mark+i}-x" class="del"><i class="fas fa-times"></i></label>`,
+                `<label id="${mark+i}-x" class="del"><i class="fa-regular fa-circle-xmark"></i></label>`,
                 `</div>`
             ]);
             bind[mark+i] = rec;
@@ -300,6 +344,7 @@ CAM.init = function(kiri, api) {
             $(`${id}-x`).onmousedown = (ev) => {
                 ev.stopPropagation();
                 ev.preventDefault();
+                func.surfaceDone();
                 func.traceDone();
                 func.tabDone();
                 func.opDel(rec);
@@ -319,6 +364,10 @@ CAM.init = function(kiri, api) {
                 }
             };
             el.onmouseenter = (ev) => {
+                if (poppedRec && poppedRec != rec) {
+                    func.surfaceDone();
+                    func.traceDone();
+                }
                 if (unpop) unpop();
                 unpop = func.unpop = el.unpop;
                 inside = true;
@@ -327,6 +376,7 @@ CAM.init = function(kiri, api) {
                 poprec.use(rec);
                 hoveredOp = el;
                 el.appendChild(poprec.div);
+                poprec.addNote();
                 // option click event appears latent
                 // and overides the sticky settings
                 setTimeout(() => {
@@ -344,19 +394,27 @@ CAM.init = function(kiri, api) {
             };
             el.rec = rec;
             el.onmousedown = (ev) => {
+                func.surfaceDone();
                 func.traceDone();
                 let target = ev.target, clist = target.classList;
                 if (!clist.contains("draggable")) {
                     return;
                 }
                 if (ev.ctrlKey || ev.metaKey) {
-                    rec.disabled = !rec.disabled;
                     ev.preventDefault();
                     ev.stopPropagation();
-                    if (rec.disabled) {
-                        clist.add("disabled");
-                    } else {
-                        clist.remove("disabled");
+                    rec.disabled = !rec.disabled;
+                    for (let op of ev.shiftKey ? oplist : [ rec ]) {
+                        if (op !== rec) {
+                            op.disabled = !rec.disabled;
+                        }
+                    }
+                    for (let el of bounds) {
+                        if (el.rec.disabled) {
+                            el.classList.add("disabled");
+                        } else {
+                            el.classList.remove("disabled");
+                        }
                     }
                     return true;
                 }
@@ -401,6 +459,25 @@ CAM.init = function(kiri, api) {
             };
         }
     });
+
+    func.opGCode = () => {
+        API.dialog.show('any');
+        const { c_gcode } = h.bind(
+            $('mod-any'), h.div({ id: "camop_dialog" }, [
+                h.label('custom gcode operation'),
+                h.textarea({ id: "c_gcode", rows: 15, cols: 50 }),
+                h.button({ _: 'done', onclick: () => {
+                    API.dialog.hide();
+                    API.conf.save();
+                } })
+            ])
+        );
+        c_gcode.value = poppedRec.gcode || '';
+        c_gcode.onkeyup = (el) => {
+            poppedRec.gcode = c_gcode.value;
+        };
+        c_gcode.focus();
+    };
 
     func.opFlip = () => {
         let widgets = API.widgets.all();
@@ -454,14 +531,18 @@ CAM.init = function(kiri, api) {
         flipping = false;
         process.ops = op2;
         process.op2 = ops;
-        // special case, auto-adjust camZBottom
-        if (process.camZBottom && widgets.length === 1) {
-            process.camZBottom = widgets[0].bounds.max.z - process.camZBottom;
+        // flip camZBottom
+        if (poppedRec.invert && process.camZBottom && camZBottom) {
+            const maxZ = camZBottom._max.z
+            process.camZBottom = maxZ - process.camZBottom;
             API.util.rec2ui(process);
+            updateStock();
         }
+        // keep flip operations in sync
         for (let op of op2) {
             if (op.type === 'flip') {
                 op.axis = poppedRec.axis;
+                op.invert = poppedRec.invert;
             }
         }
         if (add2) {
@@ -909,12 +990,19 @@ CAM.init = function(kiri, api) {
         return current.device.spindleMax > 0;
     }
 
+    createPopOp('gcode', {
+        gcode:  'camCustomGcode',
+    }).inputs = {
+        action:   UC.newRow([ UC.newButton(LANG.edit, func.opGCode) ], {class:"ext-buttons f-row"})
+    };
+
     createPopOp('level', {
         tool:    'camLevelTool',
         spindle: 'camLevelSpindle',
         step:    'camLevelOver',
         rate:    'camLevelSpeed',
-        down:    'camLevelDown'
+        down:    'camLevelDown',
+        over:    'camLevelOver'
     }).inputs = {
         tool:    UC.newSelect(LANG.cc_tool, {}, "tools"),
         sep:     UC.newBlank({class:"pop-sep"}),
@@ -922,6 +1010,7 @@ CAM.init = function(kiri, api) {
         step:    UC.newInput(LANG.cc_sovr_s, {title:LANG.cc_sovr_l, convert:UC.toFloat, bound:UC.bound(0.01,1.0)}),
         rate:    UC.newInput(LANG.cc_feed_s, {title:LANG.cc_feed_l, convert:UC.toInt, units:true}),
         down:    UC.newInput(LANG.cc_loff_s, {title:LANG.cc_loff_l, convert:UC.toFloat, units:true}),
+        over:    UC.newInput(LANG.cc_lxyo_s, {title:LANG.cc_lxyo_l, convert:UC.toFloat, units:true}),
     };
 
     createPopOp('rough', {
@@ -963,7 +1052,8 @@ CAM.init = function(kiri, api) {
         omitthru: 'camOutlineOmitThru',
         outside:  'camOutlineOut',
         inside:   'camOutlineIn',
-        wide:     'camOutlineWide'
+        wide:     'camOutlineWide',
+        top:      'camOutlineTop'
     }).inputs = {
         tool:     UC.newSelect(LANG.cc_tool, {}, "tools"),
         sep:      UC.newBlank({class:"pop-sep"}),
@@ -977,7 +1067,8 @@ CAM.init = function(kiri, api) {
         inside:   UC.newBoolean(LANG.co_olin_s, undefined, {title:LANG.co_olin_l, show:(op) => { return !op.inputs.outside.checked }}),
         outside:  UC.newBoolean(LANG.co_olot_s, undefined, {title:LANG.co_olot_l, show:(op) => { return !op.inputs.inside.checked }}),
         omitthru: UC.newBoolean(LANG.co_omit_s, undefined, {title:LANG.co_omit_l, xshow:(op) => { return op.inputs.outside.checked }}),
-        wide:     UC.newBoolean(LANG.co_wide_s, undefined, {title:LANG.co_wide_l, show:(op) => { return !op.inputs.inside.checked }})
+        wide:     UC.newBoolean(LANG.co_wide_s, undefined, {title:LANG.co_wide_l, show:(op) => { return !op.inputs.inside.checked }}),
+        top:      UC.newBoolean(LANG.co_clrt_s, undefined, {title:LANG.co_clrt_l}),
     };
 
     createPopOp('contour', {
@@ -987,6 +1078,9 @@ CAM.init = function(kiri, api) {
         rate:      'camContourSpeed',
         angle:     'camContourAngle',
         tolerance: 'camTolerance',
+        flatness:  'camFlatness',
+        bridging:  'camContourBridge',
+        bottom:    'camContourBottom',
         curves:    'camContourCurves',
         inside:    'camContourIn',
         axis:      'X'
@@ -998,10 +1092,14 @@ CAM.init = function(kiri, api) {
         step:      UC.newInput(LANG.cc_sovr_s, {title:LANG.cc_sovr_l, convert:UC.toFloat, bound:UC.bound(0.01,1.0)}),
         rate:      UC.newInput(LANG.cc_feed_s, {title:LANG.cc_feed_l, convert:UC.toInt, units:true}),
         angle:     UC.newInput(LANG.cf_angl_s, {title:LANG.cf_angl_l, convert:UC.toFloat, bound:UC.bound(45,90)}),
-        tolerance: UC.newInput(LANG.ou_toll_s, {title:LANG.ou_toll_l, convert:UC.toFloat, bound:UC.bound(0,10.0), units:true}),
+        sep:       UC.newBlank({class:"pop-sep"}),
+        flatness:  UC.newInput(LANG.ou_flat_s, {title:LANG.ou_flat_l, convert:UC.toFloat, bound:UC.bound(0,1.0), units:true, round:4}),
+        tolerance: UC.newInput(LANG.ou_toll_s, {title:LANG.ou_toll_l, convert:UC.toFloat, bound:UC.bound(0,10.0), units:true, round:4}),
+        bridging:  UC.newInput(LANG.ou_brdg_s, {title:LANG.ou_brdg_l, convert:UC.toFloat, bound:UC.bound(0,1000.0), units:true, round:4, show:(op) => op.inputs.curves.checked}),
         sep:       UC.newBlank({class:"pop-sep"}),
         curves:    UC.newBoolean(LANG.cf_curv_s, undefined, {title:LANG.cf_curv_l}),
-        inside:    UC.newBoolean(LANG.cf_olin_s, undefined, {title:LANG.cf_olin_l})
+        inside:    UC.newBoolean(LANG.cf_olin_s, undefined, {title:LANG.cf_olin_l}),
+        bottom:    UC.newBoolean(LANG.cf_botm_s, undefined, {title:LANG.cf_botm_l, show:(op,conf) => conf ? conf.process.camZBottom : 0})
     };
 
     createPopOp('trace', {
@@ -1013,19 +1111,22 @@ CAM.init = function(kiri, api) {
         down:    'camTraceDown',
         rate:    'camTraceSpeed',
         plunge:  'camTracePlunge',
+        bottom:  'camTraceBottom',
         select:  'camTraceMode'
     }).inputs = {
         tool:     UC.newSelect(LANG.cc_tool, {}, "tools"),
-        sep:      UC.newBlank({class:"pop-sep"}),
+        select:   UC.newSelect(LANG.cc_sele_s, {title:LANG.cc_sele_l}, "select"),
         mode:     UC.newSelect(LANG.cu_type_s, {title:LANG.cu_type_l}, "trace"),
         offset:   UC.newSelect(LANG.cc_offs_s, {title: LANG.cc_offs_l, show:() => (poppedRec.mode === 'follow')}, "traceoff"),
+        sep:      UC.newBlank({class:"pop-sep"}),
         spindle:  UC.newInput(LANG.cc_spnd_s, {title:LANG.cc_spnd_l, convert:UC.toInt, show:hasSpindle}),
         step:     UC.newInput(LANG.cc_sovr_s, {title:LANG.cc_sovr_l, convert:UC.toFloat, bound:UC.bound(0.01,1.0), show:(op) => popOp.trace.rec.mode === "clear"}),
         down:     UC.newInput(LANG.cc_sdwn_s, {title:LANG.cc_sdwn_l, convert:UC.toFloat, units:true}),
         rate:     UC.newInput(LANG.cc_feed_s, {title:LANG.cc_feed_l, convert:UC.toInt, units:true}),
         plunge:   UC.newInput(LANG.cc_plng_s, {title:LANG.cc_plng_l, convert:UC.toInt, units:true}),
+        sep:      UC.newBlank({class:"pop-sep", modes:MCAM, show:zBottom, poop:true }),
+        bottom:   UC.newBoolean(LANG.cf_botm_s, undefined, {title:LANG.cf_botm_l, show:(op,conf) => conf.process.camZBottom}),
         sep:      UC.newBlank({class:"pop-sep"}),
-        select:   UC.newSelect(LANG.cc_sele_s, {title:LANG.cc_sele_l}, "select"),
         menu: UC.newRow([
             UC.newButton(undefined, func.traceAdd, {icon:'<i class="fas fa-plus"></i>'}),
             UC.newButton(undefined, func.traceDone, {icon:'<i class="fas fa-check"></i>'}),
@@ -1033,23 +1134,37 @@ CAM.init = function(kiri, api) {
     };
 
     createPopOp('pocket', {
-        spindle: 'camPocketSpindle',
-        tool:    'camPocketTool',
-        step:    'camPocketOver',
-        down:    'camPocketDown',
-        rate:    'camPocketSpeed',
-        plunge:  'camPocketPlunge',
-        expand:  'camPocketExpand'
+        spindle:   'camPocketSpindle',
+        tool:      'camPocketTool',
+        step:      'camPocketOver',
+        down:      'camPocketDown',
+        rate:      'camPocketSpeed',
+        plunge:    'camPocketPlunge',
+        expand:    'camPocketExpand',
+        smooth:    'camPocketSmooth',
+        refine:    'cmaPocketRefine',
+        contour:   'camPocketContour',
+        engrave:   'camPocketEngrave',
+        outline:   'cmaPocketOutline',
+        tolerance: 'camTolerance',
     }).inputs = {
-        tool:     UC.newSelect(LANG.cc_tool, {}, "tools"),
-        sep:      UC.newBlank({class:"pop-sep"}),
-        spindle:  UC.newInput(LANG.cc_spnd_s, {title:LANG.cc_spnd_l, convert:UC.toInt, show:hasSpindle}),
-        step:     UC.newInput(LANG.cc_sovr_s, {title:LANG.cc_sovr_l, convert:UC.toFloat, bound:UC.bound(0.01,1.0)}),
-        down:     UC.newInput(LANG.cc_sdwn_s, {title:LANG.cc_sdwn_l, convert:UC.toFloat, units:true}),
-        rate:     UC.newInput(LANG.cc_feed_s, {title:LANG.cc_feed_l, convert:UC.toInt, units:true}),
-        plunge:   UC.newInput(LANG.cc_plng_s, {title:LANG.cc_plng_l, convert:UC.toInt, units:true}),
-        expand:   UC.newInput(LANG.cp_xpnd_s, {title:LANG.cp_xpnd_l, convert:UC.toFloat, units:true}),
-        sep:      UC.newBlank({class:"pop-sep"}),
+        tool:      UC.newSelect(LANG.cc_tool, {}, "tools"),
+        sep:       UC.newBlank({class:"pop-sep"}),
+        spindle:   UC.newInput(LANG.cc_spnd_s, {title:LANG.cc_spnd_l, convert:UC.toInt, show:hasSpindle}),
+        step:      UC.newInput(LANG.cc_sovr_s, {title:LANG.cc_sovr_l, convert:UC.toFloat, bound:UC.bound(0.01,1.0)}),
+        down:      UC.newInput(LANG.cc_sdwn_s, {title:LANG.cc_sdwn_l, convert:UC.toFloat, units:true, show:() => !poppedRec.contour}),
+        rate:      UC.newInput(LANG.cc_feed_s, {title:LANG.cc_feed_l, convert:UC.toInt, units:true}),
+        plunge:    UC.newInput(LANG.cc_plng_s, {title:LANG.cc_plng_l, convert:UC.toInt, units:true}),
+        sep:       UC.newBlank({class:"pop-sep"}),
+        expand:    UC.newInput(LANG.cp_xpnd_s, {title:LANG.cp_xpnd_l, convert:UC.toFloat, units:true, show:() => !poppedRec.contour}),
+        refine:    UC.newInput(LANG.cp_refi_s, {title:LANG.cp_refi_l, convert:UC.toInt, show:() => poppedRec.contour}),
+        smooth:    UC.newInput(LANG.cp_smoo_s, {title:LANG.cp_smoo_l, convert:UC.toFloat, units:true}),
+        tolerance: UC.newInput(LANG.ou_toll_s, {title:LANG.ou_toll_l, convert:UC.toFloat, bound:UC.bound(0,10.0), units:true, round:4, show:() => poppedRec.contour}),
+        sep:       UC.newBlank({class:"pop-sep"}),
+        contour:   UC.newBoolean(LANG.cp_cont_s, undefined, {title:LANG.cp_cont_s}),
+        outline:   UC.newBoolean(LANG.cp_outl_s, undefined, {title:LANG.cp_outl_l, show:() => !poppedRec.contour}),
+        engrave:   UC.newBoolean(LANG.cp_engr_s, undefined, {title:LANG.cp_engr_l, show:() => poppedRec.contour}),
+        sep:       UC.newBlank({class:"pop-sep"}),
         menu: UC.newRow([
             UC.newButton(undefined, func.surfaceAdd, {icon:'<i class="fas fa-plus"></i>'}),
             UC.newButton(undefined, func.surfaceDone, {icon:'<i class="fas fa-check"></i>'}),
@@ -1083,6 +1198,7 @@ CAM.init = function(kiri, api) {
         dwell:   'camDrillDwell',
         lift:    'camDrillLift',
         feed:    'camRegisterSpeed',
+        thru:    'camRegisterThru'
     }).inputs = {
         tool:     UC.newSelect(LANG.cc_tool, {}, "tools"),
         axis:     UC.newSelect(LANG.cd_axis, {}, "regaxis"),
@@ -1093,16 +1209,21 @@ CAM.init = function(kiri, api) {
         down:     UC.newInput(LANG.cc_sdwn_s, {title:LANG.cc_sdwn_l, convert:UC.toFloat, units:true}),
         rate:     UC.newInput(LANG.cc_plng_s, {title:LANG.cc_plng_l, convert:UC.toInt, units:true}),
         dwell:    UC.newInput(LANG.cd_dwll_s, {title:LANG.cd_dwll_l, convert:UC.toFloat, show:() => poppedRec.axis !== '-'}),
-        lift:     UC.newInput(LANG.cd_lift_s, {title:LANG.cd_lift_l, convert:UC.toFloat, units:true, show:() => poppedRec.axis !== '-'})
+        lift:     UC.newInput(LANG.cd_lift_s, {title:LANG.cd_lift_l, convert:UC.toFloat, units:true, show:() => poppedRec.axis !== '-'}),
+        sep:      UC.newBlank({class:"pop-sep"}),
+        thru:     UC.newInput(LANG.cd_thru_s, {title:LANG.cd_thru_l, convert:UC.toFloat, units:true}),
     };
 
     createPopOp('flip', {
-        axis:     'camFlipAxis'
+        axis:     'camFlipAxis',
+        invert:   'camFlipInvert'
     }).inputs = {
         axis:     UC.newSelect(LANG.cd_axis, {}, "regaxis"),
+        sep:      UC.newBlank({class:"pop-sep", modes:MCAM, show:zBottom}),
+        invert:   UC.newBoolean(LANG.cf_nvrt_s, undefined, {title:LANG.cf_nvrt_l, show:zBottom}),
         sep:      UC.newBlank({class:"pop-sep"}),
         action:   UC.newRow([
-            UC.newButton(LANG.cc_flip, func.opFlip)
+            UC.newButton(LANG.cf_menu, func.opFlip)
         ], {class:"ext-buttons f-row"})
     };
 };
@@ -1144,16 +1265,42 @@ function createPopOp(type, map) {
             }
             return rec;
         },
-        hideshow: () => {
+        hideshow: (abc) => {
             for (let inp of Object.values(op.inputs)) {
                 let parent = inp.parentElement;
                 if (parent.setVisible && parent.__opt.show) {
-                    parent.setVisible(parent.__opt.show(op));
+                    parent.setVisible(parent.__opt.show(op, API.conf.get()));
                 }
             }
         },
-        group: []
+        addNote: () => {
+            if (!op.note && type !== 'flip') {
+                const divid = `div-${++seed}`;
+                const noteid = `note-${++seed}`;
+                const div = document.createElement('div');
+                div.setAttribute('id', divid);
+                div.classList.add('pop-tics')
+                op.div.appendChild(div);
+                div.innerHTML = h.build(
+                    h.div([ h.label({ id: noteid }) ])
+                );
+                op.note = { divid, noteid };
+            }
+            if (op.note) {
+                const { divid, noteid } = op.note;
+                $(divid).onclick = () => {
+                    let note = op.x = prompt('Edit Note for Operation', poppedRec.note || '');
+                    if (note !== undefined && note !== null) {
+                        $(noteid).innerText = poppedRec.note = note;
+                        API.conf.save();
+                    }
+                };
+                $(noteid).innerText = poppedRec.note || '';
+            }
+        },
+        group: [],
     };
+
     UC.restore({
         addTo: op.div,
         bindTo: op.bind,
@@ -1166,17 +1313,17 @@ function createPopOp(type, map) {
 function createTabBox(iw, ic, n) {
     const { track } = iw;
     const { stock, bounds, process } = API.conf.get();
-    const { camTabsWidth, camTabsHeight, camTabsDepth, camTabsMidline } = process;
+    const { camTabsWidth, camTabsHeight, camTabsDepth, camTabsMidline, camZBottom } = process;
     const sz = stock.z || bounds.max.z;
     const zto = sz - iw.track.top;
-    const zp = sz - track.box.d + process.camZBottom - zto + (camTabsMidline ? 0 : camTabsHeight / 2);
+    const zp = (camZBottom ? camZBottom : sz - track.box.d - zto) + (camTabsMidline ? 0 : camTabsHeight / 2);
     ic.x += n.x * camTabsDepth / 2; // offset from part
     ic.z -= n.y * camTabsDepth / 2; // offset swap z,y
     ic.y = zp; // offset swap in world space y,z
     const rot = new THREE.Quaternion().setFromAxisAngle(zaxis, Math.atan2(n.y, n.x));
     const pos = { x:ic.x, y:ic.y, z:ic.z };
     const dim = { x:camTabsDepth, y:camTabsWidth, z:camTabsHeight };
-    const tab = addbox(pos, 0x0000dd, 'tabb', dim, { rotate: rot });
+    const tab = addbox(pos, boxColor(), 'tabb', dim, { rotate: rot, opacity: boxOpacity() });
     return { pos, dim, rot, tab, width: camTabsWidth, height: camTabsHeight };
 }
 
@@ -1186,8 +1333,8 @@ function addWidgetTab(widget, rec) {
     // prevent duplicate restore from repeated settings load calls
     if (!tabs[id]) {
         pos.box = addbox(
-            pos, 0x0000dd, id,
-            dim, { group: widget.mesh, rotate: rot }
+            pos, boxColor(), id,
+            dim, { group: widget.mesh, rotate: rot, opacity: boxOpacity() }
         );
         pos.box.tab = Object.assign({widget, id}, pos);
         widget.adds.push(pos.box);
@@ -1217,6 +1364,18 @@ function clearTabs(widget, skiprec) {
     }
 }
 
+function updateTabs() {
+    // update tab color and opacity
+    API.widgets.all().forEach(widget => {
+        Object.values(widget.tabs || {}).forEach(rec => {
+            for (let rec of widget.adds || []) {
+                rec.material.color = new THREE.Color(boxColor());
+                rec.material.opacity = boxOpacity();
+            }
+        });
+    });
+}
+
 function unselectTraces(widget, skip) {
     if (widget.trace_stack) {
         widget.trace_stack.meshes.forEach(mesh => {
@@ -1227,8 +1386,34 @@ function unselectTraces(widget, skip) {
     }
 }
 
+function validateTools(tools) {
+    if (tools) {
+        let max = 0;
+        for (let t of tools) {
+            if (Number.isInteger(t.number)) {
+                max = Math.max(max, t.number);
+            }
+        }
+        for (let t of tools) {
+            if (!Number.isInteger(t.number)) {
+                t.number = ++max;
+                console.log('added tool #', t);
+            }
+        }
+    }
+}
+
 function addbox() { return FDM.addbox(...arguments)};
+
 function delbox() { return FDM.delbox(...arguments)};
+
+function boxColor() {
+    return API.space.is_dark() ? 0x00ddff : 0x0000dd;
+}
+
+function boxOpacity() {
+    return API.space.is_dark() ? 0.75 : 0.6;
+}
 
 function animate() {
     isAnimate = true;
@@ -1249,10 +1434,10 @@ function updateStock(args, event) {
     }
 
     if (!isCamMode) {
-        if (camStock) {
-            SPACE.world.remove(camStock);
-            camStock = null;
-        }
+        SPACE.world.remove(camZBottom);
+        SPACE.world.remove(camStock);
+        camStock = null;
+        camZBottom = null;
         return;
     }
 
@@ -1274,39 +1459,39 @@ function updateStock(args, event) {
     UI.func.animate.classList.add('disabled');
 
     // create/inject cam stock if stock size other than default
+    let csx = proc.camStockX;
+    let csy = proc.camStockY;
+    let csz = proc.camStockZ;
+    let min = { x: Infinity, y: Infinity, z: 0 };
+    let max = { x: -Infinity, y: -Infinity, z: -Infinity };
+    widgets.forEach(function(widget) {
+        let wbnd = widget.getBoundingBox(refresh);
+        let wpos = widget.track.pos;
+        min = {
+            x: Math.min(min.x, wpos.x + wbnd.min.x),
+            y: Math.min(min.y, wpos.y + wbnd.min.y),
+            z: 0
+        };
+        max = {
+            x: Math.max(max.x, wpos.x + wbnd.max.x),
+            y: Math.max(max.y, wpos.y + wbnd.max.y),
+            z: Math.max(max.z, wbnd.max.z)
+        };
+    });
+    if (offset) {
+        csx += max.x - min.x;
+        csy += max.y - min.y;
+        csz += max.z - min.z;
+        csox = min.x + ((max.x - min.x) / 2);
+        csoy = min.y + ((max.y - min.y) / 2);
+    }
     if (compute) {
         UI.func.animate.classList.remove('disabled');
-        let csx = proc.camStockX;
-        let csy = proc.camStockY;
-        let csz = proc.camStockZ;
-        if (offset) {
-            let min = { x: Infinity, y: Infinity, z: 0 };
-            let max = { x: -Infinity, y: -Infinity, z: -Infinity };
-            widgets.forEach(function(widget) {
-                let wbnd = widget.getBoundingBox(refresh);
-                let wpos = widget.track.pos;
-                min = {
-                    x: Math.min(min.x, wpos.x + wbnd.min.x),
-                    y: Math.min(min.y, wpos.y + wbnd.min.y),
-                    z: 0
-                };
-                max = {
-                    x: Math.max(max.x, wpos.x + wbnd.max.x),
-                    y: Math.max(max.y, wpos.y + wbnd.max.y),
-                    z: Math.max(max.z, wbnd.max.z)
-                };
-            });
-            csx += max.x - min.x;
-            csy += max.y - min.y;
-            csz += max.z - min.z;
-            csox = min.x + ((max.x - min.x) / 2);
-            csoy = min.y + ((max.y - min.y) / 2);
-        }
         if (!camStock) {
             let geo = new THREE.BoxGeometry(1, 1, 1);
             let mat = new THREE.MeshBasicMaterial({
                 color: 0x777777,
-                opacity: 0.2,
+                opacity: 0.05,
                 transparent: true,
                 side:THREE.DoubleSide
             });
@@ -1335,6 +1520,32 @@ function updateStock(args, event) {
         SPACE.world.remove(camStock);
         camStock = null;
         delta = 0;
+    }
+
+    SPACE.world.remove(camZBottom);
+    if (proc.camZBottom && widgets.length) {
+        let max = { x: csx, y: csy, z: csz };
+        for (let w of widgets) {
+            max.x = Math.max(max.x, w.track.box.w);
+            max.y = Math.max(max.y, w.track.box.h);
+            max.z = Math.max(max.z, w.track.box.d);
+        }
+        let geo = new THREE.PlaneGeometry(max.x, max.y);
+        let mat = new THREE.MeshBasicMaterial({
+            color: 0x777777,
+            opacity: 0.55,
+            transparent: true,
+            side:THREE.DoubleSide
+        });
+        camZBottom = new THREE.Mesh(geo, mat);
+        camZBottom._max = max;
+        camZBottom.renderOrder = 1;
+        camZBottom.position.x = csox;
+        camZBottom.position.y = csoy;
+        camZBottom.position.z = proc.camZBottom;
+        SPACE.world.add(camZBottom);
+    } else {
+        camZBottom = undefined;
     }
 
     const {x, y, z} = stock;

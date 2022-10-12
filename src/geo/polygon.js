@@ -3,6 +3,7 @@
 "use strict";
 
 // dep: geo.base
+// dep: geo.paths
 // dep: ext.clip2
 // dep: ext.earcut
 // dep: geo.point
@@ -57,6 +58,14 @@ class Polygon {
             bounds.update(point);
         }
         return bounds;
+    }
+
+    toPath2D(offset) {
+        return base.paths.pointsToPath(this.points, offset, this.open);
+    }
+
+    toPath3D(offset, height, z) {
+        return base.paths.pathTo3D(this.toPath2D(offset), height, z);
     }
 
     toString(verbose) {
@@ -1621,18 +1630,17 @@ class Polygon {
      * @param {Polygon} poly clipping mask
      * @returns {?Polygon[]}
      */
-    mask(poly, nullOnEquiv) {
+    mask(poly, nullOnEquiv, minarea) {
         let fillang = this.fillang && this.area() > poly.area() ? this.fillang : poly.fillang,
             clip = new clib.Clipper(),
             ctre = new clib.PolyTree(),
             sp1 = this.toClipper(),
             sp2 = poly.toClipper();
-
         clip.AddPaths(sp1, ptyp.ptSubject, true);
         clip.AddPaths(sp2, ptyp.ptClip, true);
 
         if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftEvenOdd, cfil.pftEvenOdd)) {
-            poly = POLY.fromClipperTree(ctre, poly.getZ());
+            poly = POLY.fromClipperTree(ctre, this.getZ(), undefined, undefined, minarea);
             poly.forEach(p => {
                 p.fillang = fillang;
             })
@@ -1645,6 +1653,8 @@ class Polygon {
         }
     }
 
+    // cut poly using array of closed polygons. used primarily in cnc
+    // to cut perimeters using tabs resulting in open poly lines.
     cut(polys, inter) {
         let target = this;
 
@@ -1686,7 +1696,7 @@ class Polygon {
         }
     }
 
-
+    // find the intersection of two polygons
     intersect(poly, min) {
         if (!this.overlaps(poly)) return null;
 
@@ -1803,6 +1813,66 @@ class Polygon {
 
         return null;
     }
+
+    annotate(obj = {}) {
+        Object.assign(this, obj);
+        return this;
+    }
+
+    // turn 2d polygon into closed 3d mesh faces
+    extrude(z = 1) {
+        let poly = this.clone().setClockwise();
+        let faces = [];
+        let points = poly.points;
+        let length = points.length;
+        for (let i=0; i<length; i++) {
+            let p0 = points[i];
+            let p1 = points[(i + 1) % length];
+            faces.push(p0.x, p0.y, p0.z);
+            faces.push(p1.x, p1.y, p0.z);
+            faces.push(p1.x, p1.y, p1.z + z);
+            faces.push(p0.x, p0.y, p0.z);
+            faces.push(p1.x, p1.y, p1.z + z);
+            faces.push(p0.x, p0.y, p0.z + z);
+        }
+        return faces;
+    }
+
+    // split long straight lines into segments no longer than max
+    // and return a new polygon
+    segment(max = 1) {
+        const newp = [];
+        const points = this.points;
+        const length = points.length;
+        for (let i=0, p=points, l1=length, l2=l1+1; i<l1; i++) {
+            const p1 = p[i];
+            const p2 = p[(i + 1) % l1];
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            const dl = Math.sqrt(dx * dx + dy * dy);
+            newp.push(p1);
+            if (dl < max) {
+                continue;
+            }
+            const div = dl / max;
+            const fit = div | 0;
+            const add = fit - 1;
+            const ix = dx / fit;
+            const iy = dy / fit;
+            let ox = p1.x + ix;
+            let oy = p1.y + iy;
+            for (let i=0; i<add; i++) {
+                newp.push(newPoint(ox, oy, (p1.z + p2.z) / 2));
+                ox += ix;
+                oy += iy;
+            }
+        }
+        if (newp.length > length) {
+            return newPolygon().addPoints(newp.map(p => p.clone()));
+        }
+        return this;
+    }
+
 }
 
 // use Slope.angleDiff() then re-test path mitering / rendering

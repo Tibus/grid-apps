@@ -31,13 +31,15 @@ class Topo {
             contourY = axis === "y",
             bounds = widget.getBoundingBox().clone(),
             tolerance = contour.tolerance,
+            flatness = contour.flatness || 0.005,
+            bridge = contour.bridging || 0,
             proc = settings.process,
             shadow = tshadow,
             minX = bounds.min.x,
             maxX = bounds.max.x,
             minY = bounds.min.y,
             maxY = bounds.max.y,
-            zBottom = proc.camZBottom,
+            zBottom = contour.bottom ? state.zBottom : 0,
             zMin = Math.max(bounds.min.z, zBottom) + 0.0001,
             boundsX = maxX - minX,
             boundsY = maxY - minY,
@@ -53,7 +55,9 @@ class Topo {
             R2A = 180 / Math.PI,
             stepsx = Math.ceil(boundsX / resolution),
             stepsy = Math.ceil(boundsY / resolution),
-            topo = widget.topo = {
+            widtopo = widget.topo,
+            topoCache = widtopo && widtopo.resolution === resolution ? widtopo : undefined,
+            topo = widget.topo = topoCache || {
                 data: new Float32Array(stepsx * stepsy),
                 stepsx: stepsx,
                 stepsy: stepsy,
@@ -81,8 +85,8 @@ class Topo {
             debug_topo_shells = debug && true,
             time = Date.now;
 
-        if (tolerance == 0) {
-            console.log(`contour auto tolerance`,resolution.round(4));
+        if (tolerance === 0 && !topoCache) {
+            console.log(widget.id, 'topo auto tolerance', resolution.round(4));
         }
 
         this.tolerance = resolution;
@@ -142,12 +146,29 @@ class Topo {
             return Math.max(mz, 0);
         }
 
+        // export z probe function
+        const rx = stepsx / boundsX;
+        const ry = stepsx / boundsX;
+        this.toolAtXY = function(px, py) {
+            px = Math.round(rx * (px - minX));
+            py = Math.round(ry * (py - minY));
+            return toolAtZ(px, py);
+        };
+
+        const zAtXY = this.zAtXY = function(px, py) {
+            let ix = Math.round(rx * (px - minX));
+            let iy = Math.round(ry * (py - minY));
+            return topo.data[ix * stepsy + iy] || zMin;
+        };
+
         function push_point(x,y,z) {
             const newP = newPoint(x,y,z);
             // todo: merge co-linear, not just co-planar
-            if (lastP && Math.abs(lastP.z - z) < 0.005) {
+            if (lastP && Math.abs(lastP.z - z) < flatness) {
                 if (curvesOnly) {
-                    end_poly();
+                    if ((newtrace.last() || lastP).distTo2D(newP) >= bridge) {
+                        end_poly();
+                    }
                 } else {
                     latent = newP;
                 }
@@ -189,7 +210,7 @@ class Topo {
 
         function raster(slices) {
             if (!topo.raster) {
-                // console.log({skipping_raster: widget.id});
+                console.log(widget.id, 'topo raster cached');
                 return;
             }
             topo.raster = false;

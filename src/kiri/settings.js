@@ -91,8 +91,9 @@ function showSettings() {
 function updateSettings(opt = {}) {
     const { controller, device, process, mode, sproc, cproc } = settings;
     const { uc } = api;
+    const changes = {};
 
-    updateSettingsFromFields(controller);
+    updateSettingsFromFields(controller, undefined, changes);
 
     switch (controller.units) {
         case 'mm': uc.setUnits(1); break;
@@ -104,7 +105,7 @@ function updateSettings(opt = {}) {
         return;
     }
 
-    updateSettingsFromFields(device);
+    updateSettingsFromFields(device, undefined, changes);
 
     // range-specific values
     if (settings.mode === 'FDM' && api.view.is_slice()) {
@@ -123,11 +124,16 @@ function updateSettings(opt = {}) {
             updateRange(range.lo, range.hi, changes, add);
         }
     } else {
-        updateSettingsFromFields(process);
+        updateSettingsFromFields(process, undefined, changes);
     }
 
     if (device.extruders && device.extruders[device.internal]) {
         updateSettingsFromFields(device.extruders[device.internal]);
+    }
+
+    // invalidate slice, preview, export on settings changes
+    if (Object.keys(changes).length) {
+        api.function.clear_progress();
     }
 
     api.conf.save();
@@ -161,7 +167,6 @@ function updateSettingsFromFields(setrec, uirec = api.ui, changes) {
     if (!setrec) {
         return console.trace("missing scope");
     }
-
     let lastChange = api.uc.lastChange();
 
     // for each key in setrec object
@@ -500,7 +505,7 @@ function settingsImport(data, ask) {
     const { uc, ui } = api;
     if (typeof(data) === 'string') {
         try {
-            data = api.util.b64dec(data);
+            data = data.charAt(0) === '{' ? JSON.parse(data) : api.util.b64dec(data);
         } catch (e) {
             uc.alert('invalid import format');
             console.log('data',data,{type: typeof data},e);
@@ -592,8 +597,9 @@ function settingsImport(data, ask) {
 }
 
 function settingsImportUrl(url, ask) {
-    fetch(url).then(r => r.arrayBuffer()).then(a => {
-        settingsImport(a, ask);
+    const kmz = url.endsWith(".kmz");
+    fetch(url).then(r => kmz ? r.arrayBuffer() : r.text()).then(a => {
+        kmz ? settingsImportZip(a, ask) : settingsImport(a, ask);
     }).catch(error => {
         console.log({workspace_url: url, error: error.message || error});
         api.show.alert('workspace load failed');
@@ -618,6 +624,11 @@ function settingsImportZip(data, ask) {
 function settingsPrusaConvert(data) {
     const { uc } = api;
     const map = {};
+    const vsub = {
+        '[first_layer_bed_temperature]': '{bed_temp}',
+        '[first_layer_temperature]': '{temp}',
+        '[layer_z]': '{z}'
+    };
     try {
         data.split('\n')
             .filter(l => l.charAt(0) !== '#')
@@ -625,7 +636,13 @@ function settingsPrusaConvert(data) {
             .map(l => {
                 // convert gcode string into a string array
                 if (l[0].indexOf('_gcode') > 0) {
-                    l[1] = l[1].replaceAll('\\n','\n').split('\n');
+                    l[1] = l[1].replaceAll('\\n','\n').split('\n')
+                        .map(line => {
+                            for (let [k,v] of Object.entries(vsub)) {
+                                line = line.replace(k,v);
+                            }
+                            return line;
+                        });
                 }
                 return l;
             })

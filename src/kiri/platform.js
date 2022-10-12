@@ -14,10 +14,11 @@
 // use: kiri-mode.cam.tool
 gapp.register("kiri.platform", [], (root, exports) => {
 
-const { kiri, moto, load } = root;
+const { base, kiri, moto, load } = root;
 const { api, consts, driver, utils, newWidget, Widget } = kiri;
 const { ajax, js2o } = utils;
 const { space } = moto;
+const { util } = base;
 const { COLOR, MODES } = consts;
 
 let grouping = false;
@@ -203,8 +204,8 @@ function platformUpdateSelected() {
                 }
                 ui.mesh.name.innerText = name;
             }
-            ui.mesh.points.innerText = sel.meta.vertices;
-            ui.mesh.faces.innerText = sel.meta.vertices / 3;
+            ui.mesh.points.innerText = util.comma(sel.meta.vertices);
+            ui.mesh.faces.innerText = util.comma(sel.meta.vertices / 3);
         } else {
             ui.mesh.name.innerText = `[${selcount}]`;
             ui.mesh.points.innerText = '-';
@@ -328,7 +329,7 @@ function platformLoad(url, onload) {
     }
 }
 
-function platformLoadSTL(url, onload, formdata) {
+function platformLoadSTL(url, onload, formdata, credentials, headers) {
     new load.STL().load(url, (vertices, filename) => {
         if (vertices) {
             let widget = newWidget().loadVertices(vertices);
@@ -338,7 +339,7 @@ function platformLoadSTL(url, onload, formdata) {
                 onload(vertices, widget);
             }
         }
-    }, formdata, 1 / api.view.unit_scale());
+    }, formdata, 1 / api.view.unit_scale(), credentials, headers);
 }
 
 function platformLoadURL(url, options = {}) {
@@ -714,7 +715,7 @@ function platformLoadFiles(files, group) {
                     load_dec();
                 };
                 if (objs.length > 1 && !group) {
-                    UC.confirm('group objects?').then(ok => {
+                    api.uc.confirm('group objects?').then(ok => {
                         if (ok) {
                             group = [];
                         }

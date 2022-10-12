@@ -10,6 +10,7 @@ gapp.register("mesh.build", [], (root, exports) => {
 const { broker } = gapp;
 const { mesh } = root;
 const { api, util } = mesh;
+const devel = api.isDebug;
 
 let call = broker.send;
 let rad = 180 / Math.PI;
@@ -223,10 +224,10 @@ api.welcome = function(version = "unknown") {
 api.settings = function() {
     const { util } = mesh;
     const { prefs } = api;
-    const { surface, normals, space } = prefs.map;
+    const { surface, normals, space, wireframe } = prefs.map;
     const { dark } = space;
 
-    const col1 = h.div([
+    const set1 = h.div([
         h.label('dark mode'),
         h.input({ type: "checkbox",
             onchange: ev => call.set_darkmode(ev.target.checked),
@@ -244,9 +245,20 @@ api.settings = function() {
         }),
     ]);
 
-    const col2 = h.div([
-        h.label(''),
-        h.label('normals'),
+    const set2 = h.div([
+        h.label({ class: "header", _: 'wire'}),
+        h.label('opacity'),
+        h.input({ type: "text", size: 5, value: parseFloat(wireframe.opacity),
+            onchange: ev => call.set_wireframe_opacity(ev.target.value)
+        }),
+        h.label('fog x'),
+        h.input({ type: "text", size: 5, value: parseFloat(wireframe.fog),
+            onchange: ev => call.set_wireframe_fog(ev.target.value)
+        }),
+    ]);
+
+    const set3 = h.div([
+        h.label({ class: "header", _: 'normal'}),
         h.label('length'),
         h.input({ type: "text", size: 5, value: parseFloat(normals.length),
             onchange: ev => call.set_normals_length(ev.target.value)
@@ -258,9 +270,8 @@ api.settings = function() {
         }),
     ]);
 
-    const col3 = h.div([
-        h.label(''),
-        h.label('surface'),
+    const set4 = h.div([
+        h.label({ class: "header", _: 'surface'}),
         h.label('radians'),
         h.input({ type: "text", size: 5, value: parseFloat(surface.radians),
             onchange: ev => call.set_surface_radians(ev.target.value)
@@ -271,11 +282,15 @@ api.settings = function() {
         }),
     ]);
 
-    modal.show('settings', h.div({ class: "settings" }, [ col1, col2, col3 ] ));
+    modal.show('settings', h.div({ class: "settings" }, [ set1, set2, set3, set4 ] ));
 }
 
 // create html elements
 function ui_build() {
+    const trash = FontAwesome.icon({ prefix: "fas", iconName: "trash" }).html[0];
+    const eye_open = FontAwesome.icon({ prefix: "fas", iconName: "eye" }).html[0];
+    const eye_closed = FontAwesome.icon({ prefix: "fas", iconName: "eye-slash" }).html[0];
+
     // set app version
     $h('app-name', "Mesh:Tool");
     $h('app-vers', 'beta' /* gapp.version */);
@@ -325,62 +340,94 @@ function ui_build() {
     h.bind(logger, [ h.div({ id: 'logtext' }) ]);
 
     // a few shortcuts to api calls
-    let { file, selection, mode, tool, prefs } = api;
+    let { file, selection, mode, tool, prefs, add } = api;
 
     // top/center mode selector
-    h.bind(modes, [
+    h.bind(modes, [ h.div([
         h.button({ _: 'object', id: "mode-object", onclick() { mode.object() } }),
-        h.button({ _: 'face', id: "mode-face", onclick() { mode.face() } }),
-        h.button({ _: 'line', id: "mode-line", onclick() { mode.line() } }),
-        h.button({ _: 'vertex', id: "mode-vertex", onclick() { mode.vertex() } }),
+        h.button({ _: 'tool', id: "mode-tool", onclick() { mode.tool() } }),
+    ]), h.div([
         h.button({ _: 'surface', id: "mode-surface", onclick() { mode.surface() } }),
-    ]);
+        h.button({ _: 'face', id: "mode-face", onclick() { mode.face() } }),
+    ]) ]);
 
     // create hotkey/action menu (top/left)
     h.bind(actions, [
         h.div([
             // create and bind file loading elements
             h.div({ _: "file", class: "head" }),
-            // h.div({ class: "vsep" }),
-            h.button({ _: 'import', onclick: file.import }, [
-                h.input({
-                    id: "import", type: "file", class: ["hide"], multiple: true,
-                    onchange(evt) { broker.send.load_files(evt.target.files) }
-                })
-            ]),
-            h.button({ _: 'export', onclick: file.export }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'import', onclick: file.import }, [
+                    h.input({
+                        id: "import", type: "file", class: ["hide"], multiple: true,
+                        onchange(evt) { broker.send.load_files(evt.target.files) }
+                    })
+                ]),
+                h.button({ _: 'export', onclick: file.export }),
+            ])
+        ]),
+        h.div([
+            h.div({ _: "add", class: "head" }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'cylinder', onclick: add.cylinder }),
+                h.button({ _: 'cube', onclick: add.cube }),
+                devel ? h.button({ _: 'input', onclick: add.input }) : undefined
+            ])
         ]),
         h.div([
             h.div({ _: "view", class: "head" }),
-            // h.div({ class: "vsep" }),
-            h.button({ _: 'visible', onclick() { selection.visible({ toggle: true }) } }),
-            h.button({ _: 'bounds', onclick() { selection.boundsBox({ toggle: true }) } }),
-            h.button({ _: 'gridlines', onclick() { api.grid() } }),
-            h.button({ _: 'normals', onclick() { api.normals() } }),
-            h.button({ _: 'wireframe', onclick() { api.wireframe() } }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'bounds', onclick() { selection.boundsBox({ toggle: true }) } }),
+                h.button({ _: 'normals', onclick() { api.normals() } }),
+                h.button({ _: 'gridlines', onclick() { api.grid() } }),
+                h.button({ _: 'wireframe', onclick() { api.wireframe() } }),
+            ])
+        ]),
+        h.div([
+            h.div({ _: "boolean", class: "head" }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'union', onclick: tool.union }),
+                h.button({ _: 'subtract', onclick: tool.subtract }),
+                h.button({ _: 'intersect', onclick: tool.intersect }),
+            ])
         ]),
         h.div([
             h.div({ _: "models", class: "head" }),
-            // h.div({ class: "vsep" }),
-            h.button({ _: 'duplicate', onclick: tool.duplicate }),
-            h.button({ _: 'regroup', onclick: tool.regroup }),
-            h.button({ _: 'merge', onclick: tool.merge }),
-            h.button({ _: 'mirror', onclick: tool.mirror }),
-            h.button({ _: 'union', onclick: tool.union }),
-            h.button({ _: 'split', onclick: call.edit_split }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'regroup', onclick: tool.regroup }),
+                h.span(),
+                h.button({ _: 'duplicate', onclick: tool.duplicate }),
+                h.button({ _: 'mirror', onclick: tool.mirror }),
+                h.button({ _: 'merge', onclick: tool.merge }),
+                h.button({ _: 'split', onclick: call.edit_split }),
+                h.span(),
+                h.button({ _: 'delete', onclick: api.selection.delete }),
+            ])
         ]),
         h.div([
-            h.div({ _: "normal", class: "head" }),
-            h.button({ _: 'invert', onclick: tool.invert }),
+            h.div({ _: "faces", class: "head" }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'invert\nnormals', onclick: tool.invert }),
+                h.span(),
+                h.button({ _: 'delete', onclick: api.selection.delete }),
+            ])
         ]),
         h.div([
             h.div({ _: "repair", class: "head" }),
-            // h.div({ class: "vsep" }),
-            h.button({ _: 'analyze', onclick: tool.analyze }),
-            h.button({ _: 'isolate', onclick: tool.isolate }),
-            h.button({ _: 'patch', onclick: tool.repair }),
-            // h.button({ _: 'rebuild', onclick: tool.rebuild }),
-            h.button({ _: 'clean', onclick: tool.clean }),
+            h.div({ class: "back"}),
+            h.div({ class: "pop"}, [
+                h.button({ _: 'analyze', onclick: tool.analyze }),
+                h.button({ _: 'isolate', onclick: tool.isolate }),
+                h.button({ _: 'patch', onclick: tool.repair }),
+                // h.button({ _: 'rebuild', onclick: tool.rebuild }),
+                h.button({ _: 'clean', onclick: tool.clean }),
+            ])
         ]),
     ]);
 
@@ -418,25 +465,39 @@ function ui_build() {
             .map(g => h.div([
                 h.button({ _: g.name || `group`, title: g.id,
                     class: [ "group", selHas(g) ? 'selected' : undefined ],
-                    onclick(e) {
-                        e.shiftKey ? selection.toggle(g) : selection.set([g])
-                    }
+                    onclick(e) { selection.toggle(g) }
                 }),
-                h.div({ class: "vsep" }),
                 h.div({ class: "models"},
                     // map models to buttons
-                    g.models.map(m => h.button({ _: m.file || m.id,
-                        class: [
-                            selHas(m) ? 'selected' : undefined,
-                            m.visible() ? undefined : 'hidden'
-                        ],
-                        onclick(e) {
-                            let sel = selection.list();
-                            e.shiftKey || (sel.length === 1 && m === sel[0]) ?
-                                selection.toggle(m) :
-                                selection.set([m])
-                        }
-                    }))
+                    g.models.map(m => [
+                        h.button({ _: m.file || m.id,
+                            class: [ selHas(m) ? 'selected' : undefined ],
+                            onclick(e) {
+                                if (e.shiftKey) {
+                                    tool.rename([ m ]);
+                                } else {
+                                    selection.toggle(m);
+                                }
+                            },
+                            onmouseover(e) {
+                                if (!m.wireframe().enabled) {
+                                    m.opacity({temp: 0.5});
+                                }
+                            },
+                            onmouseleave(e) {
+                                if (!m.wireframe().enabled) {
+                                    m.opacity({restore: true});
+                                }
+                            }
+                        }),
+                        h.button({
+                            class: [ 'square' ],
+                            onclick(e) {
+                                m.visible({ toggle: true });
+                                update_selector();
+                            }
+                        }, [ h.raw(m.visible() ? eye_open : eye_closed) ])
+                    ])
                 )
             ]));
         h.bind(grouplist, groups);
@@ -485,6 +546,7 @@ function ui_build() {
         if (s_mdl.length === 0) {
             return h.bind(selectlist, []);
         }
+
         // toggle-able stat block generator
         let sdata = {};
         function sblock(label, title, grid) {
@@ -501,11 +563,12 @@ function ui_build() {
                 ])
             ];
         }
+
         // map selection to divs
         let g_pos = util.average(s_grp.map(g => g.object.position));
         let g_rot = util.average(s_grp.map(g => g.object.rotation));
         let g_id = s_grp.map(g => g.id).join(' ');
-        let h_grp = sblock('group', g_id, grid(
+        let h_grp = sblock('orient', g_id, grid(
             util.extract(g_pos, map),
             util.extract(g_rot).map(r => (r * rad).round(2).toFixed(map.fixed)),
             und, und, 'group'
@@ -514,17 +577,8 @@ function ui_build() {
         let m_pos = util.average(s_mdl.map(m => m.object.position));
         let m_rot = util.average(s_mdl.map(m => m.object.rotation));
         let m_id = s_mdl.map(m => m.id).join(' ');
-        let h_mdl = sblock('model', m_id, grid(
-            util.extract(m_pos, map),
-            util.extract(m_rot, map)
-        ));
 
         let bounds = util.bounds(s_mdl);
-        let h_bnd = sblock('box', m_id, grid(
-            util.extract(bounds.min, map),
-            util.extract(bounds.max, map),
-            [ "min", "max" ]
-        ));
         let h_ara = sblock('span', m_id, grid(
             util.extract(bounds.center, map),
             util.extract(bounds.size, map),
@@ -544,13 +598,29 @@ function ui_build() {
                 h.label({ _: util.comma(t_face) }),
             ])
         ])];
+
+        let m_viz = !s_mdl.map(m => !m.visible()).reduce((v,b) => v || b);
+        let h_ops = [h.div([
+            h.button({ _: `ops` }),
+            h.div({ class: ["grid","grid1"]}, [
+                h.div({ class: [ 'square' ],
+                    onclick(e) {
+                        api.selection.visible(!m_viz);
+                        update_selector();
+                    }
+                }, [ h.raw(m_viz ? eye_open : eye_closed) ]),
+                h.div({ class: [ 'square' ],
+                    onclick(e) { api.selection.delete() }
+                }, [ h.raw(trash) ])
+            ])
+        ])];
+
         // bind elements to selectlist div
         let bound = h.bind(selectlist, [
             ...h_grp,
-            ...h_mdl,
-            ...h_bnd,
             ...h_ara,
-            ...h_msh
+            ...h_msh,
+            ...h_ops
         ]);
 
         // bind rotation editable fields

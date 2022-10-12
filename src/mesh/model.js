@@ -40,6 +40,15 @@ let materials = mesh.material = {
         color: 0x00e000,
         opacity: 1
     }),
+    // model selected as tool
+    tool: new MeshPhongMaterial({
+        side: DoubleSide,
+        transparent: true,
+        shininess: 125,
+        specular: 0x202020,
+        color: 0xe00000,
+        opacity: 1
+    }),
     // face selected (for groups ranges)
     face: new MeshPhongMaterial({
         side: DoubleSide,
@@ -78,6 +87,7 @@ mesh.model = class MeshModel extends mesh.object {
         this.mats = {
             normal: materials.normal.clone(),
             select: materials.select.clone(),
+            tool: materials.tool.clone(),
             face: materials.face.clone()
         };
 
@@ -103,6 +113,10 @@ mesh.model = class MeshModel extends mesh.object {
 
     get matrix() {
         return this.mesh.matrixWorld.elements;
+    }
+
+    get matrixWorld() {
+        return this.mesh.matrixWorld;
     }
 
     // override and translate mesh
@@ -266,20 +280,29 @@ mesh.model = class MeshModel extends mesh.object {
     }
 
     // get, set, or toggle selection of model (coloring)
-    select(bool) {
+    select(bool, stool) {
+        const cmat = this.mesh.material[0];
+        const { normal, select, tool } = this.mats;
         if (bool === undefined) {
-            return this.mesh.material[0] === this.mats.normal;
+            return cmat !== normal;
         }
         if (bool.toggle) {
-            return this.select(!this.select());
+            return this.select(!this.select(), cmat === tool);
         }
-        this.mesh.material[0] = bool ? this.mats.select : this.mats.normal;
+        this.mesh.material[0] = bool ? (stool ? tool : select) : normal;
         return bool;
     }
 
     // return selected state
     selected() {
         return this.select();
+    }
+
+    tool(bool) {
+        if (bool === undefined) {
+            return this.mesh.material[0] === this.mats.tool;
+        }
+        return this.select(this.selected(), bool);
     }
 
     opacity(ov, opt = {}) {
@@ -426,15 +449,6 @@ mesh.model = class MeshModel extends mesh.object {
         });
     }
 
-    zlist(round = 2) {
-        return new Promise((resolve,reject) => {
-            let { id, matrix } = this;
-            worker.model_zlist({id, matrix, round}).then(data => {
-                resolve(data);
-            });
-        });
-    }
-
     // release from a group but remain in memory and storage
     // so it can be re-assigned to another group
     ungroup() {
@@ -529,14 +543,32 @@ mesh.model = class MeshModel extends mesh.object {
 
     selectFaces(list = [], action = {}) {
         let faces = this.sel.faces;
-        for (let t of list) {
-            if (action.toggle) {
-                faces.remove(t) || faces.addOnce(t);
-            } else if (action.clear) {
-                faces.remove(t);
-            } else if (action.select) {
-                faces.addOnce(t);
+        let map = {};
+        for (let f of list) {
+            map[f] = f;
+        }
+        if (action.toggle) {
+            faces = faces.filter(f => {
+                if (map[f] !== undefined) {
+                    map[f] = undefined;
+                    return false;
+                } else {
+                    return true;
+                }
+            });
+            faces.appendAll(Object.entries(map).filter(kv => {
+                return kv[1] !== undefined;
+            }).map(kv => {
+                return kv[1];
+            }));
+            this.sel.faces = faces;
+        } else if (action.clear) {
+            this.sel.faces = faces.filter(f => map[f] === undefined);
+        } else if (action.select) {
+            for (let f of faces) {
+                map[f] = undefined;
             }
+            faces.appendAll(Object.values(map).filter(f => f !== undefined));
         }
     }
 
@@ -576,9 +608,11 @@ mesh.model = class MeshModel extends mesh.object {
             timer = undefined;
             mesh.api.log.emit("matching surface").pin();
         }, 150);
+        // let mark = Date.now();
         worker.model_select({
             id: this.id, x, y:-z, z:y, a, b, c, matrix: this.matrix, surface
         }).then(data => {
+            // mesh.api.log.emit(`... data time = ${Date.now() - mark}`); mark = Date.now();
             if (timer) {
                 clearTimeout(timer);
             }
@@ -586,11 +620,13 @@ mesh.model = class MeshModel extends mesh.object {
             // console.log({data});
             // this.toggleSelectedVertices(verts);
             this.selectFaces(faces, action);
+            // mesh.api.log.emit(`... select time = ${Date.now() - mark}`); mark = Date.now();
             this.updateSelections();
             if (!timer) {
                 mesh.api.log.emit("surface match complete").unpin();
                 moto.space.refresh();
             }
+            // mesh.api.log.emit(`... paint time = ${Date.now() - mark}`);
         });
     }
 

@@ -2,22 +2,76 @@
 
 Full docs @ https://docs.grid.space/projects/kiri-moto
 
-# Release 3.4 (in progress)
 
-## `C` complete, `I` in progress, `-` todo
+# Release 3.6
+
+* improve CAM animation speeds and render quality using solids instead of lines
+* add CAM op level part offset parameters for xy and z
+* add CAM pocket smoothing and contouring which is closer to true 3 axis
+* add CAM 3D engraving and marking with the pocket contouring operation
+* fix CAM invalidation of tabs on scale and traces on scale or rotate
+* fix belt fan override for base extrusions touching belt
+
+
+# Release 3.5 (2022-10-07)
 
 ## Kiri:moto
 
-* `C` added batch processing to object adds/removes to speedup complex workspace restore
-* `C` fix CAM output order for tool changes an spindle speed updates
-* `I` add CAM pocket operation using surface selection
-* `-` refactor cnc to use new core slicer engine
-* `-` improve vertex replacement and widget update matrix tracking
+* add optional service workers and manifest to support full PWA + install
+* add support to run as Progressive Web Apps for installation and offline use
+* add assembly import when KM used inside of onshape
+* add configurable flatness for contour clipping
+* add faster render mode for FDM slices
+* add axis label remapping in FDM
+* add new path rendering engine
+* add bridging option in CAM contouring
+* add option to force z max routing in CAM
+* add option to ignore z bottom in CAM contouring
+* add CAM pocket option to ignore interior features (outline only)
+* add CAM Z bottom visualization, make it relative to stock instead of part
+* add CAM Z bottom inversion option to flip operator
+* add CAM custom gcode operator (can be used for pausing, too)
+* add CAM z extend option on registration op independent of "Z Thru" global
+* add optional CAM operation notes (helps with many similar ops)
+* add option to limit CAM trace ops to Z bottom limit (when in use)
+* extend url loading of workspaces to all formats
+* alert when healing is enabled and non-manifold geometries are detected
+* fix thin output start and end point tracking which broke retraction
+* fix for importing with some obj formatting
+* fix profile seeding for newer device record formats
+* fix workspace import / restore for some file formats
+* fix potential crash into stock during moves when parts are z bottom anchored
 
-## Mesh:Tool
 
-* `C` multi-body identification and isolation
-* `-` parameterize svg and image import
+# Release 3.4 (2022-05-14)
+
+## Kiri:moto
+
+* added batch processing to object adds/removes to speedup complex workspace restore
+* substitute some prusa slicer [variables] with KM {variables} on import
+* fix CNC output order for tool changes an spindle speed updates
+* add CNC pocket operation using surface selection
+* fix dog-bones on outlines cut by tabs
+* skip pockets that resolve to null
+* fix CNC contour path collision
+* 10x speedup for true shadow generation
+* add FDM gcode feature macros for transitions
+* add FDM option to alternate shell winding direction
+* add FDM print time estimate fudge factor for devices
+* add `clear top` option to CNC outline operation
+* add FDM layer retraction as a range option
+
+## Mesh:Tool (1.2.0)
+
+* auto-fog in wireframe view to aid close mesh inspections
+* significant speed-up for large surface selections
+* add boolean operations for subtract and intersect
+* multi-body identification and isolation
+* quick add primitives: cube, cylinder
+* control wireframe transparency
+* parameterize png image import
+* code added to show camera focal point
+* better Z split snapping using vertex closest to mouse
 
 
 # Release 3.3 (2022-04-01)

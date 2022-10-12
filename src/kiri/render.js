@@ -2,6 +2,11 @@
 
 "use strict";
 
+/*
+ * uses `layers.js` to convert paths (usually preview) into primordial geometries.
+ * the input is based on an array (layers) of arrays containing `Output` objects
+ */
+
 // dep: geo.base
 // dep: geo.point
 // dep: geo.polygon
@@ -9,6 +14,7 @@ gapp.register("kiri.render", [], (root, exports) => {
 
 const { base, kiri } = root;
 const { config, util, newPolygon } = base;
+const hsV = 0.9;
 
 exports({
     path,
@@ -16,14 +22,24 @@ exports({
     rate_to_color
 });
 
+function is_cam() {
+    return root.worker.print.settings.mode === 'CAM';
+}
+
 function is_dark() {
     return root.worker.print.settings.controller.dark ? true : false;
 };
 
 function rate_to_color(rate, max) {
-    return is_dark() ?
-        darkColorFunction(rate/max, 1, 0.85) :
-        currentColorFunction(rate/max, 1, 0.85);
+    if (is_cam()) {
+        return is_dark() ?
+            darkColorFunctionCAM(rate/max, 1, hsV) :
+            lightColorFunctionCAM(rate/max, 1, hsV);
+    } else {
+        return is_dark() ?
+            darkColorFunction(rate/max, 1, hsV) :
+            lightColorFunction(rate/max, 1, hsV);
+    }
 };
 
 function path(levels, update, opts = {}) {
@@ -45,6 +61,7 @@ function path(levels, update, opts = {}) {
     const arrowSize = arrowAll ? 0.2 : 0.4;
     const layers = [];
     const toolMode = opts.toolMode;
+    const lineWidth = opts.lineWidth;
 
     const moveOpt = {
         face: moveColor,
@@ -114,7 +131,7 @@ function path(levels, update, opts = {}) {
             toolid = toolid || 0;
             const array = prints[toolid] = prints[toolid] || [];
             const tool = tools[toolid] || {};
-            array.width = (tool.extNozzle || 1) / 2;
+            array.width = (lineWidth || tool.extNozzle || 1) / 2;
             array.push(poly);
             emits++;
         };
@@ -248,18 +265,24 @@ function path(levels, update, opts = {}) {
 
         update(index / levels.length, output);
     });
+
     // console.log({retractz});
     return layers;
 }
 
 const colorFunctions = {
-    default: hsv2rgb.bind({ seg: 4, fn: color4d }),
     simple: hsv2rgb.bind({ seg: 3, fn: color4 }),
-    dark: hsv2rgb.bind({ seg: 4, fn: color4d })
+    light: hsv2rgb.bind({ seg: 4, fn: color4light }),
+    light2: hsv2rgb.bind({ seg: 4, fn: color4light2 }),
+    light_cam: hsv2rgb.bind({ seg: 2, fn: color4light }),
+    dark: hsv2rgb.bind({ seg: 4, fn: color4dark }),
+    dark_cam: hsv2rgb.bind({ seg: 2, fn: color4dark })
 };
 
-let currentColorFunction = colorFunctions.default;
+let lightColorFunction = colorFunctions.light2;
 let darkColorFunction = colorFunctions.dark;
+let lightColorFunctionCAM = colorFunctions.light_cam;
+let darkColorFunctionCAM = colorFunctions.dark_cam;
 
 // hsv values all = 0 to 1
 function hsv2rgb(h, s, v) {
@@ -308,7 +331,69 @@ function color5(rgb, inc, seg) {
     }
 }
 
-function color4d(rgb, inc, seg) {
+function color4light(rgb, inc, seg) {
+    const dec = 1 - inc;
+    switch (seg) {
+        case 0:
+            rgb.r = 0.8;
+            rgb.g = inc * 0.75;
+            rgb.b = 0;
+            break;
+        case 1:
+            rgb.r = dec * 0.8;
+            rgb.g = 0.75;
+            rgb.b = 0;
+            break;
+        case 2:
+            rgb.r = 0;
+            rgb.g = dec * 0.75;
+            rgb.b = inc;
+            break;
+        case 3:
+            rgb.r = inc * 0.75;
+            rgb.g = 0;
+            rgb.b = 1;
+            break;
+        case 4:
+            rgb.r = 0.85;
+            rgb.g = 0;
+            rgb.b = 1;
+            break;
+    }
+}
+
+function color4light2(rgb, inc, seg) {
+    const dec = 1 - inc;
+    switch (seg) {
+        case 0:
+            rgb.r = 0.9;
+            rgb.g = inc * 0.9;
+            rgb.b = 0;
+            break;
+        case 1:
+            rgb.r = dec * 0.9;
+            rgb.g = 0.8;
+            rgb.b = 0;
+            break;
+        case 2:
+            rgb.r = 0;
+            rgb.g = dec * 0.8;
+            rgb.b = inc;
+            break;
+        case 3:
+            rgb.r = inc * 0.9;
+            rgb.g = 0;
+            rgb.b = 1;
+            break;
+        case 4:
+            rgb.r = 0.9;
+            rgb.g = 0;
+            rgb.b = 1;
+            break;
+    }
+}
+
+function color4dark(rgb, inc, seg) {
     const dec = 1 - inc;
     switch (seg) {
         case 0:
@@ -323,22 +408,21 @@ function color4d(rgb, inc, seg) {
             break;
         case 2:
             rgb.r = 0;
-            rgb.g = dec;
+            rgb.g = dec * 0.85 + 0.25;
             rgb.b = inc;
             break;
         case 3:
             rgb.r = inc * 0.85;
-            rgb.g = 0;
+            rgb.g = 0.25;
             rgb.b = 1;
             break;
         case 4:
             rgb.r = 0.85;
-            rgb.g = 0;
+            rgb.g = 0.25;
             rgb.b = 1;
             break;
     }
 }
-
 
 function color4(rgb, inc, seg) {
     const dec = 1 - inc;

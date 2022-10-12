@@ -77,20 +77,20 @@ function analyze(id, opt = {}) {
 }
 
 function isolateBodies(id) {
-    let tool = mapFaces(id);
+    let tool = indexFaces(id);
     log(`${id} | isolating bodies`);
     return tool.isolateBodies();
 }
 
-function mapFaces(id) {
+function indexFaces(id) {
     let rec = cache[id];
     let { geo, tool } = rec;
     if (!tool) {
         tool = rec.tool = new mesh.tool();
     }
-    if (!tool.normals) {
-        log(`${id} | generating face map`);
-        tool.generateFaceMap(geo.attributes.position.array);
+    if (!tool.indexed) {
+        log(`${id} | indexing mesh`);
+        tool.index(geo.attributes.position.array);
     }
     return tool;
 }
@@ -150,17 +150,26 @@ let model = {
         return base.CSG.toPositionArray(union);
     },
 
-    // used to generate a list for split snapping
-    zlist(data) {
-        let { id, matrix, round } = data;
-        let zlist = {};
-        let pos = translate_encode(id, matrix);
-        for (let i=0, l=pos.length; i<l; ) {
-            let v1 = new Vector3(pos[i++], pos[i++], pos[i++]);
-            let z = v1.z.round(round || 2);
-            zlist[z] = '';
+    intersect(recs) {
+        let arrays = recs.map(rec => translate_encode(rec.id, rec.matrix));
+        let solids = arrays.map(a => base.CSG.fromPositionArray(a));
+        let union = base.CSG.intersect(...solids);
+        return base.CSG.toPositionArray(union);
+    },
+
+    subtract(recs) {
+        let bases = recs.filter(rec => !rec.tool)
+            .map(rec => translate_encode(rec.id, rec.matrix))
+            .map(a => base.CSG.fromPositionArray(a));
+        let tools = recs.filter(rec => rec.tool)
+            .map(rec => translate_encode(rec.id, rec.matrix))
+            .map(a => base.CSG.fromPositionArray(a));
+        let subs = [];
+        for (let obj of bases) {
+            let sub = base.CSG.subtract(obj, ...tools);
+            subs.appendAll(base.CSG.toPositionArray(sub));
         }
-        return Object.keys(zlist).map(v => parseFloat(v));
+        return subs.toFloat32();
     },
 
     // split a model along an axis at a given point
@@ -279,9 +288,9 @@ let model = {
         };
     },
 
-    mapFaces(data) {
-        let { id } = data;
-        let tool = mapFaces(id);
+    indexFaces(data) {
+        let { id, opt } = data;
+        let tool = indexFaces(id);
         return { mapped: true };
     },
 
@@ -337,7 +346,7 @@ let model = {
         }
         // if the geometry has indexed faces and radians are set, find surface
         const tool = rec.tool;
-        if (tool && tool.sides && radians) {
+        if (tool && tool.indexed && radians) {
             const match = tool.findConnectedSurface(faces, radians, filterZ);
             return { faces: match, edges, verts, point };
         }
