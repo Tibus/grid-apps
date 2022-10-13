@@ -124,6 +124,14 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
     isThin = !isFlat && controller.lineType === "line";
     offset = lineWidth / 2;
 
+    // allow overriding support fill auto angle algorithm
+    // also causes support fill to be aligned on start boundaries
+    // best with angles that are a multiple of 90 degrees
+    if (process.sliceSupportFill >= 0) {
+        // yes, an ugly hack to allow it to pass through old code paths
+        process.sliceSupportFill += 1000;
+    }
+
     if (isFlat) {
         Object.values(COLOR).forEach(color => {
             color.flat = true;
@@ -304,7 +312,8 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
             slice.index = indices.indexOf(z);
             slice.height = heights[slice.index];
             slice.clips = clip;
-            if (changes) {
+            // do not warn on merging supports
+            if (changes && !isSynth) {
                 healed = true;
                 slice.changes = changes;
                 if (self.debug) {
@@ -323,6 +332,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
         return onSliceDone(slices);
     }).then(ondone);
 
+    // shadow used to clip supports in non-belt mode
     async function doShadow(slices) {
         if (widget.shadow) {
             return;
@@ -405,8 +415,15 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                         if (Math.abs(Math.abs(pslice.z - slice.z) - gap) > 0.1) {
                             continue;
                         }
+                        let clipto = pslice.clips;
+                        if (pslice.supportOutline) {
+                            // merge support outlines into slice clips which
+                            // should only happen when automatic and manual
+                            // supports are used together
+                            clipto.appendAll(pslice.supportOutline);
+                        }
                         let ntops = [];
-                        POLY.subtract(tops, pslice.clips, ntops, null, slice.z, 0);
+                        POLY.subtract(tops, clipto, ntops, null, slice.z, 0);
                         tops = ntops;
                     }
                     // trim to group's shadow if not in belt mode
@@ -572,6 +589,54 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                     }
                 }
             }
+            // look for text injection rectangle
+            const pooch = {
+                length: 40,
+                width: 15,
+                height: 1
+            };
+            if (false && pooch) {
+                const { length, width, height } = pooch;
+                let firstZ, firstI, lastZ, lastI, minX = 0, maxX = 0, maxY = 0;
+                for (let slice of slices) {
+                    let { belt } = slice;
+                    if (!belt.touch) {
+                        continue;
+                    }
+                    let index = slice.index;
+                    let z = slice.z;
+                    outer: for (let poly of slice.topPolys()) {
+                        for (let i=0, p=poly.points, l=p.length; i<l; i++) {
+                            let p0 = p[i];
+                            let p1 = p[(i + 1) % l];
+                            let p0y = z - p0.y;
+                            let p1y = z - p1.y;
+                            let i_ok = lastI ? index - lastI === 1 : true
+                            let y_ok = p0y > 0 && p0y < 3 && Math.abs(p0y - p1y) < 0.01;
+                            let x_ok = Math.abs(width - Math.abs(p1.x - p0.x)) < 1
+                            if (y_ok && x_ok) {
+                                if (i_ok) {
+                                    firstZ = firstZ || z;
+                                    firstI = firstI || index;
+                                    lastZ = z;
+                                    lastI = index;
+                                    minX = Math.min(p0.x, p1.x);
+                                    maxX = Math.max(p0.x, p1.x);
+                                    maxY = p0y;
+                                    break outer;
+                                } else {
+                                    firstZ = lastI = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+                let dy = Math.abs(height - maxY * (1 / Math.sqrt(2)));
+                let dz = Math.abs(length - ((lastZ - firstZ) * Math.sqrt(2)));
+                if (dy < 0.1 && dz < 1) {
+                    console.log('FOUND', { firstI, lastI, minX, maxX, maxY });
+                }
+            }
         }
 
         // calculations only relevant when solid layers are used
@@ -667,16 +732,17 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 let density = params.sliceSupportDensity;
                 if (density)
                 for (let top of slice.tops) {
+                    let offset = [];
                     if (!outline) {
-                        let offset = top.shells;
-                        fillSupportPolys(promises, offset, lineWidth, density, slice.z, isBelt);
-                        resolve.push({top, offset});
+                        POLY.expand(top.shells || [], lineWidth, slice.z, offset);
                     } else {
-                        let offset = [];
                         POLY.expand(top.shells || [], -lineWidth/4, slice.z, offset);
-                        fillSupportPolys(promises, offset, lineWidth, density, slice.z, isBelt);
-                        resolve.push({top, offset});
                     }
+                    fillSupportPolys({
+                        promises, polys: offset, lineWidth, density, z: slice.z, isBelt,
+                        angle: process.sliceSupportFill
+                    });
+                    resolve.push({top, offset});
                 }
             }, "infill");
             if (promises) {
@@ -685,35 +751,11 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 });
             }
             for (let rec of resolve) {
+                let spacing = lineWidth * (1 / supportDensity);
                 let lines = rec.top.fill_lines = rec.offset.map(o => o.fill).flat().filter(v => v);
-                // if copying simply's support type, eliminate shells
-                // and zig/zag lines connectd by shell segments
+                // if copying simply's support type, eliminate shells and zig/zag fill lines
                 if (!outline) {
-                    let newlines = [];
-                    let op2;
-                    let eo = 0;
-                    let idx = 1;
-                    for (let i=0; i<lines.length; i += 2) {
-                        let p1 = lines[i];
-                        let p2 = lines[i+1];
-                        p1.index = idx;
-                        p2.index = idx++;
-                        if (eo++ % 2 === 1) {
-                            let t = p1;
-                            p1 = p2;
-                            p2 = t;
-                        }
-                        if (op2) {
-                            let op1 = p1.clone();
-                            op1.index = op2.index;
-                            newlines.push(op2);
-                            newlines.push(op1);
-                        }
-                        newlines.push(p1);
-                        newlines.push(p2);
-                        op2 = p2.clone();
-                        op2.index = idx++;
-                    }
+                    let newlines = connect_lines(lines, spacing * 2);
                     rec.top.fill_lines = newlines;
                     rec.top.shells = [];
                 }
@@ -735,7 +777,12 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
             profileStart("support-fill");
             promises = false && isConcurrent ? [] : undefined;
             forSlices(0.8, promises ? 0.88 : 0.9, slice => {
-                doSupportFill(promises, slice, lineWidth, supportDensity, process.sliceSupportArea, isBelt);
+                doSupportFill({
+                    promises, slice, lineWidth, density: supportDensity,
+                    minArea: process.sliceSupportArea, isBelt,
+                    angle: process.sliceSupportFill,
+                    outline: process.sliceSupportOutline !== false
+                });
             }, "support");
             if (promises) {
                 await tracker(promises, (i, t) => {
@@ -765,6 +812,35 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
 
 }
 
+function connect_lines(lines, maxd = Infinity) {
+    const newlines = [];
+    let op2;
+    let eo = 0;
+    let idx = 1;
+    for (let i=0; i<lines.length; i += 2) {
+        let p1 = lines[i];
+        let p2 = lines[i+1];
+        p1.index = idx;
+        p2.index = idx++;
+        if (eo++ % 2 === 1) {
+            let t = p1;
+            p1 = p2;
+            p2 = t;
+        }
+        if (op2 && p1.distTo2D(op2) <= maxd) {
+            let op1 = p1.clone();
+            op1.index = op2.index;
+            newlines.push(op2);
+            newlines.push(op1);
+        }
+        newlines.push(p1);
+        newlines.push(p2);
+        op2 = p2.clone();
+        op2.index = idx++;
+    }
+    return newlines;
+}
+
 function bound(v,min,max) {
     return Math.max(min,Math.min(max,v));
 }
@@ -780,7 +856,7 @@ function doRender(slice, isSynth, params, devel) {
             .addPolys(top.poly);
 
         output
-            .setLayer("shells", isSynth ? COLOR.support : COLOR.shell)
+            .setLayer(isSynth ? "support" : "shells", isSynth ? COLOR.support : COLOR.shell)
             .addPolys(top.shells || [], vopt({ offset, height, clean: true }));
 
         output
@@ -826,7 +902,7 @@ function doRender(slice, isSynth, params, devel) {
             .addAreas(slice.flats);
     }
 
-    if (slice.supports) output
+    if (slice.supports && params.sliceSupportOutline) output
         .setLayer("support", COLOR.support)
         .addPolys(slice.supports, vopt({ offset, height }));
 
@@ -835,6 +911,7 @@ function doRender(slice, isSynth, params, devel) {
             .setLayer("support", COLOR.support)
             .addLines(poly.fill, vopt({ offset, height }));
     });
+
     if (slice.xray) {
         const color = [ 0xff0000, 0x00aa00, 0x0000ff, 0xaaaa00, 0xff00ff, 0x0 ];
         if (slice.lines) {
@@ -1145,11 +1222,14 @@ function addSolidFills(slice, polys) {
 /**
  * project bottom flats down
  */
-function projectFlats(slice, count) {
+function projectFlats(slice, count, expand) {
     if (!slice.down || !slice.flats) return;
     // these flats are marked for finishing print speed
     if (slice.flats.length) slice.finishSolids = true;
-    projectSolid(slice, slice.flats, count, false, true);
+    if (slice && slice.flats && slice.flats.length) {
+        const flats = expand ? POLY.expand(slice.flats, expand) : slice.flats;
+        projectSolid(slice, flats, count, false, true);
+    }
 };
 
 /**
@@ -1224,6 +1304,7 @@ function doSolidsFill(slice, spacing, angle, minArea, fillQ) {
             if (stop.length) {
                 let top_area = top.poly.areaDeep();
                 let stop_area = stop.map(p => p.areaDeep()).reduce((a,v) => a + v);
+                // if the solid area > 50% of the top area, make entire layer solid
                 if (stop_area / top_area > 0.5) {
                     make_solid_layer = true;
                 }
@@ -1449,7 +1530,8 @@ async function doSupport(slice, proc, shadow, opt = {}) {
 
 }
 
-function doSupportFill(promises, slice, linewidth, density, minArea, isBelt) {
+function doSupportFill(args) {
+    const { promises, slice, lineWidth, density, minArea, isBelt, angle, outline } = args;
     let supports = slice.supports,
         nsB = [],
         nsC = [],
@@ -1471,24 +1553,31 @@ function doSupportFill(promises, slice, linewidth, density, minArea, isBelt) {
     }
 
     if (supports) {
-        fillSupportPolys(promises, supports, linewidth, density, slice.z, isBelt);
+        fillSupportPolys({
+            promises, polys: supports, lineWidth, density, z: slice.z, isBelt, angle, outline
+        });
     }
 
     // re-assign new supports back to slice
+    slice.supportOutline = supports;
     slice.supports = supports;
 };
 
-function fillSupportPolys(promises, polys, linewidth, density, z, isBelt) {
+function fillSupportPolys(args) {
+    const { promises, polys, lineWidth, density, z, isBelt, angle, outline } = args;
     // calculate fill density
-    let spacing = linewidth * (1 / density);
+    let spacing = lineWidth * (1 / density);
     polys.forEach(function (poly) {
-        // angle based on width/height ratio
-        let angle = isBelt || (poly.bounds.width() / poly.bounds.height() > 1) ? 90 : 0;
+        // calculate angle based on width/height ratio
+        let auto = isBelt || (poly.bounds.width() / poly.bounds.height() > 1) ? 1090 : 1000;
         // inset support poly for fill lines 33% of nozzle width
-        let inset = POLY.offset([poly], -linewidth/3, {flat: true, z, wasm: false});
+        let inset = POLY.offset([poly], -lineWidth/3, {flat: true, z, wasm: false});
         // do the fill
         if (inset && inset.length > 0) {
-            doFillArea(promises, inset, angle, spacing, poly.fill = []);
+            doFillArea(promises, inset, angle || auto, spacing, poly.fill = []);
+            if (!outline && poly.fill.length) {
+                poly.fill = connect_lines(poly.fill, spacing * 2);
+            }
         }
         return true;
     });
