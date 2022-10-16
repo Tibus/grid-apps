@@ -61,16 +61,18 @@ const funcs = {
             reply({ seq, union: codec.encode([]) });
             return;
         }
+        let state = { zeros: [] };
         let polys = codec.decode(data.polys);
         let union = POLY.union(polys, data.minarea || 0, true);
-        reply({ seq, union: codec.encode(union) });
+        reply({ seq, union: codec.encode(union) }, state.zeros);
     },
 
     topShells: (data, seq) => {
         let top = codec.decode(data.top, {full: true});
         let {z, count, offset1, offsetN, fillOffset, opt} = data;
         kiri.driver.FDM.doTopShells(z, top, count, offset1, offsetN, fillOffset, opt);
-        reply({ seq, top: codec.encode(top, {full: true}) });
+        let state = { zeros: [] };
+        reply({ seq, top: codec.encode(top, {full: true}) }, state.zeros);
     },
 
     fill: (data, seq) => {
@@ -89,20 +91,29 @@ const funcs = {
     },
 
     clip: (data, seq) => {
-        let clip = new clib.Clipper();
-        let ctre = new clib.PolyTree();
-        let clips = [];
+        const clip = new clib.Clipper();
+        const ctre = new clib.PolyTree();
+        const clips = [];
+        const M = base.config.clipper;
 
-        clip.AddPaths(data.lines, ptyp.ptSubject, false);
-        clip.AddPaths(data.polys, ptyp.ptClip, true);
+        let lines = data.lines.map(array => {
+            return codec.decodePointArray2D(array, data.z, (X, Y) => { return {X: X*M, Y: Y*M} })
+        });
+        let polys = data.polys.map(array => {
+            return codec.decodePointArray2D(array, data.z, (X, Y) => { return {X: X*M, Y: Y*M} })
+        });
 
+        clip.AddPaths(lines, ptyp.ptSubject, false);
+        clip.AddPaths(polys, ptyp.ptClip, true);
+
+        const state = { zeros: [] };
         if (clip.Execute(ctyp.ctIntersection, ctre, cfil.pftNonZero, cfil.pftEvenOdd)) {
             for (let node of ctre.m_AllPolys) {
-                clips.push(codec.encode(POLY.fromClipperNode(node, data.z)));
+                clips.push(codec.encode(POLY.fromClipperNode(node, data.z), state.zeros));
             }
         }
 
-        reply({ seq, clips });
+        reply({ seq, clips }, state.zeros);
     },
 
     sliceZ: (data, seq) => {
@@ -111,6 +122,7 @@ const funcs = {
         while (i < points.length) {
             realp[p++] = base.newPoint(points[i++], points[i++], points[i++]).round(3);
         }
+        let state = { zero: [] };
         let output = [];
         base.sliceZ(z, realp, {
             ...options,
@@ -120,7 +132,7 @@ const funcs = {
                 // lines do not pass codec properly (for now)
                 delete rec.lines;
             }
-            reply({ seq, output: codec.encode(output) });
+            reply({ seq, output: codec.encode(output) }, state.zeros);
         });
     },
 

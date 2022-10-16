@@ -920,6 +920,11 @@ class Polygon {
         return this;
     }
 
+    setOpenValue(b) {
+        this.open = b;
+        return this;
+    }
+
     isOpen() {
         return this.open;
     }
@@ -1446,9 +1451,9 @@ class Polygon {
         // console.log("out", out);
 
         if (poly.inner) {
-            poly.inner.forEach(p => {
-                p.toClipper(out);
-            });
+            for (let inner of poly.inner) {
+                inner.toClipper(out);
+            }
         }
         return out;
     }

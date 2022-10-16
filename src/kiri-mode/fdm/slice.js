@@ -100,6 +100,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
         { process, device, controller } = settings,
         isBelt = device.bedBelt,
         isSynth = widget.track.synth,
+        isSupport = widget.track.support,
         isDanger = controller.danger,
         useAssembly = controller.assembly,
         isConcurrent = controller.threaded && kiri.minions.concurrent,
@@ -403,7 +404,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
         // for synth support widgets, clip/offset to other widgets in group
         if (isSynth) {
             for (let slice of slices) {
-                let gap = sliceHeight * (isBelt ? 0 : process.sliceSupportGap);
+                let gap = sliceHeight * process.sliceSupportGap;
                 // clip tops to other widgets in group
                 let tops = slice.topPolys();
                 for (let peer of widget.group) {
@@ -480,7 +481,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 let fillSpace = fillSpacing * spaceMult * solidWidth;
                 doSolidLayerFill(slice, fillSpace, sliceFillAngle);
             }
-            sliceFillAngle += 90.0;
+            sliceFillAngle = (sliceFillAngle + 90.0) % 360;
         }, "solid layers");
 
         // add lead in anchor when specified in belt mode (but not for synths)
@@ -589,14 +590,8 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                     }
                 }
             }
-            // look for text injection rectangle
-            const pooch = {
-                length: 40,
-                width: 15,
-                height: 1
-            };
-            if (false && pooch) {
-                const { length, width, height } = pooch;
+            if (process.pooch && self.OffscreenCanvas) {
+                const { length, width, height, text } = process.pooch;
                 let firstZ, firstI, lastZ, lastI, minX = 0, maxX = 0, maxY = 0;
                 for (let slice of slices) {
                     let { belt } = slice;
@@ -634,7 +629,61 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 let dy = Math.abs(height - maxY * (1 / Math.sqrt(2)));
                 let dz = Math.abs(length - ((lastZ - firstZ) * Math.sqrt(2)));
                 if (dy < 0.1 && dz < 1) {
-                    console.log('FOUND', { firstI, lastI, minX, maxX, maxY });
+                    // console.log('FOUND', { firstI, lastI, minX, maxX, maxY });
+                    let span = lastI - firstI - 2; // x = down the belt
+                    let tall = width * 2;
+                    let can = new self.OffscreenCanvas(span, tall);
+                    let ctx = can.getContext("2d");
+                    ctx.scale(1.2, 1);
+                    ctx.font = '24px sans-serif';
+                    // ctx.fillStyle = 'black';
+                    ctx.textBaseline = "bottom";
+                    ctx.fillText(text, 1, tall - 1);
+                    let img = ctx.getImageData(0, 0, span, tall).data.buffer;
+                    let rgb = new Uint32Array(img);
+                    // console.log({ img, rgb, p: rgb.filter(v => v) });
+                    for (let x=0; x<span; x++) {
+                        let str = '';
+                        let maxp = 0;
+                        let lines = [];
+                        let start, end;
+                        for (let y=tall-1; y>=0; y--) {
+                            let pix = rgb[y * span + x];
+                            pix = (
+                                ((pix >> 24) & 0xff) +
+                                ((pix >> 16) & 0xff) +
+                                ((pix >>  8) & 0xff)
+                            ) / 3;
+                            str += pix > 30 ? '*' : '-';
+                            maxp = Math.max(maxp, pix);
+                            if (pix > 30) {
+                                if (start >= 0) {
+                                    end = tall - y;
+                                } else {
+                                    start = tall - y;
+                                }
+                            } else {
+                                if (start >= 0 && end > start) {
+                                    lines.push({ start, end });
+                                }
+                                start = end = undefined;
+                            }
+                        }
+                        console.log((x).toString().padStart(2,0),str,maxp | 0,lines);
+                        if (lines.length) {
+                            let slice = slices[firstI + x + 1];
+                            let supps = slice.supports = slice.supports || [];
+                            let z = slice.z;
+                            let y = z - smin - (lineWidth / 2);
+                            for (let line of lines) {
+                                supps.push(base.newPolygon()
+                                    .add(minX + line.start / 2, y, z)
+                                    .add(minX + line.end / 2, y, z)
+                                    .setOpen()
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -668,7 +717,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 let fillSpace = fillSpacing * spaceMult * solidWidth;
                 let solidMinArea = params.sliceSolidMinArea;
                 doSolidsFill(slice, fillSpace, sliceFillAngle, solidMinArea, promises);
-                sliceFillAngle += 90.0;
+                sliceFillAngle = (sliceFillAngle + 90.0) % 360;
             }, "fill solids");
             // very last layer (top) is set to finish solid rate
             slices.last().finishSolids = true
@@ -684,8 +733,7 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
         // sparse layers only present when non-vase mose and sparse % > 0
         if (!isSynth && !vaseMode) {
             let lastType;
-            // disabled until memory issue tracked down
-            let promises = false && isConcurrent ? [] : undefined;
+            let promises = isConcurrent ? [] : undefined;
             forSlices(0.5, promises ? 0.55 : 0.7, slice => {
                 let params = slice.params || process;
                 if (!params.sliceFillSparse) {
@@ -722,28 +770,29 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                     }
                 }
             }
-        } else if (isSynth) {
-            // fill manual supports differently
+        } else if (isSynth && isSupport) {
+            // convert synth support widgets into support structure
             let outline = process.sliceSupportOutline || false;
             let promises = isConcurrent ? [] : undefined;
             let resolve = [];
             forSlices(0.5, promises ? 0.6 : 0.7, slice => {
                 let params = slice.params || process;
                 let density = params.sliceSupportDensity;
-                if (density)
-                for (let top of slice.tops) {
-                    let offset = [];
+                let supports = slice.supports = slice.topShells();
+                slice.tops = undefined; // remove outline leave only supports
+                let polys = [];
+                if (density) {
                     if (!outline) {
-                        POLY.expand(top.shells || [], lineWidth, slice.z, offset);
+                        POLY.expand(supports, lineWidth, slice.z, polys);
                     } else {
-                        POLY.expand(top.shells || [], -lineWidth/4, slice.z, offset);
+                        POLY.expand(supports, -lineWidth/4, slice.z, polys);
                     }
-                    fillSupportPolys({
-                        promises, polys: offset, lineWidth, density, z: slice.z, isBelt,
-                        angle: process.sliceSupportFill
-                    });
-                    resolve.push({top, offset});
                 }
+                fillSupportPolys({
+                    promises, polys, lineWidth, density, z: slice.z, isBelt,
+                    angle: process.sliceSupportFill
+                });
+                resolve.push({ slice, polys });
             }, "infill");
             if (promises) {
                 await tracker(promises, (i, t) => {
@@ -751,14 +800,8 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 });
             }
             for (let rec of resolve) {
-                let spacing = lineWidth * (1 / supportDensity);
-                let lines = rec.top.fill_lines = rec.offset.map(o => o.fill).flat().filter(v => v);
-                // if copying simply's support type, eliminate shells and zig/zag fill lines
-                if (!outline) {
-                    let newlines = connect_lines(lines, spacing * 2);
-                    rec.top.fill_lines = newlines;
-                    rec.top.shells = [];
-                }
+                let { slice, polys } = rec;
+                rec.supports = polys;
             }
         }
 
@@ -774,8 +817,12 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
                 trackupdate(i / t, 0.75, 0.8);
             });
             profileEnd();
+        }
+
+        // fill all supports (auto and manual)
+        if (!isBelt && supportDensity) {
             profileStart("support-fill");
-            promises = false && isConcurrent ? [] : undefined;
+            let promises = false && isConcurrent ? [] : undefined;
             forSlices(0.8, promises ? 0.88 : 0.9, slice => {
                 doSupportFill({
                     promises, slice, lineWidth, density: supportDensity,
@@ -802,8 +849,15 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
 
         if (isBelt) {
             let bounds = base.newBounds();
-            for (let top of slices[0].tops) {
-                bounds.merge(top.poly.bounds);
+            let slice = slices[0];
+            if (slice.tops) {
+                for (let top of slice.tops) {
+                    bounds.merge(top.poly.bounds);
+                }
+            } else if (slice.supports) {
+                for (let poly of slice.supports) {
+                    bounds.merge(poly);
+                }
             }
             widget.belt.miny = -bounds.miny;
             widget.belt.midy = (bounds.miny + bounds.maxy) / 2;
@@ -816,27 +870,28 @@ function connect_lines(lines, maxd = Infinity) {
     const newlines = [];
     let op2;
     let eo = 0;
-    let idx = 1;
     for (let i=0; i<lines.length; i += 2) {
         let p1 = lines[i];
         let p2 = lines[i+1];
-        p1.index = idx;
-        p2.index = idx++;
+        // swap p1 / p2 dir every other line
         if (eo++ % 2 === 1) {
             let t = p1;
             p1 = p2;
             p2 = t;
         }
+        // connect short distances between ends
         if (op2 && p1.distTo2D(op2) <= maxd) {
             let op1 = p1.clone();
-            op1.index = op2.index;
             newlines.push(op2);
             newlines.push(op1);
         }
         newlines.push(p1);
         newlines.push(p2);
         op2 = p2.clone();
-        op2.index = idx++;
+    }
+    let idx = 0;
+    for (let p of newlines) {
+        p.index = (idx++ / 2) | 0;
     }
     return newlines;
 }
@@ -850,6 +905,7 @@ function doRender(slice, isSynth, params, devel) {
     const height = slice.height / 2;
     const solidWidth = params.sliceFillWidth || 1;
 
+    if (slice.tops) // missing for supports
     slice.tops.forEach(top => {
         if (isThin) output
             .setLayer('part', { line: 0x333333, check: 0x333333 })

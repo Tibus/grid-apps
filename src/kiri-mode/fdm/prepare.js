@@ -30,7 +30,7 @@ const POLY = polygons;
  * @param {Function} update progress callback
  * @returns {Object[]} returns array of render objects
  */
-FDM.prepare = function(widgets, settings, update) {
+FDM.prepare = async function(widgets, settings, update) {
     // filter ignored widgets
     widgets = widgets.filter(w => !w.track.ignore && !w.meta.disabled);
 
@@ -768,7 +768,7 @@ FDM.prepare = function(widgets, settings, update) {
 
     // render if not explicitly disabled
     if (settings.render !== false) {
-        print.render = render.path(output, (progress, layer) => {
+        await render.path(output, (progress, layer) => {
             update(0.5 + progress * 0.5, "render", layer);
         }, {
             lineWidth: settings.process.sliceLineWidth,
@@ -779,8 +779,6 @@ FDM.prepare = function(widgets, settings, update) {
             fdm: true
         });
     }
-
-    return print.render;
 };
 
 function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
@@ -1167,7 +1165,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
 
             // use next nearest line strategy
             if (near)
-            for (i=0; i<lines.length; i += 2) {
+            for (let i=0; i<lines.length; i += 2) {
                 t1 = lines[i];
                 if (t1.del) {
                     continue;
@@ -1363,7 +1361,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
             }
             if (next.fill) {
                 next.fill.forEach(p => { p.z = z });
-                outputFills(next.fill, {fast: true});
+                outputFills(next.fill, {fast: true, near: true});
             }
         } else {
             let top = next;
@@ -1436,7 +1434,7 @@ function slicePrintPath(print, slice, startPoint, offset, output, opt = {}) {
     });
 
     // produce polishing paths when present
-    if (slice.tops.length && slice.tops[0].polish) {
+    if (slice.tops && slice.tops.length && slice.tops[0].polish) {
         let {x,y} = slice.tops[0].polish;
         if (x) {
             outputSparse(x, 0, process.polishSpeed);

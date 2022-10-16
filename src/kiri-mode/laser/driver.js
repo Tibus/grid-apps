@@ -172,7 +172,7 @@ function sliceEmitObjects(print, slice, groups, opt = { }) {
  * @param {Object} print state object
  * @param {Function} update incremental callback
  */
-function prepare(widgets, settings, update) {
+async function prepare(widgets, settings, update) {
     let device = settings.device,
         process = settings.process,
         print = self.worker.print = kiri.newPrint(settings, widgets),
@@ -366,7 +366,7 @@ function prepare(widgets, settings, update) {
         });
     }
 
-    return print.render = kiri.render.path(output, (progress, layer) => {
+    return kiri.render.path(output, (progress, layer) => {
         update(0.5 + progress * 0.5, "render", layer);
     }, { thin: true, z: 0, action: "cut", moves: process.knifeOn });
 };

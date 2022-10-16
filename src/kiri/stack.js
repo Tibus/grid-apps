@@ -90,18 +90,20 @@ class Stack {
         function addPoly(vertices, poly) {
             const points = poly.points, len = points.length;
             for (let i=1; i<len; i++) {
-                const p1 = points[i-1], p2 = points[i];
+                const p1 = points[i-1];
+                const p2 = points[i];
                 vertices.push(new THREE.Vector3(p1.x, p1.y, p1.z));
                 vertices.push(new THREE.Vector3(p2.x, p2.y, p2.z));
             }
             if (!poly.open) {
-                const p1 = points[len - 1], p2 = points[0];
+                const p1 = points[points.length-1];
+                const p2 = points[0];
                 vertices.push(new THREE.Vector3(p1.x, p1.y, p1.z));
                 vertices.push(new THREE.Vector3(p2.x, p2.y, p2.z));
             }
         }
 
-        const { polys, lines, faces, cface, paths, cpath, color, off } = layer;
+        const { polys, lines, faces, cface, paths, cpath, color, off, norms } = layer;
         const meshes = [];
         const defstate = !off;
         const mats = [];
@@ -134,9 +136,8 @@ class Stack {
                 }
             }
             // for now, line segments inherit the last color
-            for (let i=0, il=lines.length; i<il; i++) {
-                const p = lines[i];
-                vert.push(new THREE.Vector3(p.x, p.y, p.z));
+            for (let i=0, il=lines.length; i<il; i += 3) {
+                vert.push(new THREE.Vector3(lines[i], lines[i+1], lines[i+1]));
             }
             // ensure at least one group using the default color settings
             if (grp.length === 0) {
@@ -168,20 +169,25 @@ class Stack {
             } else {
                 geo.setAttribute('position', new THREE.BufferAttribute(faces, 3));
             }
-            geo.computeVertexNormals();
+            if (norms) {
+                geo.setAttribute('normal', new THREE.BufferAttribute(norms, 3));
+                // geo.normalizeNormals();
+            } else {
+                geo.computeVertexNormals();
+            }
             if (cface) {
                 cface.forEach((c, i) => geo.addGroup(c.start, c.count, i));
             } else {
                 geo.addGroup(0, Infinity, 0);
             }
             const mesh = new THREE.Mesh(geo, mat);
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
+            // mesh.castShadow = true;
+            // mesh.receiveShadow = true;
             meshes.push(mesh);
             group.add(mesh);
             mats.appendAll(mat);
         }
-        if (paths.length) {
+        if (paths) {
             const mat = [];
             if (cpath) {
                 cpath.forEach(c => { mat.push(newMat(c)) });
@@ -190,24 +196,29 @@ class Stack {
             }
             mat.forEach(m => m.visible = defstate);
             // const mat = newMat(data);
-            paths.forEach((path, i) => {
-                const { index, faces, z, colors } = path;
-                const geo = new THREE.BufferGeometry();
-                geo.setAttribute('position', new THREE.BufferAttribute(faces, 3));
-                if (index.length) geo.setIndex(index);
+            const { index, faces, norms, z } = paths;
+            const geo = new THREE.BufferGeometry();
+            geo.setAttribute('position', new THREE.BufferAttribute(faces, 3));
+            if (index && index.length) {
+                geo.setIndex(index);
+            }
+            if (norms) {
+                geo.setAttribute('normal', new THREE.BufferAttribute(norms, 3));
+                // geo.normalizeNormals();
+            } else {
                 geo.computeVertexNormals();
-                if (cpath) {
-                    cpath.forEach((c, i) => geo.addGroup(c.start, c.count, i));
-                } else {
-                    geo.addGroup(0, Infinity, 0);
-                }
-                const mesh = new THREE.Mesh(geo, mat);
-                mesh.position.z = z;
-                mesh.castShadow = true;
-                mesh.receiveShadow = true;
-                meshes.push(mesh);
-                group.add(mesh);
-            });
+            }
+            if (cpath) {
+                cpath.forEach((c, i) => geo.addGroup(c.start, c.count, i));
+            } else {
+                geo.addGroup(0, Infinity, 0);
+            }
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.z = z;
+            // mesh.castShadow = true;
+            // mesh.receiveShadow = true;
+            meshes.push(mesh);
+            group.add(mesh);
             mats.appendAll(mat);
         }
 
@@ -245,7 +256,6 @@ function createStandardMaterial(color, flat) {
         transparent: color.opacity != 1,
         opacity: color.opacity || 1,
         color: color.face,
-        flatShading: true,
         side: flat ? THREE.DoubleSide : THREE.FrontSide
     });
 }
