@@ -100,8 +100,9 @@ kiri.minions = {
             let polyper = Math.ceil(polys.length / concurrent);
             let running = 0;
             let union = [];
+            let state = { zeros: [] };
             let receiver = function(data) {
-                let polys = codec.decode(data.union);
+                let polys = codec.decode(data.union, state);
                 union.appendAll(polys);
                 if (--running === 0) {
                     resolve(POLY.union(union, minarea, true));
@@ -112,8 +113,8 @@ kiri.minions = {
                 minwork.queue({
                     cmd: "union",
                     minarea,
-                    polys: codec.encode(polys.slice(i, i + polyper))
-                }, receiver);
+                    polys: codec.encode(polys.slice(i, i + polyper), state)
+                }, receiver, state.zeros);
             }
         });
     },
@@ -124,9 +125,10 @@ kiri.minions = {
                 resolve(POLY.fillArea(polys, angle, spacing, [], minLen, maxLen));
                 return;
             }
+            const state = { zeros: [] };
             minwork.queue({
                 cmd: "fill",
-                polys: codec.encode(polys),
+                polys: codec.encode(polys, state),
                 angle, spacing, minLen, maxLen
             }, data => {
                 let arr = data.fill;
@@ -138,7 +140,7 @@ kiri.minions = {
                 }
                 output.appendAll(fill);
                 resolve(fill);
-            });
+            }, state.zeros);
         });
     },
 
@@ -147,10 +149,12 @@ kiri.minions = {
             if (concurrent < 2) {
                 reject("concurrent clip unavailable");
             }
+            const state = { zeros: [] };
+
             minwork.queue({
                 cmd: "clip",
-                polys: POLY.toClipper(polys),
-                lines: lines.map(a => a.map(p => p.toClipper())),
+                polys: codec.encode(POLY.flatten(polys).map(poly => codec.encodePointArray2D(poly.points, state)), state),
+                lines: codec.encode(lines.map(array => codec.encodePointArray2D(array, state)), state),
                 z: slice.z
             }, data => {
                 let polys = codec.decode(data.clips);
@@ -162,7 +166,7 @@ kiri.minions = {
                     }
                 }
                 resolve(polys);
-            });
+            }, state.zeros);
         });
     },
 
@@ -473,29 +477,19 @@ kiri.worker = {
             return console.log({invalid_print_driver: mode, driver});
         }
 
-        const layers = driver.prepare(widgets, settings, (progress, message, layer) => {
+        driver.prepare(widgets, settings, (progress, message, layer) => {
             const state = { zeros: [] };
-            const emit = { progress, message };
-            if (layer) {
-                emit.layer = codec.encode(layer, state)
-            }
-            send.data(emit);
+            const emit = { progress, message, layer: (layer ? layer.encode(state) : undefined) };
+            send.data(emit, state.zeros);
+        }).then(() => {
+            const unitScale = settings.controller.units === 'in' ? (1 / 25.4) : 1;
+            const print = current.print || {};
+            const minSpeed = (print.minSpeed || 0) * unitScale;
+            const maxSpeed = (print.maxSpeed || 0) * unitScale;
+
+            send.data({ progress: 1, message: "transfer" });
+            send.done({ done: true, minSpeed, maxSpeed });
         });
-
-        const unitScale = settings.controller.units === 'in' ? (1 / 25.4) : 1;
-        const print = current.print || {};
-        const minSpeed = (print.minSpeed || 0) * unitScale;
-        const maxSpeed = (print.maxSpeed || 0) * unitScale;
-        const state = { zeros: [] };
-
-        send.data({ progress: 1, message: "transfer" });
-
-        send.done({
-            done: true,
-            // output: codec.encode(layers, state),
-            minSpeed,
-            maxSpeed
-        }, state.zeros);
     },
 
     export(data, send) {
@@ -558,10 +552,12 @@ kiri.worker = {
         }, done => {
             const minSpeed = print.minSpeed;
             const maxSpeed = print.maxSpeed;
-            const layers = kiri.render.path(done.output, progress => {
+            kiri.render.path(done.output, progress => {
                 send.data({ progress: 0.25 + progress * 0.75 });
-            }, { thin: thin || print.belt, flat, tools });
-            send.done({parsed: codec.encode(layers), maxSpeed, minSpeed});
+            }, { thin: thin || print.belt, flat, tools })
+            .then(layers => {
+                send.done({parsed: codec.encode(layers), maxSpeed, minSpeed});
+            });
         }, {
             fdm: mode === 'FDM',
             belt: device.bedBelt
@@ -576,10 +572,12 @@ kiri.worker = {
             });
         });
         const print = current.print = kiri.newPrint(null, Object.values(wcache));
-        const layers = kiri.render.path(parsed, progress => {
+        kiri.render.path(parsed, progress => {
             send.data({ progress });
-        }, { thin:  true });
-        send.done({parsed: codec.encode(layers)});
+        }, { thin:  true })
+        .then(layers => {
+            send.done({parsed: codec.encode(layers)});
+        });
     },
 
     config(data, send) {
@@ -643,23 +641,18 @@ kiri.worker = {
     }
 };
 
-dispatch.send = (msg) => {
-    // console.log('worker send', msg);
-    self.postMessage(msg);
+dispatch.send = (msg, direct) => {
+    self.postMessage(msg, direct);
 };
 
 dispatch.onmessage = self.onmessage = function(e) {
-    // console.log('worker recv', e);
     let time_recv = time(),
         msg = e.data || {},
         run = dispatch[msg.task],
         send = {
             data : function(data,direct) {
                 // if (direct && direct.length) {
-                //     console.log({
-                //         zeros: direct.length,
-                //         sz:direct.map(z => z.byteLength).reduce((a,v) => a+v)
-                //     });
+                //     console.log( direct.map(z => z.byteLength).reduce((a,v) => a+v) );
                 // }
                 dispatch.send({
                     seq: msg.seq,
@@ -667,14 +660,11 @@ dispatch.onmessage = self.onmessage = function(e) {
                     done: false,
                     data: data
                 }, direct);
+                // if (direct && direct.length) {
+                //     console.log( direct.map(z => z.byteLength).reduce((a,v) => a+v) );
+                // }
             },
             done : function(data,direct) {
-                // if (direct && direct.length) {
-                //     console.log({
-                //         zeros: direct.length,
-                //         sz:direct.map(z => z.byteLength).reduce((a,v) => a+v)
-                //     });
-                // }
                 dispatch.send({
                     seq: msg.seq,
                     task: msg.task,
@@ -701,7 +691,6 @@ dispatch.onmessage = self.onmessage = function(e) {
                 data: output
             });
         } catch (wrkerr) {
-            // console.log(wrkerr);
             console.trace(wrkerr.stack);
             send.done({error: wrkerr.toString()});
         }

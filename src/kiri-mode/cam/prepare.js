@@ -26,7 +26,7 @@ const POLY = polygons;
  * @param {Number} [index] into widget array
  * @param {Object} [firstPoint] starting point
  */
-CAM.prepare = function(widgets, settings, update) {
+CAM.prepare = async function(widgets, settings, update) {
     widgets = widgets.filter(w => !w.track.ignore && !w.meta.disabled);
 
     const count = widgets.length;
@@ -42,7 +42,9 @@ CAM.prepare = function(widgets, settings, update) {
     });
 
     const output = print.output.filter(level => Array.isArray(level));
-    print.render = render.path(output, (progress, layer) => {
+
+    if (render) // allows it to run from CLI
+    return render.path(output, (progress, layer) => {
         update(0.75 + progress * 0.25, "render", layer);
     }, {
         thin: true,
@@ -54,8 +56,6 @@ CAM.prepare = function(widgets, settings, update) {
         action: "milling",
         maxspeed: settings.process.camFastFeed || 6000
     });
-
-    return print.render;
 };
 
 function prepEach(widget, settings, print, firstPoint, update) {
