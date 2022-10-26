@@ -372,7 +372,7 @@ function fallback(models, strict) {
 const tool = {
     merge(models) {
         models = fallback(models);
-        if (models.length <= 1) {
+        if (models.length < 2) {
             return api.log.emit('nothing to merge');
         }
         api.log.emit(`merging ${models.length} models`).pin();
@@ -391,6 +391,9 @@ const tool = {
 
     union(models) {
         models = fallback(models);
+        if (models.length < 2) {
+            return api.log.emit('nothing to union');
+        }
         api.log.emit(`union ${models.length} models`).pin();
         worker.model_union(models.map(m => {
             return { id: m.id, matrix: m.matrix }
@@ -401,12 +404,20 @@ const tool = {
                 mesh: data
             })]).promote();
             api.selection.set([group]);
+        })
+        .catch(error => {
+            api.log.emit(`union error: ${error}`);
+        })
+        .finally(() => {
             api.log.emit('union complete').unpin();
         });
     },
 
     intersect(models) {
         models = fallback(models);
+        if (models.length < 2) {
+            return api.log.emit('nothing to intersect');
+        }
         api.log.emit(`intersect ${models.length} models`).pin();
         worker.model_intersect(models.map(m => {
             return { id: m.id, matrix: m.matrix }
@@ -417,12 +428,20 @@ const tool = {
                 mesh: data
             })]).promote();
             api.selection.set([group]);
+        })
+        .catch(error => {
+            api.log.emit(`intersect error: ${error}`);
+        })
+        .finally(() => {
             api.log.emit('intersect complete').unpin();
         });
     },
 
     subtract(models) {
         models = fallback(models);
+        if (models.length < 2) {
+            return api.log.emit('nothing to subtract');
+        }
         api.log.emit(`subtract ${models.length} models`).pin();
         worker.model_subtract(models.map(m => {
             return { id: m.id, matrix: m.matrix, tool: m.tool() }
@@ -433,6 +452,11 @@ const tool = {
                 mesh: data
             })]).promote();
             api.selection.set([group]);
+        })
+        .catch(error => {
+            api.log.emit(`subtract error: ${error}`);
+        })
+        .finally(() => {
             api.log.emit('subtract complete').unpin();
         });
     },
@@ -695,9 +719,9 @@ const prefs = {
             select: []
         },
         normals: {
-            length: 0.5,
-            color_lite: 0xff0000,
-            color_dark: 0x00ffff
+            length: 0.25,
+            color_lite: 0xffff00,
+            color_dark: 0xffff00,
         },
         surface: {
             radians: 0.1,

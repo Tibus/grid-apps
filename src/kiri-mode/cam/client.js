@@ -81,11 +81,6 @@ CAM.init = function(kiri, api) {
         UI.func.animate.style.display = isCamMode ? '' : 'none';
         if (!isCamMode) {
             func.clearPops();
-            UI.label.slice.innerText = LANG.slice;
-            UI.label.preview.innerText = LANG.preview;
-            UI.label.export.innerText = LANG.export;
-        } else {
-            UI.label.slice.innerText = LANG.start;
         }
         $('camops').style.display = isCamMode && isArrange ? 'flex' : '';
         // do not persist traces across page reloads
@@ -195,6 +190,8 @@ CAM.init = function(kiri, api) {
         let settings = API.conf.get();
         let { process, device } = settings;
         switch (ev.target.innerText) {
+            case "laser on": return func.opAddLaserOn();
+            case "laser off": return func.opAddLaserOff();
             case "gcode": return func.opAddGCode();
             case "level": return func.opAddLevel();
             case "rough": return func.opAddRough();
@@ -220,6 +217,14 @@ CAM.init = function(kiri, api) {
                 }
                 return func.opAddFlip();
         }
+    };
+
+    func.opAddLaserOn = () => {
+        func.opAdd(popOp['laser on'].new());
+    };
+
+    func.opAddLaserOff = () => {
+        func.opAdd(popOp['laser off'].new());
     };
 
     func.opAddGCode = () => {
@@ -356,14 +361,17 @@ CAM.init = function(kiri, api) {
             bounds.push(el);
             let timer = null;
             let inside = true;
+            let popped = false;
             let poprec = popOp[rec.type];
+            el.rec = rec;
             el.unpop = () => {
                 let pos = [...el.childNodes].indexOf(poprec.div);
                 if (pos >= 0) {
                     el.removeChild(poprec.div);
                 }
+                popped = false;
             };
-            el.onmouseenter = (ev) => {
+            function onEnter(ev) {
                 if (poppedRec && poppedRec != rec) {
                     func.surfaceDone();
                     func.traceDone();
@@ -373,6 +381,7 @@ CAM.init = function(kiri, api) {
                 inside = true;
                 // pointer to current rec for trace editing
                 poppedRec = rec;
+                popped = true;
                 poprec.use(rec);
                 hoveredOp = el;
                 el.appendChild(poprec.div);
@@ -382,8 +391,8 @@ CAM.init = function(kiri, api) {
                 setTimeout(() => {
                     UC.setSticky(false);
                 }, 0);
-            };
-            el.onmouseleave = () => {
+            }
+            function onLeave(ev) {
                 inside = false;
                 clearTimeout(timer);
                 timer = setTimeout(() => {
@@ -391,9 +400,9 @@ CAM.init = function(kiri, api) {
                         el.unpop();
                     }
                 }, 250);
-            };
-            el.rec = rec;
-            el.onmousedown = (ev) => {
+            }
+            function onDown(ev) {
+                let mobile = ev.touches;
                 func.surfaceDone();
                 func.traceDone();
                 let target = ev.target, clist = target.classList;
@@ -437,8 +446,12 @@ CAM.init = function(kiri, api) {
                     }
                     API.conf.save();
                     func.opRender();
+                    if (mobile) {
+                        el.ontouchmove = onDown;
+                        el.ontouchend = undefined;
+                    }
                 };
-                tracker.onmousemove = (ev) => {
+                function onMove(ev) {
                     ev.stopPropagation();
                     ev.preventDefault();
                     if (ev.buttons === 0) {
@@ -449,22 +462,55 @@ CAM.init = function(kiri, api) {
                         let rect = el.getBoundingClientRect();
                         let left = rect.left;
                         let right = rect.left + rect.width;
-                        if (ev.pageX >= left && ev.pageX <= right) {
+                        let tar = mobile ? ev.touches[0] : ev;
+                        if (tar.pageX >= left && tar.pageX <= right) {
                             let mid = (left + right) / 2;
                             try { listel.removeChild(target); } catch (e) { }
-                            el.insertAdjacentElement(ev.pageX < mid ? "beforebegin" : "afterend", target);
+                            el.insertAdjacentElement(tar.pageX < mid ? "beforebegin" : "afterend", target);
                         }
                     }
+                }
+                tracker.onmousemove = onMove;
+                if (mobile) {
+                    el.ontouchmove = onMove;
+                    el.ontouchend = cancel;
+                }
+            }
+            if (moto.space.info.mob) {
+                let touched = false;
+                el.ontouchstart = (ev) => {
+                    touched = true;
+                    if (poppedRec === rec && popped) {
+                        onLeave(ev);
+                    } else {
+                        onEnter(ev);
+                    }
                 };
-            };
+                el.ontouchmove = onDown;
+                el.onmouseenter = (ev) => {
+                    if (touched) {
+                        // touches block mouse events on touchscreen PCs
+                        // which are often sent along with touch events
+                        // but when not touched, allow the mouse to work
+                        return;
+                    }
+                    el.onmousedown = onDown;
+                    el.onmouseleave = onLeave;
+                    onEnter(ev);
+                };
+            } else {
+                el.onmousedown = onDown;
+                el.onmouseenter = onEnter;
+                el.onmouseleave = onLeave;
+            }
         }
     });
 
-    func.opGCode = () => {
+    func.opGCode = (label, field = 'gcode') => {
         API.dialog.show('any');
         const { c_gcode } = h.bind(
             $('mod-any'), h.div({ id: "camop_dialog" }, [
-                h.label('custom gcode operation'),
+                h.label(label || 'custom gcode operation'),
                 h.textarea({ id: "c_gcode", rows: 15, cols: 50 }),
                 h.button({ _: 'done', onclick: () => {
                     API.dialog.hide();
@@ -472,12 +518,20 @@ CAM.init = function(kiri, api) {
                 } })
             ])
         );
-        c_gcode.value = poppedRec.gcode || '';
+        let av = poppedRec[field] || [];
+        c_gcode.value = typeof(av) === 'string' ? av : av.join('\n');
         c_gcode.onkeyup = (el) => {
-            poppedRec.gcode = c_gcode.value;
+            poppedRec[field] = c_gcode.value.trim().split('\n');
         };
         c_gcode.focus();
     };
+
+    // create custom gcode editor function
+    function gcodeEditor(label, field) {
+        return function() {
+            func.opGCode(label, field);
+        }
+    }
 
     func.opFlip = () => {
         let widgets = API.widgets.all();
@@ -990,12 +1044,6 @@ CAM.init = function(kiri, api) {
         return current.device.spindleMax > 0;
     }
 
-    createPopOp('gcode', {
-        gcode:  'camCustomGcode',
-    }).inputs = {
-        action:   UC.newRow([ UC.newButton(LANG.edit, func.opGCode) ], {class:"ext-buttons f-row"})
-    };
-
     createPopOp('level', {
         tool:    'camLevelTool',
         spindle: 'camLevelSpindle',
@@ -1225,6 +1273,54 @@ CAM.init = function(kiri, api) {
         action:   UC.newRow([
             UC.newButton(LANG.cf_menu, func.opFlip)
         ], {class:"ext-buttons f-row"})
+    };
+
+    createPopOp('gcode', {
+        gcode:  'camCustomGcode',
+    }).inputs = {
+        action:   UC.newRow([ UC.newButton(LANG.edit, gcodeEditor()) ], {class:"ext-buttons f-row"})
+    };
+
+    const editEnable = gcodeEditor('Laser Enable Script', 'enable');
+    const editOn = gcodeEditor('Laser On Script', 'on');
+    const editOff = gcodeEditor('Laser Off Script', 'off');
+
+    createPopOp('laser on', {
+        enable:  'camLaserEnable',
+        on:      'camLaserOn',
+        off:     'camLaserOff',
+        power:   'camLaserPower',
+        adapt:   'camLaserAdaptive',
+        adaptrp: 'camLaserAdaptMod',
+        flat:    'camLaserFlatten',
+        flatz:   'camLaserFlatZ',
+        minp:    'camLaserPowerMin',
+        maxp:    'camLaserPowerMax',
+        minz:    'camLaserZMin',
+        maxz:    'camLaserZMax',
+    }).inputs = {
+        enable:  UC.newRow([ UC.newButton(LANG.enable, editEnable) ], {class:"ext-buttons f-row"}),
+        on:      UC.newRow([ UC.newButton(LANG.on, editOn) ], {class:"ext-buttons f-row"}),
+        off:     UC.newRow([ UC.newButton(LANG.off, editOff) ], {class:"ext-buttons f-row"}),
+        sep:     UC.newBlank({class:"pop-sep"}),
+        power:   UC.newInput(LANG.cl_powr_s, {title:LANG.cl_powr_l, convert:UC.toFloat, bound:UC.bound(0,1.0), show:() => !poppedRec.adapt}),
+        maxp:    UC.newInput(LANG.cl_maxp_s, {title:LANG.cl_maxp_l, convert:UC.toFloat, bound:UC.bound(0,1.0), show:() => poppedRec.adapt}),
+        minp:    UC.newInput(LANG.cl_minp_s, {title:LANG.cl_minp_l, convert:UC.toFloat, bound:UC.bound(0,1.0), show:() => poppedRec.adapt}),
+        maxz:    UC.newInput(LANG.cl_maxz_s, {title:LANG.cl_maxz_l, convert:UC.toFloat, show:() => poppedRec.adapt}),
+        minz:    UC.newInput(LANG.cl_minz_s, {title:LANG.cl_minz_l, convert:UC.toFloat, show:() => poppedRec.adapt}),
+        flatz:   UC.newInput(LANG.cl_flaz_s, {title:LANG.cl_flaz_l, convert:UC.toFloat, show:() => poppedRec.flat}),
+        sep:     UC.newBlank({class:"pop-sep"}),
+        adapt:   UC.newBoolean(LANG.cl_adap_s, undefined, {title:LANG.cl_adap_l}),
+        adaptrp: UC.newBoolean(LANG.cl_adrp_s, undefined, {title:LANG.cl_adrp_l, show:() => poppedRec.adapt}),
+        flat:    UC.newBoolean(LANG.cl_flat_s, undefined, {title:LANG.cl_flat_l }),
+    };
+
+    const editDisable = gcodeEditor('Laser Disable Script', 'disable');
+
+    createPopOp('laser off', {
+        disable: 'camLaserDisable',
+    }).inputs = {
+        disable: UC.newRow([ UC.newButton(LANG.disable, editDisable) ], {class:"ext-buttons f-row"}),
     };
 };
 

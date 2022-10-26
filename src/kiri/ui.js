@@ -158,8 +158,8 @@ gapp.register("kiri.ui", [], (root, exports) => {
         });
     }
 
-    function refresh() {
-        setMode(letMode, true);
+    function refresh(all) {
+        setMode(letMode, all ? false : true);
         setters.forEach(input => {
             if (input.setv) {
                 input.setv(input.real);
@@ -695,7 +695,7 @@ gapp.register("kiri.ui", [], (root, exports) => {
                 lastChange = ip;
                 action(event);
                 if (opt.trigger) {
-                    refresh();
+                    refresh(opt.trigger === 1);
                 }
             });
             if (opt.units) {
@@ -978,6 +978,7 @@ gapp.register("kiri.ui", [], (root, exports) => {
         let group = opt.group || [];
         let closes = opt.closes || group;
         let target = opt.target || el;
+        let mobile = false;
         let popped = false;
         group.push(target);
         if (closes !== group) {
@@ -998,6 +999,18 @@ gapp.register("kiri.ui", [], (root, exports) => {
         };
         if (opt.auto !== false) {
             el.addEventListener("mouseenter", openit);
+            el.addEventListener("touchstart", (ev) => {
+                if (ev.target.onclick) {
+                    // pass action clicks on children
+                    ev.target.onclick(ev);
+                }
+                mobile = true;
+                if (popped) {
+                    closeit();
+                } else {
+                    openit();
+                }
+            });
         }
         el.addEventListener("mouseleave", (ev) => {
             closes.timer = setTimeout(() => {
@@ -1006,6 +1019,9 @@ gapp.register("kiri.ui", [], (root, exports) => {
         });
         if (!opt.sticky) {
             el.addEventListener("mouseup", (ev) => {
+                if (mobile) {
+                    return;
+                }
                 if (popped) {
                     closeit();
                 } else {

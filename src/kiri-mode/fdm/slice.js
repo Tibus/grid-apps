@@ -778,7 +778,11 @@ FDM.slice = function(settings, widget, onupdate, ondone) {
             forSlices(0.5, promises ? 0.6 : 0.7, slice => {
                 let params = slice.params || process;
                 let density = params.sliceSupportDensity;
-                let supports = slice.supports = slice.topShells();
+                let supports = slice.topShells();
+                if (params.sliceSupportGrow > 0) {
+                    supports  = POLY.expand(supports, params.sliceSupportGrow, slice.z, []);
+                }
+                slice.supports = supports;
                 slice.tops = undefined; // remove outline leave only supports
                 let polys = [];
                 if (density) {
@@ -909,7 +913,7 @@ function doRender(slice, isSynth, params, devel) {
     slice.tops.forEach(top => {
         if (isThin) output
             .setLayer('part', { line: 0x333333, check: 0x333333 })
-            .addPolys(top.poly);
+            .addPolys([top.poly]);
 
         output
             .setLayer(isSynth ? "support" : "shells", isSynth ? COLOR.support : COLOR.shell)
@@ -917,7 +921,7 @@ function doRender(slice, isSynth, params, devel) {
 
         output
             .setLayer("solid fill", isSynth ? COLOR.support : COLOR.fill)
-            .addLines(top.fill_lines || [], vopt({ offset: offset * solidWidth, height }));
+            .addLines(top.fill_lines || [], vopt({ offset: offset * solidWidth, height, z:slice.z }));
 
         if (!(slice.belt && slice.belt.anchor)) output
             .setLayer("sparse fill", COLOR.infill)

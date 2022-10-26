@@ -4,6 +4,7 @@ tmp
 node_modules
 code/**.js
 package-lock.json
+app.json
 logs/*
 data/*
 apps/*
