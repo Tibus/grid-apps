@@ -269,6 +269,7 @@ gapp.register("kiri.init", [], (root, exports) => {
         api.conf.update();
         DOC.activeElement.blur();
         api.event.emit("boolean.click");
+        updateLaserState();
     }
 
     function onButtonClick(ev) {
@@ -744,6 +745,12 @@ gapp.register("kiri.init", [], (root, exports) => {
         setDeviceCode(code, name);
     }
 
+    function updateLaserState() {
+        const dev = settings().device;
+        $('laser-on').style.display = dev.useLaser ? 'flex' : 'none';
+        $('laser-off').style.display = dev.useLaser ? 'flex' : 'none';
+    }
+
     function setDeviceCode(code, devicename) {
         api.event.emit('device.select', {devicename, code});
         try {
@@ -827,6 +834,7 @@ gapp.register("kiri.init", [], (root, exports) => {
                 ui.bedDepth,
                 ui.bedWidth,
                 ui.maxHeight,
+                ui.useLaser,
                 ui.resolutionX,
                 ui.resolutionY,
                 ui.deviceOrigin,
@@ -882,6 +890,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             platform.update_size();
             platform.update_origin();
             platform.update();
+            updateLaserState();
 
             // store current device name for this mode
             current.filter[mode] = devicename;
@@ -908,7 +917,7 @@ gapp.register("kiri.init", [], (root, exports) => {
                 setTimeout(api.space.set_focus, 0);
             }
 
-            uc.refresh();
+            uc.refresh(1);
             filamentSourceEditUpdate();
 
             if (dev.imageURL) {
@@ -1599,7 +1608,7 @@ gapp.register("kiri.init", [], (root, exports) => {
             ltsetup:            $('lt-setup'),
             ltfile:             $('lt-file'),
             ltview:             $('lt-view'),
-            ltact:              $('act-slice'),
+            ltact:              $('lt-start'),
             edit:               $('lt-tools'),
             nozzle:             $('lt-nozzle'),
             render:             $('lt-render'),
@@ -1691,7 +1700,7 @@ gapp.register("kiri.init", [], (root, exports) => {
 
             resolutionX:      uc.newInput(LANG.dv_rezx_s, {title:LANG.dv_rezx_l, convert:uc.toInt, size:5, modes:SLA}),
             resolutionY:      uc.newInput(LANG.dv_rezy_s, {title:LANG.dv_rezy_l, convert:uc.toInt, size:5, modes:SLA}),
-            spindleMax:       uc.newInput(LANG.dv_spmx_s, {title:LANG.dv_spmx_l, convert:uc.toInt, size:5, modes:CAM}),
+            spindleMax:       uc.newInput(LANG.dv_spmx_s, {title:LANG.dv_spmx_l, convert:uc.toInt, size:5, modes:CAM, trigger:1}),
             deviceZMax:       uc.newInput(LANG.dv_zmax_s, {title:LANG.dv_zmax_l, convert:uc.toInt, size:5, modes:FDM}),
             gcodeTime:        uc.newInput(LANG.dv_time_s, {title:LANG.dv_time_l, convert:uc.toFloat, size:5, modes:FDM}),
             fdmSep:           uc.newBlank({class:"pop-sep", modes:FDM}),
@@ -1728,8 +1737,9 @@ gapp.register("kiri.init", [], (root, exports) => {
             palettePress:     uc.newInput(LANG.dv_pacm_s, {title:LANG.dv_pacm_l, modes:FDM, convert:uc.toInt}),
 
             gcode:            uc.newGroup(LANG.dv_gr_out, $('device2'), {group:"dgco", inline:true, modes:CAM_LZR}),
-            gcodeSpace:       uc.newBoolean(LANG.dv_tksp_s, onBooleanClick, {title:LANG.dv_tksp_l, modes:CAM_LZR}),
             gcodeStrip:       uc.newBoolean(LANG.dv_strc_s, onBooleanClick, {title:LANG.dv_strc_l, modes:CAM}),
+            gcodeSpace:       uc.newBoolean(LANG.dv_tksp_s, onBooleanClick, {title:LANG.dv_tksp_l, modes:CAM_LZR}),
+            useLaser:         uc.newBoolean(LANG.dv_lazr_s, onBooleanClick, {title:LANG.dv_lazr_l, modes:CAM}),
             gcodeFExt:        uc.newInput(LANG.dv_fext_s, {title:LANG.dv_fext_l, modes:CAM_LZR, size:7, text:true}),
 
             gcodeEd:          uc.newGroup(LANG.dv_gr_gco, $('dg'), {group:"dgcp", inline:true, modes:GCODE}),
@@ -1744,7 +1754,7 @@ gapp.register("kiri.init", [], (root, exports) => {
                 (ui.gcodeLaserOff = uc.newGCode(LANG.dv_lzof_s, {title:LANG.dv_lzof_l, modes:LASER, area:gcode})).button,
                 (ui.gcodeChange = uc.newGCode(LANG.dv_tool_s, {title:LANG.dv_tool_l, modes:CAM, area:gcode})).button,
                 (ui.gcodeDwell = uc.newGCode(LANG.dv_dwll_s, {title:LANG.dv_dwll_l, modes:CAM, area:gcode})).button,
-                (ui.gcodeSpindle = uc.newGCode(LANG.dv_sspd_s, {title:LANG.dv_sspd_l, modes:CAM, area:gcode})).button
+                (ui.gcodeSpindle = uc.newGCode(LANG.dv_sspd_s, {title:LANG.dv_sspd_l, modes:CAM, area:gcode, show:() => ui.spindleMax.value > 0})).button
             ], {class:"ext-buttons f-row gcode-macros"}),
 
             lprefs:           uc.newGroup(LANG.op_menu, $('prefs-gen1'), {inline: true}),
@@ -1860,7 +1870,8 @@ gapp.register("kiri.init", [], (root, exports) => {
             sliceSupportGap:     uc.newInput(LANG.sp_gaps_s, {title:LANG.sp_gaps_l, bound:uc.bound(0,5), convert:uc.toInt, modes:FDM}),
             fdmSep:              uc.newBlank({class:"pop-sep", modes:FDM}),
             sliceSupportArea:    uc.newInput(LANG.sp_area_s, {title:LANG.sp_area_l, bound:uc.bound(0.0,200.0), convert:uc.toFloat, modes:FDM}),
-            sliceSupportExtra:   uc.newInput(LANG.sp_xpnd_s, {title:LANG.sp_xpnd_l, bound:uc.bound(0.0,200.0), convert:uc.toFloat, modes:FDM}),
+            sliceSupportExtra:   uc.newInput(LANG.sp_xpnd_s, {title:LANG.sp_xpnd_l, bound:uc.bound(0.0,10.0), convert:uc.toFloat, modes:FDM}),
+            sliceSupportGrow:    uc.newInput(LANG.sp_grow_s, {title:LANG.sp_grow_l, bound:uc.bound(0.0,10.0), convert:uc.toFloat, modes:FDM}),
             fdmSep:              uc.newBlank({class:"pop-sep", modes:FDM}),
             sliceSupportAngle:   uc.newInput(LANG.sp_angl_s, {title:LANG.sp_angl_l, bound:uc.bound(0.0,90.0), convert:uc.toFloat, modes:FDM}),
             sliceSupportSpan:    uc.newInput(LANG.sp_span_s, {title:LANG.sp_span_l, bound:uc.bound(0.0,200.0), convert:uc.toFloat, modes:FDM, show:() => ui.sliceSupportEnable.checked}),
@@ -2049,10 +2060,19 @@ gapp.register("kiri.init", [], (root, exports) => {
         }
 
         // slider setup
-        const slbar = 30;
+        const mobile = moto.space.info.mob;
+        const slbar = mobile ? 80 : 30;
         const slbar2 = slbar * 2;
         const slider = ui.sliderRange;
         const drag = { };
+
+        if (mobile) {
+            ui.slider.classList.add('slider-mobile');
+            ui.sliderLo.classList.add('slider-mobile');
+            ui.sliderHi.classList.add('slider-mobile');
+            // add css style for mobile devices
+            DOC.body.classList.add('mobile');
+        }
 
         function pxToInt(txt) {
             return txt ? parseInt(txt.substring(0,txt.length-2)) : 0;
@@ -2069,18 +2089,21 @@ gapp.register("kiri.init", [], (root, exports) => {
         }
 
         function dragit(el, delta) {
-            el.onmousedown = (ev) => {
+            el.ontouchstart = el.onmousedown = (ev) => {
+                // el.classList.add('sli-drag-el');
                 tracker.style.display = 'block';
                 ev.stopPropagation();
+                let obj = (ev.touches ? ev.touches[0] : ev);
                 drag.width = slider.clientWidth;
                 drag.maxval = drag.width - slbar2;
-                drag.start = ev.screenX;
+                drag.start = obj.screenX;
                 drag.loat = drag.low = pxToInt(ui.sliderHold.style.marginLeft);
                 drag.mdat = drag.mid = ui.sliderMid.clientWidth;
                 drag.hiat = pxToInt(ui.sliderHold.style.marginRight);
                 drag.mdmax = drag.width - slbar - drag.loat;
                 drag.himax = drag.width - slbar - drag.mdat;
-                let cancel_drag = tracker.onmouseup = (ev) => {
+                let cancel_drag = tracker.ontouchend = tracker.onmouseup = (ev) => {
+                    // el.classList.remove('sli-drag-el');
                     if (ev) {
                         ev.stopPropagation();
                         ev.preventDefault();
@@ -2088,13 +2111,17 @@ gapp.register("kiri.init", [], (root, exports) => {
                     slider.onmousemove = undefined;
                     tracker.style.display = 'none';
                 };
-                tracker.onmousemove = (ev) => {
+                el.ontouchend = cancel_drag;
+                el.ontouchmove = tracker.ontouchmove = tracker.onmousemove = (ev) => {
                     ev.stopPropagation();
                     ev.preventDefault();
                     if (ev.buttons === 0) {
                         return cancel_drag();
                     }
-                    if (delta) delta(ev.screenX - drag.start);
+                    if (delta) {
+                        let obj = (ev.touches ? ev.touches[0] : ev);
+                        delta(obj.screenX - drag.start);
+                    }
                 };
             };
         }
@@ -2347,14 +2374,23 @@ gapp.register("kiri.init", [], (root, exports) => {
             ui.scaleX.was = ui.scaleY.was = ui.scaleZ.was = 1;
         };
 
+        $('app-xpnd').onclick = () => {
+            try {
+                DOC.body.requestFullscreen();
+            } catch (e) {
+                event.emit('resize');
+                moto.space.event.onResize();
+            }
+        };
+
         let hpops = [];
         uc.hoverPop(ui.ltsetup, { group: hpops, target: $('set-pop') });
         uc.hoverPop(ui.ltfile,  { group: hpops, target: $('file-pop') });
         uc.hoverPop(ui.ltview,  { group: hpops, target: $('pop-view') });
         uc.hoverPop(ui.ltact,   { group: hpops, target: $('pop-slice') });
-        uc.hoverPop(ui.render,  { group: hpops, target: $('pop-render'), sticky: false });
-        uc.hoverPop(ui.edit,    { group: hpops, target: $('pop-tools'), sticky: false });
-        uc.hoverPop(ui.nozzle,  { group: hpops, target: $('pop-nozzle'), sticky: true });
+        uc.hoverPop(ui.render,  { group: hpops, target: $('pop-render'), xsticky: false });
+        uc.hoverPop(ui.edit,    { group: hpops, target: $('pop-tools'), xsticky: false });
+        uc.hoverPop(ui.nozzle,  { group: hpops, target: $('pop-nozzle'), xsticky: true });
         uc.hoverPop($('app-acct'), { group: hpops, target: $('acct-pop') } );
         // uc.hoverPop($('app-mode'), { group: hpops, target: $('mode-info') } );
         uc.hoverPop($('app-name'), { group: hpops, target: $('app-info') } );

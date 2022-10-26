@@ -3,78 +3,170 @@
 "use strict";
 
 // dep: geo.base
-// jscad dep injected in app so it comes before everything else
+// dep: ext.manifold
 gapp.register("geo.csg", [], (root, exports) => {
 
 const { base } = root;
-const debug = false;
+const debug = true;
 
 const CSG = {
 
+    // accepts 2 or more arguments with threejs vertex position arrays
     union() {
-        if (debug) {
-            console.log(JSON.stringify([ ...arguments ]));
-        }
-        let union = jscadModeling.booleans.union(...arguments);
-        if (debug) {
-            console.log(JSON.stringify(union));
-        }
-        return union;
+        return CSG.moduleOp('manifold.union', 'union', ...arguments);
     },
 
+    // accepts 2 or more arguments with threejs vertex position arrays
+    // the fist argument is the target mesh. the rest are negatives
     subtract() {
-        return jscadModeling.booleans.subtract(...arguments);
+        return CSG.moduleOp('manifold.subtract', 'difference', ...arguments);
     },
 
+    // accepts 2 or more arguments with threejs vertex position arrays
     intersect() {
-        return jscadModeling.booleans.intersect(...arguments);
+        return CSG.moduleOp('manifold.intersect', 'intersection', ...arguments);
     },
 
-    toPositionArray(geom) {
-        if (!geom || geom.length === 0) {
-            return [].toFloat32();
+    moduleOp(name, op) {
+        mesh.log(`${name} ${arguments.length} meshes`);
+        const args = [...arguments].slice(2).map(a => new Module.Manifold(a));
+        if (args.length < 2) {
+            throw "missing one or more meshes";
         }
-        const out = [];
-        const poly = jscadModeling.geometries.geom3
-            .toPolygons(geom)
-            .map(p => p.vertices);
-        for (let p of poly) {
-            let p0 = p[0];
-            for (let i = 0; i<p.length - 2; i++) {
-                out.push(p0, p[i+1], p[i+2]);
+        const result = Module[op](...args);
+        const output = result.getMesh({ normal: () => undefined });
+        const errors = [ ...args, result ].map(m => m.status().value);
+        for (let m of [ ...args, result ]) {
+            m.delete();
+        }
+        if (errors.reduce((a,b) => a+b)) {
+            throw `${errors}`;
+        }
+        return output;
+    },
+
+    toPositionArray(mesh) {
+        const { vertPos, triVerts, vertex, index } = mesh;
+        if (vertex && index) {
+            const vertices = new Float32Array(index.length * 3);
+            for (let p=0, i=0, l=index.length; i<l; i++) {
+                let vi = index[i] * 3;
+                vertices[p++] = vertex[vi++];
+                vertices[p++] = vertex[vi++];
+                vertices[p++] = vertex[vi++];
             }
+            return vertices;
         }
-        return out.flat().toFloat32();
-        // return geom.polygons
-        //     .map(p => p.vertices.flat())
-        //     .map(a => base.util.triangulate(a, undefined, 3))
-        //     .flat().toFloat32();
+        if (vertPos && triVerts) {
+            const vertices = new Float32Array(triVerts.length * 9);
+            for (let i = 0, t = 0, l = triVerts.length; t < l; t++) {
+                let tri = triVerts[t];
+                let vert = vertPos[tri[0]]; // X
+                vertices[i++] = vert[0];
+                vertices[i++] = vert[1];
+                vertices[i++] = vert[2];
+                vert = vertPos[tri[1]]; // Y
+                vertices[i++] = vert[0];
+                vertices[i++] = vert[1];
+                vertices[i++] = vert[2];
+                vert = vertPos[tri[2]]; // Z
+                vertices[i++] = vert[0];
+                vertices[i++] = vert[1];
+                vertices[i++] = vert[2];
+            }
+            return vertices;
+        }
+        throw "mesh missing required fields";
     },
 
-    // Construct a CSG from a THREE Geometry BufferAttribute array (or similar)
-    fromPositionArray(array) {
-        const polys = [];
-        if (debug) {
-            array = [...array].map(v => v.round(3));
+    fromPositionArray(pos) {
+        const { index, vertices } = indexVertices(pos);
+        const mesh = {
+            vertPos: new Module.Vector_vec3(),
+            triVerts: new Module.Vector_ivec3(),
+            vertNormal: new Module.Vector_vec3(),
+            halfedgeTangent: new Module.Vector_vec4()
+        };
+        for (let i = 0, l = vertices.length; i < l; ) {
+            mesh.vertPos.push_back({
+                x: vertices[i++],
+                y: vertices[i++],
+                z: vertices[i++]
+            });
         }
-        for (let i=0, l=array.length; i<l; ) {
-            polys.push([ [
-                array[i++],
-                array[i++],
-                array[i++],
-            ],[
-                array[i++],
-                array[i++],
-                array[i++],
-            ],[
-                array[i++],
-                array[i++],
-                array[i++],
-            ] ]);
+        for (let i = 0, l = index.length; i < l; ) {
+            mesh.triVerts.push_back([ index[i++], index[i++], index[i++] ]);
         }
-        return jscadModeling.geometries.geom3.fromPoints(polys);
+        return mesh;
     }
 
+};
+
+function indexVertices(pos) {
+    mesh.log(`indexing ${pos.length/3} vertices`);
+    let ipos = 0;
+    const index = [];
+    const vertices = [];
+    const cache = {};
+    const temp = { x: 0, y: 0, z: 0 };
+    for (let i=0, length = pos.length; i<length; ) {
+        temp.x = pos[i++];
+        temp.y = pos[i++];
+        temp.z = pos[i++];
+        let key = [
+            ((temp.x * 100000) | 0),
+            ((temp.y * 100000) | 0),
+            ((temp.z * 100000) | 0)
+        ].join('');
+        let ip = cache[key];
+        if (ip >= 0) {
+            index.push(ip);
+        } else {
+            index.push(ipos);
+            cache[key] = (ipos++);
+            vertices.push(temp.x, temp.y, temp.z);
+        }
+    }
+    return { index, vertices };
+}
+
+function pos2mesh(pos) {
+
+}
+
+Module.onRuntimeInitialized = () => {
+    Module.setup();
+
+    if (false) {
+        let c = Module.cube([1,1,1], true);
+        console.log({
+            c,
+            cm: c.getMesh(),
+            cmd: c.getMesh({ normal: () => undefined }),
+            cmdn: c.getMesh({})
+        });
+
+        let l = 1000;
+        let s = Module.sphere(10, 100);
+        let sm = s.getMesh();
+        console.log({
+            s,
+            sm,
+            smd: s.getMesh({}),
+        });
+
+        console.time('getMesh');
+        for (let i=0; i<l; i++) s.getMesh();
+        console.timeEnd('getMesh');
+
+        console.time(`getMeshDirect`);
+        for (let i=0; i<l; i++) s.getMesh({ normal: () => undefined });
+        console.timeEnd(`getMeshDirect`);
+
+        console.time(`getMeshDirect`);
+        for (let i=0; i<l; i++) s.getMesh({});
+        console.timeEnd(`getMeshDirect`);
+    }
 };
 
 gapp.overlay(base, {

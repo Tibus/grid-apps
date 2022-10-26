@@ -44,9 +44,35 @@ class OpGCode extends CamOp {
     }
 
     prepare(ops, progress) {
-        if (this.op.gcode) {
-            ops.addGCode(this.op.gcode);
-        }
+        ops.addGCode(this.op.gcode);
+    }
+}
+
+class OpLaserOn extends CamOp {
+    constructor(state, op) {
+        super(state, op);
+    }
+
+    prepare(ops, progress) {
+        const { printPoint, setPrintPoint, setTool, zmax, camOut } = ops;
+        this.op.silent = true;
+        setTool(0);
+        ops.addGCode(this.op.enable);
+        ops.setLasering(true, this.op.power);
+    }
+}
+
+class OpLaserOff extends CamOp {
+    constructor(state, op) {
+        super(state, op);
+    }
+
+    prepare(ops, progress) {
+        const { printPoint, zmax, camOut } = ops;
+        this.op.silent = true;
+        ops.addGCode(this.op.disable);
+        ops.setLasering(false);
+        camOut(printPoint.clone().setZ(zmax), 0);
     }
 }
 
@@ -438,7 +464,7 @@ class OpOutline extends CamOp {
         let shadow = [];
         let slices = [];
         let intopt = {
-            down: true, min: zBottom, fit: true, off: 0.01,
+            down: true, min: Math.max(0, zBottom), fit: true, off: 0.01,
             max: op.top ? zMax + ztOff : undefined
         };
         let indices = slicer.interval(op.down, intopt);
@@ -1612,18 +1638,20 @@ CAM.shadowAt = function(widget, z, ztop) {
 };
 
 CAM.OPS = CamOp.MAP = {
-    "xray":     OpXRay,
-    "shadow":   OpShadow,
-    "level":    OpLevel,
-    "rough":    OpRough,
-    "outline":  OpOutline,
-    "contour":  OpContour,
-    "pocket":   OpPocket,
-    "trace":    OpTrace,
-    "drill":    OpDrill,
-    "register": OpRegister,
-    "gcode":    OpGCode,
-    "flip":     CamOp
+    "xray":      OpXRay,
+    "shadow":    OpShadow,
+    "level":     OpLevel,
+    "rough":     OpRough,
+    "outline":   OpOutline,
+    "contour":   OpContour,
+    "pocket":    OpPocket,
+    "trace":     OpTrace,
+    "drill":     OpDrill,
+    "register":  OpRegister,
+    "laser on":  OpLaserOn,
+    "laser off": OpLaserOff,
+    "gcode":     OpGCode,
+    "flip":      CamOp
 };
 
 });

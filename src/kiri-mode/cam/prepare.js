@@ -93,6 +93,8 @@ function prepEach(widget, settings, print, firstPoint, update) {
         drillDown = 0,
         drillLift = 0,
         drillDwell = 0,
+        lasering = false,
+        laserPower = 0,
         newOutput = print.output || [],
         layerOut = [],
         printPoint,
@@ -104,8 +106,8 @@ function prepEach(widget, settings, print, firstPoint, update) {
         plungeRate = process.camFastFeedZ,
         feedRate,
         lastTool,
-        lastMode,
         lastPoint,
+        currentOp,
         nextIsMove = true,
         synthPlunge = false,
         spindle = 0,
@@ -118,21 +120,26 @@ function prepEach(widget, settings, print, firstPoint, update) {
             };
         }) : zmax;
 
-    function newLayer() {
-        if (layerOut.length < 2) {
-            return;
+    function newLayer(op) {
+        if (layerOut.length || layerOut.mode) {
+            newOutput.push(layerOut);
         }
-        newOutput.push(layerOut);
         layerOut = [];
-        layerOut.mode = lastMode;
+        layerOut.mode = op || currentOp;
         layerOut.spindle = spindle;
     }
 
     function addGCode(text) {
-        newOutput.push(text);
+        if (!(text && text.length)) {
+            return;
+        }
+        if (!Array.isArray(text)) {
+            text = text.trim().split('\n');
+        }
+        newOutput.push([{ gcode: text }]);
         if (layerOut.length) {
             layerOut = [];
-            layerOut.mode = lastMode;
+            layerOut.mode = currentOp;
             layerOut.spindle = spindle;
         }
     }
@@ -143,7 +150,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
     }
 
     function setPrintPoint(point) {
-        printPoint = point;
+        ops.printPoint = printPoint = point;
     }
 
     function setSpindle(speed) {
@@ -160,6 +167,11 @@ function prepEach(widget, settings, print, firstPoint, update) {
         }
         feedRate = feed || feedRate;
         plungeRate = plunge || plungeRate || feedRate;
+    }
+
+    function setLasering(bool, power = 0) {
+        lasering = bool ? currentOp : undefined;
+        laserPower = power;
     }
 
     function setDrill(down, lift, dwell) {
@@ -237,8 +249,35 @@ function prepEach(widget, settings, print, firstPoint, update) {
      * @param {number} [tool] tool
      */
     function layerPush(point, emit, speed, tool) {
-        layerOut.mode = lastMode;
-        print.addOutput(layerOut, point, emit, speed, tool);
+        layerOut.mode = currentOp;
+        if (lasering) {
+            let power = emit ? laserPower : 0;
+            if (emit && lasering.adapt) {
+                let { minz, maxz, minp, maxp, adaptrp } = lasering;
+                maxz = maxz || wztop;
+                let deltaz = maxz - minz;
+                let { z } = point;
+                if (adaptrp) {
+                    while (z > maxz) z -= deltaz;
+                    while (z < minz) z += deltaz;
+                } else if (z < minz || z > maxz) {
+                    // skip outside of band
+                    return point;
+                }
+                z -= minz;
+                if (minp < maxp) {
+                    power = minp + (z / deltaz) * (maxp - minp);
+                } else {
+                    power = minp - (z / deltaz) * (minp - maxp);
+                }
+            }
+            if (lasering.flat) {
+                point.z = (stock && stock.z ? stock.z : wztop) + lasering.flatz;
+            }
+            print.addOutput(layerOut, point, power, speed, tool, 'laser');
+        } else {
+            print.addOutput(layerOut, point, emit, speed, tool);
+        }
         return point;
     }
 
@@ -284,7 +323,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         }
 
         // convert short planar moves to cuts in some cases
-        if (isMove && deltaXY <= moveLen && deltaZ <= 0) {
+        if (isMove && deltaXY <= moveLen && deltaZ <= 0 && !lasering) {
             let iscontour = tolerance > 0;
             let isflat = absDeltaZ < 0.001;
             // restrict this to contouring
@@ -299,9 +338,10 @@ function prepEach(widget, settings, print, firstPoint, update) {
             }
         } else if (isMove) {
             // for longer moves, check the terrain to see if we need to go up and over
-            const bigXY = (deltaXY > moveLen);
+            const bigXY = (deltaXY > moveLen && !lasering);
             const bigZ = (deltaZ > toolDiam/2 && deltaXY > tolerance);
-            const midZ = (absDeltaZ >= tolerance);
+            const midZ = (tolerance && absDeltaZ >= tolerance);
+
             if (bigXY || bigZ || midZ) {
                 let maxz = getZClearPath(
                         terrain,
@@ -333,7 +373,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         }
 
         // set new plunge rate
-        if (deltaZ < -tolerance) {
+        if (!lasering && deltaZ < -tolerance) {
             let threshold = Math.min(deltaXY / 2, absDeltaZ),
                 modifier = threshold / absDeltaZ;
             if (synthPlunge && threshold && modifier && deltaXY > tolerance) {
@@ -345,7 +385,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         }
 
         // todo synthesize move speed from feed / plunge accordingly
-        layerOut.mode = lastMode;
+        layerOut.mode = currentOp;
         layerOut.spindle = spindle;
         lastPoint = layerPush(
             point,
@@ -380,6 +420,7 @@ function prepEach(widget, settings, print, firstPoint, update) {
         setSpindle,
         setTolerance,
         setPrintPoint,
+        setLasering,
         printPoint,
         newLayer,
         addGCode,
@@ -402,8 +443,9 @@ function prepEach(widget, settings, print, firstPoint, update) {
     for (let op of widget.camops) {
         setTolerance(0);
         nextIsMove = true;
-        lastMode = op.op.type;
+        currentOp = op.op;
         let weight = op.weight();
+        newLayer(op.op);
         op.prepare(ops, (progress, message) => {
             update((opSum + (progress * weight)) / opTot, message || op.type(), message);
         });

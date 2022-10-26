@@ -13,8 +13,9 @@
     <meta property="og:image" content="https://static.grid.space/img/logo_km_og.png">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta http-equiv="origin-trial" content="AhKwa7D89KrdZmlwXxZAHsVTBkm6+44cKZH6X9d37NhZ4UbkDllzmctGSMTSS+Xx51MPFoRf4maqlXXDqefcCg8AAAB0eyJvcmlnaW4iOiJodHRwczovL2dyaWQuc3BhY2U6NDQzIiwiZmVhdHVyZSI6IlVucmVzdHJpY3RlZFNoYXJlZEFycmF5QnVmZmVyIiwiZXhwaXJ5IjoxNjc1Mjk1OTk5LCJpc1N1YmRvbWFpbiI6dHJ1ZX0=">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Kiri:Moto</title>
     <link rel="icon" href="/kiri/favicon.ico">
     <link rel="apple-touch-icon" href="/kiri/favicon-mobile.png">
@@ -49,6 +50,9 @@
             <button id="redo"><i class="fas fa-redo-alt"></i></button>
         </div>
         <div class="grow"></div>
+        <div id="app-xpnd" lkt="fullscreen">
+            <i class="fa-solid fa-maximize"></i>
+        </div>
         <div id="app-acct">
             <i class="fas fa-user-cog"></i>
             <div id="acct-pop" class="f-col">
@@ -194,13 +198,13 @@
                         <i class="fas fa-shapes"></i>
                         <label lk="arrange">arrange</label>
                     </div>
-                    <div id="view-top">
-                        <i class="fas fa-square"></i>
-                        <label lk="top">top</label>
-                    </div>
                     <div id="view-home">
                         <i class="fas fa-home"></i>
                         <label lk="home">home</label>
+                    </div>
+                    <div id="view-top">
+                        <i class="fas fa-square"></i>
+                        <label lk="top">top</label>
                     </div>
                     <div id="view-clear">
                         <i class="far fa-square"></i>
@@ -208,16 +212,20 @@
                     </div>
                 </div>
             </div>
-            <div id="act-slice" class="lt-menu lt-active">
-                <i class="fas fa-bars"></i>
-                <label id="label-slice" title="analyze parts" lk="slice">slice</label>
+            <div id="lt-start" class="lt-menu lt-active">
+                <i class="fas fa-person-running"></i>
+                <label id="label-start" title="start a process" lk="start">start</label>
                 <div id="pop-slice" class="pop-lcol f-row">
+                    <div id="act-slice">
+                        <i class="fas fa-bars"></i>
+                        <label id="label-slice" title="generate layer slices" lk="slice">preview</label>
+                    </div>
                     <div id="act-preview">
                         <i class="fas fa-layer-group"></i>
                         <label id="label-preview" title="show routing and paths" lk="preview">preview</label>
                     </div>
                     <div id="act-animate">
-                        <i class="fas fa-running"></i>
+                        <i class="fas fa-film"></i>
                         <label id="label-animate" title="render routing on a mesh" lk="animate">animate</label>
                     </div>
                     <div id="act-export">
@@ -474,18 +482,19 @@
                 <div id="op-add" class="opdiv">
                     <i class="fas fa-plus"></i>
                     <div id="op-add-pop" class="f-col">
-                        <div id="op-add-list" class="opdiv">
+                        <div id="op-add-list" class="opdiv op-grid">
+                            <div id="laser-on" title="turn on laser mode">laser on</div>
+                            <div id="laser-off"  title="turn off laser mode">laser off</div>
+                            <div title="flip part and load&#13;profile for other side&#13;for double-sided work">flip</div>
+                            <div title="drill registration holes&#13;along the X or Y axis&#13;for double-sided work">register</div>
+                            <div title="drill any holes matching&#13;selected tool diameter">drill</div>
                             <div title="clear stock face&#13;or top of part&#13;when no stock">level</div>
+                            <div title="follow selected features with&#13;a specified tool. often used&#13;for lettering and engraving">trace</div>
+                            <div title="insert custom gcode">gcode</div>
                             <div title="remove an area of material&#13;inside a defined boundary&#13;sometimes called pocketing">rough</div>
                             <div title="clean up after roughing&#13;or perform a part cutout">outline</div>
                             <div title="2.5D tracing along X or Y axis&#13;used for complex part features">contour</div>
                             <div title="clear areas above&#13;selected surfaces">pocket</div>
-                            <div title="follow selected features with&#13;a specified tool. often used&#13;for lettering and engraving">trace</div>
-                            <div title="drill any holes matching&#13;selected tool diameter">drill</div>
-                            <hr width="100%">
-                            <div title="drill registration holes&#13;along the X or Y axis&#13;for double-sided work">register</div>
-                            <div title="insert custom gcode">gcode</div>
-                            <div title="flip part and load&#13;profile for other side&#13;for double-sided work">flip</div>
                         </div>
                     </div>
                 </div>

@@ -2,9 +2,19 @@
 
 Full docs @ https://docs.grid.space/projects/kiri-moto
 
+# Release 3.7
 
-# Release 3.6
+* replace jscad/modeling with Manifold project for faster mesh boolean
 
+
+# Release 3.6 (2022-10-22)
+
+## Kiri:Moto
+
+* add new Carvera machine target in CAM mode with laser support
+* add laser output operators and device settings in CAM mode
+* add fullscreen option. button next to user profile
+* mobile pinch zoom and layer slider usability improvements
 * update CLI to work in CAM mode and add working samples
 * improved FDM preview rendering speed and reduced memory usage
 * threaded task and message passing performance improvements
@@ -22,7 +32,7 @@ Full docs @ https://docs.grid.space/projects/kiri-moto
 
 # Release 3.5 (2022-10-07)
 
-## Kiri:moto
+## Kiri:Moto
 
 * add optional service workers and manifest to support full PWA + install
 * add support to run as Progressive Web Apps for installation and offline use
@@ -52,7 +62,7 @@ Full docs @ https://docs.grid.space/projects/kiri-moto
 
 # Release 3.4 (2022-05-14)
 
-## Kiri:moto
+## Kiri:Moto
 
 * added batch processing to object adds/removes to speedup complex workspace restore
 * substitute some prusa slicer [variables] with KM {variables} on import

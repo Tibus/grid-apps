@@ -47,12 +47,14 @@ CAM.export = function(print, online) {
         maxZd = spro.camFastFeedZ,
         maxXYd = spro.camFastFeed,
         decimals = base.config.gcode_decimals || 4,
-        pos = { x:null, y:null, z:null, f:null, t:null },
+        pos = { x:null, y:null, z:null, f:null, t:null, emit:null },
         line,
         cidx,
         mode,
         point,
         points = 0,
+        lasering = false,
+        laserOp,
         stock = settings.stock || { },
         hasStock = spro.camStockOn && stock.x && stock.y && stock.z,
         ztOff = hasStock ? stock.z - widget.track.top : 0,
@@ -96,7 +98,12 @@ CAM.export = function(print, online) {
     }
 
     function filterEmit(array, consts) {
-        if (!array) return;
+        if (!array) {
+            return;
+        }
+        if (typeof(array) === 'string') {
+            array = array.split('\n');
+        }
         for (i=0; i<array.length; i++) {
             line = print.constReplace(array[i], consts);
             if (!isRML && stripComments && (cidx = line.indexOf(";")) >= 0) {
@@ -140,7 +147,8 @@ CAM.export = function(print, online) {
         return "unknown";
     }
 
-    function moveTo(out) {
+    function moveTo(out, opt = {}) {
+        let laser = out.type === 'laser';
         let newpos = out.point;
 
         // no point == dwell
@@ -164,32 +172,42 @@ CAM.export = function(print, online) {
             pos.t = out.tool;
             consts.tool = pos.t;
             consts.tool_name = toolNameByNumber(out.tool);
-            filterEmit(cmdToolChange, { ...consts, spindle: newSpindle } );
+            if (!laserOp) {
+                filterEmit(cmdToolChange, { ...consts, spindle: newSpindle } );
+            }
         }
 
         // on spindle change (deferred from layer transition so it's post-toolchange)
         if ((changeTool && spindleMax) || (newSpindle && newSpindle !== spindle)) {
             spindle = newSpindle;
-            if (spindle > 0) {
-                let speed = Math.abs(spindle);
-                filterEmit(cmdSpindle, { speed, spindle: speed, rpm: speed });
-            } else {
-                append("M4");
+            if (!laserOp) {
+                if (spindle > 0) {
+                    let speed = Math.abs(spindle);
+                    filterEmit(cmdSpindle, { speed, spindle: speed, rpm: speed });
+                } else {
+                    append("M4");
+                }
             }
         }
 
-        // first point out sets the current position (but not Z)
-        // hacky AF way to split initial x,y,z into z then x,y
+        // split first move to X,Y then Z for that new location
+        // safety to prevent tool crashing
         if (points === 0) {
             pos.x = pos.y = pos.z = 0;
             points++;
             moveTo({
+                // speed: Infinity,
                 tool: out.tool,
-                point: { x: 0, y: 0, z: newpos.z }
+                point: { x: newpos.x, y: newpos.y, z: pos.z }
+            }, {
+                dx: 1, dy: 1, dz: 0, time: 0
             });
             moveTo({
+                // speed: Infinity,
                 tool: out.tool,
                 point: { x: newpos.x, y: newpos.y, z: newpos.z }
+            }, {
+                dx: 0, dy: 0, dz: 1, time: 0
             });
             points--;
             return;
@@ -197,9 +215,9 @@ CAM.export = function(print, online) {
 
         let speed = out.speed,
             nl = [speed ? 'G1' : 'G0'],
-            dx = newpos.x - pos.x,
-            dy = newpos.y - pos.y,
-            dz = newpos.z - pos.z,
+            dx = opt.dx || newpos.x - pos.x,
+            dy = opt.dy || newpos.y - pos.y,
+            dz = opt.dz || newpos.z - pos.z,
             maxf = dz ? maxZd : maxXYd,
             feed = Math.min(speed || maxf, maxf),
             dist = Math.sqrt(dx * dx + dy * dy + dz * dz),
@@ -210,19 +228,19 @@ CAM.export = function(print, online) {
             return;
         }
 
-        if (newpos.x !== pos.x) {
+        if (dx || newpos.x !== pos.x) {
             pos.x = newpos.x;
             runbox.min.x = Math.min(runbox.min.x, pos.x);
             runbox.max.x = Math.max(runbox.max.x, pos.x);
             nl.append(space).append("X").append(add0(pos.x * factor));
         }
-        if (newpos.y !== pos.y) {
+        if (dy || newpos.y !== pos.y) {
             pos.y = newpos.y;
             runbox.min.y = Math.min(runbox.min.y, pos.y);
             runbox.max.y = Math.max(runbox.max.y, pos.y);
             nl.append(space).append("Y").append(add0(pos.y * factor));
         }
-        if (newpos.z !== pos.z) {
+        if (dz || newpos.z !== pos.z) {
             pos.z = newpos.z;
             runbox.min.z = Math.min(runbox.min.z, pos.z);
             runbox.max.z = Math.max(runbox.max.z, pos.z);
@@ -245,8 +263,30 @@ CAM.export = function(print, online) {
             }
         }
 
+        if (!lasering && laser) {
+            // enable laser
+            filterEmit(laserOp.on, consts);
+        }
+
+        // if (laser && pos.emit !== out.emit) {
+        if (laser) {
+            nl.append(space).append(`S${add0(out.emit)}`);
+        }
+
+        if (laser) {
+            pos.emit = out.emit;
+        }
+
+        if (lasering && !laser) {
+            // disable laser
+            filterEmit(laserOp.off, consts);
+        }
+
+        // update lasering state
+        lasering = laser;
+
         // update time calculation
-        time += (dist / (pos.f || 1000)) * 60;
+        time += opt.time >= 0 ? opt.time : (dist / (pos.f || 1000)) * 60;
 
         // if (comment && !stripComments) {
         //     nl.append(" ; ").append(comment);
@@ -276,11 +316,14 @@ CAM.export = function(print, online) {
     // collect tool info to add to header
     let toolz = {}, ctool;
     // remap points as necessary for origins, offsets, inversions
-    print.output.forEach(function(layer) {
+    print.output.forEach(layer => {
         if (!Array.isArray(layer)) {
             return;
         }
-        layer.forEach(function(out) {
+        layer.forEach(out => {
+            if (out.gcode) {
+                return;
+            }
             if (out.tool && out.tool !== ctool) {
                 ctool = toolByNumber(out.tool);
                 toolz[out.tool] = ctool;
@@ -313,30 +356,47 @@ CAM.export = function(print, online) {
 
     // emit all points in layer/point order
     for (let layerout of print.output) {
-        if (!Array.isArray(layerout)) {
-            append(layerout.toString().trim());
-            continue;
+        const newmode = layerout.mode;
+        if (newmode) {
+            if (newmode.type === 'laser on') {
+                laserOp = newmode;
+            } else if (newmode.type === 'laser off') {
+                laserOp = undefined;
+                // force tool change in case laser tool matches next tool
+                pos.t = undefined;
+            }
         }
-        if (mode !== layerout.mode || consts.tool !== layerout[0].tool) {
+        const firstOut = layerout[0];
+        if (newmode && !newmode.silent && mode !== newmode) {
             if (mode && !stripComments) {
-                append("; ending " + mode + " op after " + Math.round(time/60) + " seconds");
+                append("; ending " + mode.type + " op after " + Math.round(time/60) + " seconds");
             }
-            mode = layerout.mode;
+            mode = newmode;
             if (mode) {
-                section(`op-${opnum++}-${mode}`);
+                section(`op-${opnum++}-${mode.type}`);
             }
-            if (!stripComments) {
-                append("; starting " + mode + " op");
+            if (!stripComments && mode) {
+                append("; starting " + mode.type + " op");
             }
         }
         newSpindle = layerout.spindle;
+        // iterate over layer output records
         for (let out of layerout) {
-            moveTo(out);
+            if (out.gcode && Array.isArray(out.gcode)) {
+                filterEmit(out.gcode, consts);
+            } else {
+                moveTo(out);
+            }
+        }
+        if (lasering && laserOp) {
+            // disable laser
+            filterEmit(laserOp.off, consts);
+            lasering = false;
         }
     }
 
     if (mode && !stripComments) {
-        append("; ending " + mode + " op after " + Math.round(time/60) + " seconds");
+        append("; ending " + mode.type + " op after " + Math.round(time/60) + " seconds");
     }
 
     // emit gcode post

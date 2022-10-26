@@ -3,6 +3,7 @@
     --bg-gray: rgba(0,0,0,0.25);
     --gradbar: linear-gradient(to right, #ddd, #666, #ddd);
     --holdbar: linear-gradient(to top, rgba(100,100,100,0.1), rgba(255,255,255,1), rgba(100,100,100,0.1));
+    --holdbar-dk: linear-gradient(to top, rgba(100,100,100,0.1), rgba(255,255,255,0.25), rgba(100,100,100,0.1));
     --holdbar-sf: linear-gradient(to top, rgba(200,200,200,0.1), rgba(255,255,255,1), rgba(200,200,200,0.1)) !important;
     --highlight: rgba(126,153,183,0.4);
     --main-color: rgba(126,153,183,1);
@@ -375,7 +376,7 @@ th, tr, td, label {
     background-color: rgba(0,0,0,0.2);
 }
 
-#app-acct {
+#app-acct, #app-xpnd {
     align-items: center;
     justify-content: flex-end;
 }
@@ -454,6 +455,10 @@ th, tr, td, label {
 #mid-lcol, #mid-rcol, #modal {
     pointer-events: visible;
     text-transform: capitalize;
+}
+
+#mid-lcol label, #mid-lcol svg {
+    pointer-events: none;
 }
 
 #acct-pop {
@@ -804,7 +809,7 @@ th, tr, td, label {
     display: none;
     padding: 0;
     height: 38px;
-    margin: 0 0 4px 0;
+    margin: 0 0 max(4px, env(safe-area-inset-bottom)) 0;
 }
 #camops .left {
     width: 12px;
@@ -911,6 +916,12 @@ th, tr, td, label {
 #oplist div:hover .opop {
     display: flex;
 }
+.mobile #oplist {
+    font-size: larger;
+}
+.mobile #op-add-pop {
+    font-size: larger;
+}
 #op-add-pop {
     position: absolute;
     display: none;
@@ -920,16 +931,24 @@ th, tr, td, label {
 #op-add:hover #op-add-pop {
     display: flex;
 }
+.op-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 5px;
+}
 #op-add-list {
     padding: 4px;
     display: flex;
     align-items: stretch;
-    flex-direction: column-reverse;
+    flex-direction: column;
 }
 #op-add-list > div {
     padding: 3px 5px 3px 5px;
     display: flex;
     flex-direction: column;
+    border: 1px dashed gray;
     border-radius: 3px;
 }
 #op-add-list > div:hover {
@@ -983,6 +1002,9 @@ th, tr, td, label {
     border-bottom: 1px solid black;
     border-top: 1px solid black;
     overflow: hidden;
+}
+#modal button, #modal select {
+    color: black !important;
 }
 #modal > div {
     position: absolute;
@@ -1528,13 +1550,19 @@ th, tr, td, label {
     font-size: smaller;
     left: 15px;
     right: 15px;
-    bottom: 3px;
+    bottom: max(3px, env(safe-area-inset-bottom));
     pointer-events: all;
+}
+#slider.slider-mobile {
+    height: 40px !important;
 }
 #slider {
     display: none;
     height: 30px;
     z-index: 100;
+}
+.mobile .sli-drag-el {
+    background-color: rgba(200,0,0,0.8) !important;
 }
 #slider-hi-val, #slider-lo-val {
     display: none;
@@ -1552,14 +1580,15 @@ th, tr, td, label {
     flex-direction: row;
     align-items: center;
 }
-#slider-max {
-    background-color: #ccc;
-    border-top-right-radius: 10px;
-    border-bottom-right-radius: 10px;
-    margin-left: 3px;
+.dark #slider-center {
+    background-image: var(--holdbar-dk);
 }
 #slider-center {
     background-image: var(--holdbar);
+}
+.dark #slider-zero, .dark #slider-max {
+    background-color: #555;
+    color: white;
 }
 #slider-zero {
     z-index: 10;
@@ -1568,12 +1597,24 @@ th, tr, td, label {
     border-top-left-radius: 10px;
     border-bottom-left-radius: 10px;
 }
+#slider-max {
+    background-color: #ccc;
+    border-top-right-radius: 10px;
+    border-bottom-right-radius: 10px;
+    margin-left: 3px;
+}
+.dark #slider-hold {
+    background-color: rgba(255,255,255,0.25);
+}
 #slider-hold {
     background-color: rgba(0,0,0,0.15);
     position: absolute;
     bottom: 0;
     right: 0;
     top: 0;
+}
+#slider-hold .slider-mobile {
+    width: 40px !important;
 }
 #slider-hold .handle {
     width: 15px;

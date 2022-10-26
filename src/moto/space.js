@@ -1316,8 +1316,11 @@ gapp.register("moto.space", [], (root, exports) => {
             domelement.style.height = height();
 
             // workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=1321452
-            let Renderer = nav.platform === 'MacIntel' &&
-                nav.vendor.indexOf('Google') >= 0 ? WebGL1Renderer : WebGLRenderer;
+            // and android requires older rendered to avoid visual Z order artifacts
+            let Renderer =
+                (nav.platform.indexOf('Linux') >= 0) ||
+                (nav.platform === 'MacIntel' && nav.vendor.indexOf('Google') >= 0) ?
+                WebGL1Renderer : WebGLRenderer;
 
             renderer = new Renderer({
                 antialias: antiAlias,
@@ -1441,7 +1444,8 @@ gapp.register("moto.space", [], (root, exports) => {
                 ver: ctx.getParameter(ctx.VERSION),
                 ven: ctx.getParameter(ctx.VENDOR),
                 glr: ctx.getParameter(ctx.RENDERER),
-                pla: nav.platform
+                pla: nav.platform,
+                mob: nav.maxTouchPoints > 1 || (/android/i.test(nav.userAgent))
             };
 
             initialized = true;

@@ -13,8 +13,10 @@ self.kiri.lang['en-us'] = {
     done:           "done",
     edit:           "edit",
     enable:         "enable",
+    disable:        "disable",
     export:         "export",
     files:          "files",
+    fullscreen:     "fullscreen",
     help:           "help",
     ghost:          "ghost",        // left render pop menu (wireframe)
     hide:           "hide",         // left render pop menu (invisible)
@@ -25,6 +27,8 @@ self.kiri.lang['en-us'] = {
     mesh:           "mesh",         // mesh editing
     metric:         "metric",
     name:           "name",
+    off:            "off",          // turn something off (like a lightbulb)
+    on:             "on",           // turn something on (like a lightbulb)
     prefs:          "prefs",        // left menu "preferences"
     preview:        "preview",
     recent:         "recent",
@@ -140,6 +144,8 @@ self.kiri.lang['en-us'] = {
     dv_strc_l:      ["strip gcode comments","comments begin with ;"],
     dv_fext_s:      "file extension",
     dv_fext_l:      "file name extension",
+    dv_lazr_s:      "enable laser",
+    dv_lazr_l:      ["enable laser operations"],
 
     dv_dwll_s:      "dwell",
     dv_dwll_l:      "gcode dwell script",
@@ -411,6 +417,8 @@ self.kiri.lang['en-us'] = {
     sp_area_l:      ["minimum area for","a support column","in millimeters","smaller values will","slow detection"],
     sp_xpnd_s:      "expand",
     sp_xpnd_l:      ["expand support area","beyond part boundary","in millimeters"],
+    sp_grow_s:      "grow",
+    sp_grow_l:      ["grow support column to fill small gaps","in millimeters"],
     sp_nozl_s:      "extruder",
     sp_nozl_l:      ["in multi-extruder systems","the extruder to use for","support material"],
     sp_outl_s:      "outline",
@@ -547,6 +555,26 @@ self.kiri.lang['en-us'] = {
     cf_menu:        "flip",
     cf_nvrt_s:      "z bottom",
     cf_nvrt_l:      "invert z bottom setting to follow stock",
+
+    // CNC LASER
+    cl_powr_s:      "power",
+    cl_powr_l:      "laser power from 0 to 1.0",
+    cl_adap_s:      "adaptive",
+    cl_adap_l:      "use adaptive power based on Z height",
+    cl_adrp_s:      "repeating",
+    cl_adrp_l:      "apply a moduluse of Z height using the given band to make repeating patterns",
+    cl_flat_s:      "flatten",
+    cl_flat_l:      "flatten output to a given Z height",
+    cl_flaz_s:      "flat height",
+    cl_flaz_l:      ["flatten output to this Z height", "in workspace units"],
+    cl_minp_s:      "z min power",
+    cl_minp_l:      ["power setting at the lowest part of the Z band. may be higher or lower than the other end of the Z band."],
+    cl_maxp_s:      "z max power",
+    cl_maxp_l:      ["power setting at the highest part of the Z band. may be higher or lower than the other end of the Z band."],
+    cl_minz_s:      "min z height",
+    cl_minz_l:      ["lowest Z band position"],
+    cl_maxz_s:      "max z height",
+    cl_maxz_l:      ["highest Z band position. when set to 0, uses the highest Z point of the workspace"],
 
     // CNC CUTOUT TABS
     ct_menu:        "tabs",

@@ -106,6 +106,7 @@ async function path(levels, update, opts = {}) {
     let lastEnd = null;
     let lastOut = null;
     let current = null;
+    let currentLaser = null;
     let retracted = false;
     let retractz = 0;
 
@@ -124,6 +125,7 @@ async function path(levels, update, opts = {}) {
         const changes = [];
         const retracts = [];
         const engages = [];
+        const lasers = [];
         const output = new kiri.Layers();
         layers.push(output);
 
@@ -141,6 +143,10 @@ async function path(levels, update, opts = {}) {
         let emits = 0;
 
         level.forEach(out => {
+            // skip cam gcode records
+            if (out.gcode) {
+                return;
+            }
             if (retracted && out.emit) {
                 retracted = false;
                 engages.push(lastOut.point);
@@ -185,6 +191,19 @@ async function path(levels, update, opts = {}) {
                     }
                     current.push(out.point);
                 }
+                if (out.type === 'laser') {
+                    current.isLaser = true;
+                    if (out.emit) {
+                        if (!lastOut.emit || out.emit !== lastOut.emit) {
+                            // off to on or different power
+                            currentLaser = newPolygon().setOpen();
+                            currentLaser.push(lastOut.point);
+                            currentLaser.color = rate_to_color(out.emit, 1);
+                            lasers.push(currentLaser);
+                        }
+                        currentLaser.push(out.point);
+                    }
+                }
                 lastEnd = null;
             } else {
                 current = newPolygon().setOpen();
@@ -199,11 +218,23 @@ async function path(levels, update, opts = {}) {
             lastOut = out;
         });
 
+        if (!lastOut) {
+            // laser levels alone
+            return;
+        }
+
         lastEnd = lastOut;
 
         // all moves with an emit at the very end (common in contouring)
         if (lastOut.emit && !emits) {
             pushPrint(lastOut.tool, current)
+        }
+
+        if (lasers.length) {
+            for (let poly of lasers)
+            output
+                .setLayer('power', { line: 0x000055, face: 0x0000ff, opacity: 0.5 }, true)
+                .addPolys([ poly ], { thin: true, z: opts.z, color: poly.color });
         }
 
         if (changes.length) {
@@ -258,8 +289,9 @@ async function path(levels, update, opts = {}) {
                     poly.setClosed();
                     poly.points.pop();
                 }
+                let action = poly.isLaser ? 'speed' : opts.action || 'print';
                 output
-                    .setLayer(opts.action || 'print', printOpt)
+                    .setLayer(action, printOpt)
                     .addPolys([ poly ],
                         thin ? { thin, z: opts.z, color: poly.color } :
                         flat ? {
