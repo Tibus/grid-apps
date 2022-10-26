@@ -5,7 +5,7 @@
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
     "main": "index.js",
-    "cleanForProd": "apps/ conf/ cpp/ data/ logs/ src/ web/",
+    "cleanForProd": "apps/ conf/ cpp/ data/ logs/ src/ web/ ",
     "scripts": {
         "preinstall": "npm run concatModule",
         "install": "node-gyp rebuild -j max",
