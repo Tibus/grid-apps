@@ -4,12 +4,12 @@
     "description": "grid.space 3d slice & modeling tools",
     "author": "Stewart Allen <sa@grid.space>",
     "license": "MIT",
-    "main": "index.js",
+    "main": "code/module.js",
     "cleanForProd": "apps/ conf/ cpp/ data/ logs/ src/ web/ ",
     "scripts": {
         "preinstall": "npm run concatModule",
         "install": "node-gyp rebuild -j max",
-        "test": "node --expose_gc ./test.js",
+        "test": "npm run concatModule && node --expose_gc ./test.js",
         "concatModule": "node scripts/concatFiles.js scripts/concatModuleScripts.txt ./code/module.js",
         "installAndTest": "npm install && npm run test",
         "publish:release": "node ./scripts/publish.js"

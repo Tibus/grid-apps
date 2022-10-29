@@ -221,10 +221,12 @@ Array.handle = function(fn) {
 };
 
 for (let i in AP) {
-    Object.defineProperty(Array.prototype, i, {
-        value: AP[i],
-        enumerable: false
-    });
+    if(!Array.prototype[i]) {
+        Object.defineProperty(Array.prototype, i, {
+            value: AP[i],
+            enumerable: false
+        });
+    }
 }
 
 String.prototype.reverse = function() {

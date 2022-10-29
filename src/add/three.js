@@ -39,18 +39,20 @@ THREE.dispose = function(obj) {
 };
 
 // add .dim and .mid getters to Box3
-Object.defineProperties(XP, {
-    dim: {
-        get: function() {
-            return this.max.clone().sub(this.min);
+if(!XP.hasOwnProperty("dim")) {
+    Object.defineProperties(XP, {
+        dim: {
+            get: function () {
+                return this.max.clone().sub(this.min);
+            }
+        },
+        mid: {
+            get: function () {
+                return this.dim.clone().multiplyScalar(0.5).add(this.min);
+            }
         }
-    },
-    mid: {
-        get: function() {
-            return this.dim.clone().multiplyScalar(0.5).add(this.min);
-        }
-    }
-});
+    });
+}
 
 MP.getBoundingBox = function(update) {
     return this.geometry.getBoundingBox(update);
