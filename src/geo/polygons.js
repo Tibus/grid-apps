@@ -413,7 +413,7 @@ function subtract(setA, setB, outA, outB, z, minArea, opt = {}) {
         }
 
         if(!successCpp){
-            console.log("success", success/*, error*/);
+            console.log("_____ success", success/*, error*/);
             opt.cpp = false;
             //ConsoleTool.timeStepEnd("polygons_subtract");
             return subtract(setA, setB, outA, outB, z, minArea, opt);
